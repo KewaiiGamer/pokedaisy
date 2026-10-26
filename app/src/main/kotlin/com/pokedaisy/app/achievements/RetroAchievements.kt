@@ -135,6 +135,10 @@ object RetroAchievements : CompanionAchievements {
      * until every cheat is off again, like other emulators do. Emu thread. */
     @Volatile private var cheatsActive = false
 
+    /** A co-op battle is running on this device (CoopBattles): the link battle is not the player's own game,
+     * so achievements idle as they do with cheats (no popup: the battle is short). Any thread. */
+    @Volatile var coopBattle = false
+
     /** Plays the game's fanfare (set by the game's activity); from the emu thread, on an unlock. */
     @Volatile var onUnlockSound: (() -> Unit)? = null
 
@@ -407,7 +411,7 @@ object RetroAchievements : CompanionAchievements {
             resumeProgress?.let { RaNative.raDeserializeProgress(it) }
             resumeProgress = null
         }
-        if (cheatsActive) RaNative.raIdle() else RaNative.raDoFrame()
+        if (cheatsActive || coopBattle) RaNative.raIdle() else RaNative.raDoFrame()
         // Debug builds: what rc_client sees, every ~10 s of emulated time.
         if (BuildConfig.DEBUG && ++debugFrames >= 600) {
             debugFrames = 0

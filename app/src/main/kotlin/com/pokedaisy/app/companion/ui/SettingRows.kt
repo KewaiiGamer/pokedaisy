@@ -51,6 +51,8 @@ class SettingRow(
     val opensPage: Boolean = false,
     /** A group title drawn to stand out ([featuredGroupTitle]). */
     val featured: Boolean = false,
+    /** More (or less) of the line for the label than the page's default: a long label beside a short value. */
+    val labelWeight: Float? = null,
     val onClick: () -> Unit,
 )
 
@@ -86,6 +88,14 @@ fun filterRows(rows: List<SettingRow>, query: String): List<SettingRow> {
  */
 val FLAGGED_SETTING_KEYWORDS: Map<String, String> = mapOf(
     "ScreenScraper" to "scraper scraping media artwork art box art boxart covers screenshots logos wheel fanart videos synopsis",
+    // CO-OP (FeatureFlags.coop): moves to SETTING_KEYWORDS, with its manual page, when the flag goes.
+    "LINK" to "co-op coop connection connected status partner online",
+    "PAIR" to "co-op coop multiplayer multi player two player online friend partner link invite qr code join netplay play together",
+    "PARTNERS" to "co-op coop paired friends unpair forget remove partner",
+    "NEARBY RANGE" to "co-op coop range distance join co-op battle battle together how close steps",
+    "RELAY" to "co-op coop server relay address url self hosted",
+    "RELAY ONLY" to "co-op coop privacy hide ip address relay only",
+    "PLAY TOGETHER ONLY" to "co-op coop lock together story wait partner both players new game only",
 )
 
 /**
@@ -368,7 +378,7 @@ private fun GroupedRowsList(
                     height = if (row.subtitle != null) rowHeight + subtitleLine else rowHeight + m.u * ONE_LINE_ROW_EXTRA,
                     bottomPadding = if (row.subtitle != null) 0.dp else m.u * ONE_LINE_ROW_EXTRA,
                     divider = rows.getOrNull(i + 1)?.header == false, labelBadge = row.labelBadge, labelIcon = row.labelIcon,
-                    valueBadge = row.badge, enabled = row.enabled, subtitle = row.subtitle, labelWeight = labelWeight,
+                    valueBadge = row.badge, enabled = row.enabled, subtitle = row.subtitle, labelWeight = row.labelWeight ?: labelWeight,
                     chevron = row.opensPage,
                     onFocus = onFocused?.let { f -> { f(i) } },
                 ) { onClick(i) }
