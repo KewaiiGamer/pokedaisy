@@ -47,6 +47,9 @@ static const struct { uint32_t addr, expect, value; int len; } sLwPatches[] = {
     // the intro slide's link task moves the VS letters off by their sprite ids (gBattleStruct + 0x7D / 0x7E, set by the VS screen we skip): 0 = the
     // healthbox at sprite 0 (the host's own, battler 0) slid off the screen
     { COOP_EM_LINK_WILD_INTRO_VS_SPRITES, COOP_EM_LINK_WILD_INTRO_VS_SPRITES_INSN, COOP_EM_LINK_WILD_INTRO_VS_SPRITES_NEW, 2 },
+    // the win's / loss's end script takes the tower's branch (a trainer's defeat text, its slide in and its speech: "HIKER SAWYER were defeated!" at the
+    // end of a wild battle) for BATTLE_TYPE_BATTLE_TOWER: its jump goes to the script's `endlinkbattle` instead (a wild battle's end shows nothing)
+    { COOP_EM_LINK_WILD_END_TOWER_JUMP, COOP_EM_LINK_WILD_END_TOWER_JUMP_ORIG, COOP_EM_LINK_WILD_END_TOWER_JUMP_NEW, 4 },
 };
 #define LW_PATCH_COUNT ((int) (sizeof(sLwPatches) / sizeof(sLwPatches[0])))
 
@@ -77,6 +80,57 @@ int pk_coop_link_wild_patches_in(struct mCore* core, int* in) {
 void pk_coop_link_wild_patches_out(struct mCore* core, int* in) {
     for (int i = *in - 1; i >= 0; i--) {
         pk_cheats_unpatch_range(core, sLwPatches[i].addr, (uint32_t) sLwPatches[i].len);
+    }
+    *in = 0;
+}
+
+// A joined ONE-TRAINER battle (kind SINGLE): the tower link multi's two trainers become one trainer who throws both Pokémon, as in a
+// normal trainer's double battle (found and explained in scripts/gen_coop_emerald.py, find_link_single_sites): the VS screen is skipped
+// (it would name the same trainer twice), the second foe has no picture or ball throw (the foe controllers' flank tests read MULTI as
+// off, on the AI foe's side and the link foe's alike), the texts name one trainer, and the win's script ends after the first trainer's
+// speech. The player side stays the link multi (gBattleTypeFlags is not touched).
+#define LS_F(n) { COOP_EM_SINGLE_FOE_MULTI_##n, COOP_EM_SINGLE_FOE_MULTI_##n##_INSN, COOP_EM_SINGLE_FOE_MULTI_##n##_NEW, 2 }
+#define LS_T(n) { COOP_EM_SINGLE_TEXT_##n, COOP_EM_SINGLE_TEXT_##n##_OLD, COOP_EM_SINGLE_TEXT_##n##_NEW, 4 }
+static const struct { uint32_t addr, expect, value; int len; } sLsPatches[] = {
+    { COOP_EM_LINK_WILD_VS_TASK_PTR, COOP_EM_LINK_WILD_VS_TASK_PTR_PTR, COOP_EM_LINK_ENTRY_WILD_NOVS | 1u, 4 },
+    { COOP_EM_LINK_WILD_INTRO_VS_SPRITES, COOP_EM_LINK_WILD_INTRO_VS_SPRITES_INSN, COOP_EM_LINK_WILD_INTRO_VS_SPRITES_NEW, 2 },
+    { COOP_EM_INTRO_FOE_RIGHT_CMP, COOP_EM_INTRO_FOE_RIGHT_CMP_INSN, COOP_EM_INTRO_FOE_RIGHT_CMP_NEW, 2 },
+    { COOP_EM_SINGLE_CHAIN_BNE, COOP_EM_SINGLE_CHAIN_BNE_INSN, COOP_EM_SINGLE_CHAIN_BNE_NEW, 2 },
+    LS_F(0), LS_F(1), LS_F(2), LS_F(3), LS_F(4), LS_F(5), LS_F(6), LS_F(7), LS_F(8), LS_F(9),
+    { COOP_EM_SINGLE_FOE_MASK_0, COOP_EM_SINGLE_FOE_MASK_0_INSN, COOP_EM_SINGLE_FOE_MASK_0_NEW, 4 },
+    { COOP_EM_SINGLE_FOE_X_0, COOP_EM_SINGLE_FOE_X_0_INSN, COOP_EM_SINGLE_FOE_X_0_NEW, 2 },
+    { COOP_EM_SINGLE_FOE_X_1, COOP_EM_SINGLE_FOE_X_1_INSN, COOP_EM_SINGLE_FOE_X_1_NEW, 2 },
+    LS_T(0), LS_T(1), LS_T(2), LS_T(3),
+    { COOP_EM_SINGLE_WIN_GOTO_A, COOP_EM_SINGLE_WIN_GOTO_A_ORIG, COOP_EM_SINGLE_WIN_GOTO_A_NEW, 4 },
+    { COOP_EM_SINGLE_WIN_GOTO_B, COOP_EM_SINGLE_WIN_GOTO_B_ORIG, COOP_EM_SINGLE_WIN_GOTO_B_NEW, 1 },
+};
+#define LS_PATCH_COUNT ((int) (sizeof(sLsPatches) / sizeof(sLsPatches[0])))
+
+uint32_t pk_coop_link_single_failed_at;   // the patch address the last single_patches_in stopped at (0 = none)
+
+int pk_coop_link_single_patches_in(struct mCore* core, int* in) {
+    pk_coop_link_single_failed_at = 0;
+    *in = 0;
+    for (int i = 0; i < LS_PATCH_COUNT; i++) {
+        uint8_t expect[4], value[4];
+        for (int b = 0; b < sLsPatches[i].len; b++) {
+            expect[b] = (uint8_t) (sLsPatches[i].expect >> (8 * b));
+            value[b] = (uint8_t) (sLsPatches[i].value >> (8 * b));
+        }
+        pk_coop_link_single_failed_at = sLsPatches[i].addr;
+        if (pk_cheats_patch_overlaps(sLsPatches[i].addr, (uint32_t) sLsPatches[i].len)
+            || !pk_cheats_patch(core, sLsPatches[i].addr, expect, sLsPatches[i].len, sLsPatches[i].addr, value, sLsPatches[i].len)) {
+            pk_coop_link_single_patches_out(core, in);
+            return 0;
+        }
+        *in = i + 1;
+    }
+    return 1;
+}
+
+void pk_coop_link_single_patches_out(struct mCore* core, int* in) {
+    for (int i = *in - 1; i >= 0; i--) {
+        pk_cheats_unpatch_range(core, sLsPatches[i].addr, (uint32_t) sLsPatches[i].len);
     }
     *in = 0;
 }

@@ -6,6 +6,9 @@
 #
 # want: PASS linkwait 2
 # want: linknoerror 1
+# Run 8 (a trainer at the end of a wild battle: "HIKER SAWYER were defeated!" + its slide, the tower link win script): the wild kind
+# points BattleScript_LinkBattleWonOrLost's tower jump at its endlinkbattle (its pointer's low byte 0x082DAA3F = 0x57 on both cores while it runs;
+# a trainers battle keeps the file's 0x5C); the screens were read in screenshots at every hit.
 # want: PASS linkwait 3
 pair $PARTNER_SAVE
 on b
@@ -25,6 +28,10 @@ on b
 linkstart 0 1 0 0
 linkwait 2 2500
 linknoerror 1
+on a
+expect8 0x082DAA3F 0x57
+on b
+expect8 0x082DAA3F 0x57
 on a
 waitmem32 0x03005D60 0x08057589 3000
 on b

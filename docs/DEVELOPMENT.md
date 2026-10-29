@@ -2306,7 +2306,7 @@ the INGAME_PARTNER traded-boost `beq` (slots 3-5 are never boosted), table point
 `sTurnActionsFuncsTable[B_ACTION_USE_ITEM]`, and head patches on `ItemUseInBattle_PokeBall`, `CompleteWhenChoseItem`,
 `Cmd_trysetcaughtmondexflags`, `Cmd_givecaughtmon`.
 - EXP: the master's `Cmd_getexp` wrapper fakes the exec flags in state 1 so the game works its totals out and waits, then works each
-  side's share out (each side divides by ITS sent-in Pokémon and Exp. Share holders), sets `*exp` / `gExpShareExp` for the side of the
+  side's share out (each fainted foe's yield is halved first, one half per side, never below 1 for a yield of 1+: a joined battle pays one normal battle's total between the two players, 2026-10-26; then each side divides its half by ITS sent-in Pokémon and Exp. Share holders), sets `*exp` / `gExpShareExp` for the side of the
   Pokémon whose turn it is each frame in state 2 (and marks battler 0 absent for a benched partner Pokémon, so its EXP update goes
   to battler 2, not the host's controller), and mirrors the update into the master's own copy of a partner Pokémon in state 3 (the
   partner's game gives its copy the same through its own controller; the leftover after a level comes back as `TWORETURNVALUES` 11, accepted
@@ -2361,6 +2361,20 @@ An uneven end (one game's text box holds its battle 300 frames longer: `link_end
 `CONTROLLER_IS_DONE` reaches an ended master, whose `give` refuses it (counted in `refused`; the app drops it) and no game sends a block
 after its own ENDED. Checked: `link_end_won` / `_single_prize` / `_lost` / `_lost_reserve` / `_blackout` / `_blackout_all` / `_evolve` /
 `_uneven` (the evolution scene's level is worked out from EXP again: a poked level shows as the old one afterwards).
+
+**One trainer's look** (kind 3, `PK_COOP_LINK_SINGLE`, test `link_single_foe_look`): the tower link multi draws two foe trainers (a picture, a ball
+throw and a send-out each, "A and B sent out X and Y", the VS screen naming both), which for one trainer showed the same trainer twice. The kind
+puts in a second patch table (`sLsPatches`, same file, `pk_coop_link_single_patches_in` / `_out`, found by `find_link_single_sites` in
+`scripts/gen_coop_emerald.py`) so the foe side is a normal double trainer battle while the player side stays the link multi (the global flags
+are never touched): the VS screen is skipped like the wild kind's; the second foe has no picture or throw (`INTRO_FOE_RIGHT_CMP`,
+`SINGLE_CHAIN_BNE`: `BattleIntroOpponent1SendsOutMonAnimation` no longer goes on to the second throw); the foe controllers'
+(`battle_controller_opponent.c` and `battle_controller_link_opponent.c`, one for the host's AI foes, one for the other core's) flank tests
+`gBattleTypeFlags & BATTLE_TYPE_MULTI` read as off (`SINGLE_FOE_MULTI_<n>`, `movs rN, #0x40` -> `#0` after the flags load; `Task_StartSendOutAnim`
+then sends both Pokémon from the first foe's throw, the left healthbox shows both boxes), not the music test or the position-3 delay;
+the trainer stands at x 176 (`SINGLE_FOE_X_<n>`); the three texts that name two trainers point at the one-trainer ones
+(`SINGLE_TEXT_<n>`: "wants to battle", "sent out A and B", "Player defeated ..."); and `BattleScript_TowerLinkBattleWon`'s second slide-in
+and speech are jumped over with a `goto` to its `endlinkbattle` (`SINGLE_WIN_GOTO_*`). Looked at headless with `shot` on both cores (the
+intro through the action menu, the win through the field). The patches go out in `pk_coop_link_reset` with the rest.
 
 **The app drives it (plan 6 Task 8b: `CoopLinkFlow`, `CoopLinkBattle`, `CoopBattles.kt`'s glue)**: with the native bridge the glue runs every joined
 battle through `CoopLinkFlow` . Wild / two trainers / one trainer: the host's game is held

@@ -1,0 +1,45 @@
+# device-like start: partner first, host 20 frames later, delay 3 jitter 0; both reach the action prompt
+# want: PASS linkwait 2
+pair $PARTNER_SAVE
+linknoerror 1
+linkdelay 3
+linkjitter 0
+on b
+@boot
+on a
+coopinstall
+poke32 0x03005D80 9
+call 0x080B5288 2 2
+waittask 0x080B05F0 120
+joinhold
+on b
+linkstart 0 1 0 0
+linkrun 20
+on a
+linkstart 1
+linkwait 2 2500
+on a
+waitmem32 0x03005D60 0x08057589 6000
+on b
+waitmem32 0x03005D68 0x08057589 6000
+on a
+poke16 0x02024104 999
+poke16 0x02024108 999
+hold A 4
+linkrun 40
+hold A 4
+linkrun 40
+hold A 4
+linkrun 40
+on b
+hold A 4
+linkrun 40
+hold A 4
+linkrun 40
+hold A 4
+linkrun 300
+on a
+waitmem32 0x03005D60 0x08057505 3000
+on b
+waitmem32 0x03005D68 0x08057505 3000
+linkinfo

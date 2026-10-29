@@ -39,6 +39,7 @@ class FakeLinkEngine : CoopLinkEngine {
     var bad: ByteArray? = null
     var badCalls = 0
     override fun badBlocks(): ByteArray? { badCalls++; return bad }
+    override fun diag(): String = "state $state fake"
     override fun leave(blackout: Boolean) { leaves += blackout; log += "leave $blackout" }
     override fun result() = result
     override fun caught() = caught

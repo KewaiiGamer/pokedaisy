@@ -57,7 +57,9 @@ LINK_HOOKS = [("SendBlock", "SENDBLOCK"), ("IsLinkTaskFinished", "ISLINKTASKFINI
               ("FindLinkBattleMaster", "FINDLINKBATTLEMASTER"),   # task 3
               # task 4 (pk_coop_link_rewards.c's own head patches)
               ("ItemUseInBattle_PokeBall", "BALL"), ("CompleteWhenChoseItem", "CHOSE_ITEM"),
-              ("Cmd_trysetcaughtmondexflags", "CATCH_DEX"), ("Cmd_givecaughtmon", "CATCH_GIVE")]
+              ("Cmd_trysetcaughtmondexflags", "CATCH_DEX"), ("Cmd_givecaughtmon", "CATCH_GIVE"),
+              # run 9: the player controller's ball throw animation, aimed at the one foe that stands
+              ("PlayerHandleBallThrowAnim", "BALLANIM")]
 RETAIL_SHA1 = "f3ae088181bf583e55daf962a92bb46f4f1d07b7"
 ROM_BASE = 0x08000000
 CRC_BYTES = 32
@@ -172,6 +174,8 @@ FUNCTIONS = [
     ("GetPartyIdFromBattleSlot", "GetPartyIdFromBattleSlot"),
     ("Cmd_handleballthrow", "Cmd_handleballthrow"),
     ("Cmd_drawlvlupbox", "Cmd_drawlvlupbox"),
+    ("PlayerHandleBallThrowAnim", "PlayerHandleBallThrowAnim"),   # run 9: replaced whole (link_entry_BALLANIM)
+    ("InitAndLaunchSpecialAnimation", "InitAndLaunchSpecialAnimation"),
     ("ItemUseInBattle_PPRecovery", "ItemUseInBattle_PPRecovery"),
     # task 5 (the end of a joined link battle)
     ("CB2_InitEndLinkBattle", "CB2_InitEndLinkBattle"),
@@ -209,8 +213,8 @@ RAM = ["gMain", "gTasks", "gBattleTypeFlags", "gPlayerParty", "gPlayerPartyCount
        "sGlobalScriptContextStatus"]
 # Battle scripts (data/battle_scripts_1.s labels: byte-aligned ROM data, `D` to nm) the bridge's code jumps to: a partner's catch goes
 # straight to the first one.
-BATTLE_SCRIPTS = ["BattleScript_GiveCaughtMonEnd"]
-EMIT_SCRIPTS = BATTLE_SCRIPTS
+BATTLE_SCRIPTS = ["BattleScript_GiveCaughtMonEnd", "BattleScript_LinkBattleWonOrLost", "BattleScript_TowerLinkBattleWon"]
+EMIT_SCRIPTS = ["BattleScript_GiveCaughtMonEnd"]
 
 # (define name, C expression), compiled by agbcc against the decomp's headers.
 OFFSETS = [
@@ -318,7 +322,7 @@ PROBE_HEADERS = ["global.h", "task.h", "battle.h", "battle_controllers.h", "data
 
 # task 3: the escape's end (our RAN_FINISH stub reads these)
 ROM_DATA += ["sEndTurnFuncsTable"]
-RAM += ["gCurrentActionFuncId"]
+RAM += ["gCurrentActionFuncId", "gBattleSpritesDataPtr", "gDoingBattleAnim"]
 CONSTANTS += ["B_ACTION_TRY_FINISH", "B_ACTION_FINISHED"]
 # --- Task 6 (story battles as link battles, pk_coop_link_story.c): the story trainer start's hook, the pick screen's pieces ---
 FUNCTIONS += [("BattleSetup_StartTrainerBattle", "BattleSetup_StartTrainerBattle"),
@@ -557,7 +561,151 @@ def find_link_wild_sites(rom, ranges, addr_of):
         die("the intro slide's VS letter sprites: no SetGpuReg(WININ) after 0x%08X" % (ROM_BASE + site))
     out["LINK_WILD_INTRO_VS_SPRITES"] = (ROM_BASE + site, [("INSN", struct.unpack_from("<H", rom, site)[0], 4), ("NEW", 0xE000 | ((skip - (site + 4)) // 2), 4)],
         "the intro slide's link task state that sets the VS letters' callbacks, ids at gBattleStruct + 0x7D / 0x7E (_NEW = b past them: a wild battle has no VS screen, the ids read 0 = the player's healthbox sprite)")
+    # BattleScript_LinkBattleWonOrLost's first command is `jumpifword CMP_COMMON_BITS, gBattleTypeFlags, BATTLE_TYPE_BATTLE_TOWER,
+    # BattleScript_TowerLinkBattleWon` (opcode, cmp, 4 + 4 + 4 bytes: the jump target is at +10): the tower's win prints the trainers'
+    # defeat text and slides them in. For the wild kind the target becomes the script's own `endlinkbattle`, 34 bytes in (the
+    # jumpifword, printstring, waitmessage, a second jumpifword).
+    lw = addr_of["BattleScript_LinkBattleWonOrLost"]
+    tower = addr_of["BattleScript_TowerLinkBattleWon"]
+    if struct.unpack_from("<I", rom, lw + 10 - ROM_BASE)[0] != tower or rom[lw + 34 - ROM_BASE] != 0x57:
+        die("BattleScript_LinkBattleWonOrLost: not the expected jumpifword / endlinkbattle shape")
+    out["LINK_WILD_END_TOWER_JUMP"] = (lw + 10, [("ORIG", tower, 8), ("NEW", lw + 34, 8)],
+        "BattleScript_LinkBattleWonOrLost's `jumpifbattletype BATTLE_TYPE_BATTLE_TOWER, BattleScript_TowerLinkBattleWon` target (_NEW = its `endlinkbattle`: a wild end has no trainers' defeat text, trainer slide or speech)")
     return out
+def find_link_single_sites(rom, syms, code_starts, addr_of):
+    """A joined ONE-TRAINER battle (kind SINGLE) shows one trainer who throws both Pokemon, not the tower link multi's two. The
+    tower flow's foes are two trainers (BATTLE_TYPE_MULTI: a picture, a ball throw and a send-out each); these sites make the
+    foe side behave as a normal trainer's double battle while the player side stays the link multi:
+      SINGLE_CHAIN_BNE: BattleIntroOpponent1SendsOutMonAnimation's `if (MULTI | TWO_OPPONENTS) -> Opponent2 throws` bne, a nop.
+      SINGLE_FOE_MULTI_<n>: the foe controllers' (battle_controller_opponent.c, battle_controller_link_opponent.c) flank tests
+        `gBattleTypeFlags & BATTLE_TYPE_MULTI` (`movs r, #0x40` after the flags load): #0, so the left foe's controller sends out
+        both Pokemon, shows both health boxes and waits for both. Not the bgm test (mask 0x42) nor the position-3 test.
+      SINGLE_FOE_MASK_0: a literal `MULTI | TWO_OPPONENTS` (0x8040) in the opponent controller's shiny code, TWO_OPPONENTS only.
+      SINGLE_FOE_X_<n>: the foe trainer picture's x in the MULTI branch (`movs r, #200`, the left slot) -> 176, the centre.
+      SINGLE_TEXT_<n>: pool words of the intro / send-out / win texts naming two trainers, pointed at the one-trainer texts.
+      SINGLE_WIN_GOTO_*: BattleScript_TowerLinkBattleWon's slide-out of the first trainer + the second's slide-in and speech
+        (`trainerslideout; waitstate; trainerslidein`, 5 bytes) become `goto <its endlinkbattle>`."""
+    out = {}
+    FLAGS = 0x02022FEC
+    ctrl = {"O": (symbol(syms, "SetControllerToOpponent", "Tt") & ~1, symbol(syms, "SetControllerToLinkOpponent", "Tt") & ~1),
+            "L": (symbol(syms, "SetControllerToLinkOpponent", "Tt") & ~1, symbol(syms, "ZeroMonData", "Tt") & ~1)}
+
+    def copy_in(name, lo, hi):
+        found = sorted(a & ~1 for a, t in syms.get(name, []) if t in "Tt" and lo <= (a & ~1) < hi)
+        if len(found) != 1:
+            die("%s: expected one copy in 0x%08X..0x%08X, found %d" % (name, lo, hi, len(found)))
+        nxt = [a for a in code_starts if a > found[0]]
+        return found[0], nxt[0]
+
+    def pool_lits(code, value):
+        return sorted({((a + 4) & ~3) + (code.hw(a) & 0xFF) * 4 for a, _ in code.literal_loads(value)})
+
+    def flag_tests(code):
+        """[address] of `movs rN, #0x40` right after `ldr rN, [pc]` (gBattleTypeFlags) + `ldr rN, [rN]`, whose `ands` follows."""
+        res = []
+        for a in range(code.start + 4, code.end - 4, 2):
+            h = code.hw(a)
+            if h & 0xF8FF != 0x2040 or code.hw(a + 2) & 0xFFC0 != 0x4000:
+                continue
+            ld, pc = code.hw(a - 2), code.hw(a - 4)
+            if ld & 0xF800 == 0x6800 and pc & 0xF800 == 0x4800 and code.word(((a - 4 + 4) & ~3) + (pc & 0xFF) * 4) == FLAGS:
+                res.append(a)
+        return res
+
+    def calls_position(code, a):
+        """True when a `bl GetBattlerPosition` follows within 5 halfwords of a."""
+        for b in range(a + 2, a + 14, 2):
+            h1, h2 = code.hw(b), code.hw(b + 2)
+            if h1 & 0xF800 == 0xF000 and h2 & 0xF800 == 0xF800:
+                off = ((h1 & 0x7FF) << 12) | ((h2 & 0x7FF) << 1)
+                if off & 0x400000:
+                    off -= 0x800000
+                if (b + 4 + off) & 0xFFFFFFFF == (symbol(syms, "GetBattlerPosition", "Tt") & ~1):
+                    return True
+        return False
+
+    # --- the intro's chain to the second foe's ball throw
+    start, end = copy_in("BattleIntroOpponent1SendsOutMonAnimation", 0x08030000, 0x08040000)
+    code = Thumb(rom, start, end)
+    chain = [a for a in range(start + 6, end - 2, 2)
+             if code.hw(a) & 0xFF00 == 0xD100 and code.hw(a - 2) == 0x2800 and code.hw(a - 4) == 0x4008
+             and any(code.hw(b) & 0xF800 == 0x4800 and code.word(((b + 4) & ~3) + (code.hw(b) & 0xFF) * 4) == 0x8040
+                     for b in range(a - 12, a - 4, 2))]
+    if len(chain) != 1:
+        die("BattleIntroOpponent1SendsOutMonAnimation: expected one MULTI | TWO_OPPONENTS bne, found %d" % len(chain))
+    out["SINGLE_CHAIN_BNE"] = (chain[0], [("INSN", code.hw(chain[0]), 4), ("NEW", 0x46C0, 4)],
+        "BattleIntroOpponent1SendsOutMonAnimation's `if (MULTI | TWO_OPPONENTS) go on to the second foe's throw` bne (_NEW = nop: a one-trainer battle has one throw)")
+
+    # --- the foe controllers
+    n = 0
+    for tag, (lo, hi) in ctrl.items():
+        for fn, want, skip_pos in (("Intro_WaitForShinyAnimAndHealthbox", 1, False), ("Intro_TryShinyAnimShowHealthbox", None, True),
+                                   ("Task_StartSendOutAnim", 1, False)):
+            fs, fe = copy_in(fn, lo, hi)
+            code = Thumb(rom, fs, fe)
+            sites = flag_tests(code)
+            if skip_pos:   # the test that goes on to GetBattlerPosition (the foe at position 3's intro delay) stays
+                sites = [a for a in sites if not calls_position(code, a)]
+            if (want is not None and len(sites) != want) or (want is None and len(sites) != (3 if tag == "O" else 3)):
+                die("%s (%s): unexpected number of BATTLE_TYPE_MULTI tests: %s" % (fn, tag, [hex(a) for a in sites]))
+            for a in sites:
+                out["SINGLE_FOE_MULTI_%d" % n] = (a, [("INSN", code.hw(a), 4), ("NEW", code.hw(a) & 0xFF00, 4)],
+                    "%s's `gBattleTypeFlags & BATTLE_TYPE_MULTI` in the %s foe controller (_NEW = movs rN, #0)" % (fn, "AI" if tag == "O" else "link"))
+                n += 1
+    # the opponent controller's shiny code tests `TWO_OPPONENTS | MULTI` as one literal mask
+    fs, fe = copy_in("Intro_TryShinyAnimShowHealthbox", *ctrl["O"])
+    lits = pool_lits(Thumb(rom, fs, fe), 0x8040)
+    if len(lits) != 1:
+        die("Intro_TryShinyAnimShowHealthbox (O): expected one TWO_OPPONENTS | MULTI literal, found %d" % len(lits))
+    out["SINGLE_FOE_MASK_0"] = (lits[0], [("INSN", 0x8040, 8), ("NEW", 0x8000, 8)],
+        "the AI foe controller's shiny code's `TWO_OPPONENTS | MULTI` literal (_NEW = TWO_OPPONENTS alone)")
+    # the picture's x
+    for i, tag in enumerate(("O", "L")):
+        fn = "OpponentHandleDrawTrainerPic" if tag == "O" else "LinkOpponentHandleDrawTrainerPic"
+        fs, fe = copy_in(fn, *ctrl[tag])
+        code = Thumb(rom, fs, fe)
+        xs = [a for a in range(fs, fe, 2) if code.hw(a) & 0xF8FF == 0x20C8]
+        if len(xs) != 1:
+            die("%s: expected one `movs rN, #200` (the left foe's x), found %d" % (fn, len(xs)))
+        out["SINGLE_FOE_X_%d" % i] = (xs[0], [("INSN", code.hw(xs[0]), 4), ("NEW", (code.hw(xs[0]) & 0xFF00) | 176, 4)],
+            "%s's left-slot x in the MULTI branch (_NEW = 176, the centre a single trainer stands at)" % fn)
+
+    # --- the texts that name two trainers
+    def rom_words(value):
+        pat = struct.pack("<I", value)
+        res, i = [], rom.find(pat)
+        while i >= 0:
+            if i % 4 == 0:
+                res.append(ROM_BASE + i)
+            i = rom.find(pat, i + 1)
+        return res
+
+    t = 0
+    for old, new, what in (("sText_TwoTrainersSentPkmn", "sText_Trainer1SentOutTwoPkmn", "the intro's A and B sent out X and Y"),
+                           ("sText_TwoTrainersWantToBattle", "sText_Trainer1WantsToBattle", "the intro's A and B want to battle"),
+                           ("sText_TwoInGameTrainersDefeated", "sText_PlayerDefeatedLinkTrainerTrainer1", "the win's A and B were defeated")):
+        o, nw = symbol(syms, old, "Rr"), symbol(syms, new, "Rr")
+        words = rom_words(o)
+        if not 1 <= len(words) <= 3:
+            die("%s: expected 1 to 3 pointer words, found %d" % (old, len(words)))
+        for w in words:
+            out["SINGLE_TEXT_%d" % t] = (w, [("OLD", o, 8), ("NEW", nw, 8)], "a pointer to %s (_NEW = %s: %s, for one trainer)" % (old, new, what))
+            t += 1
+
+    # --- the win script
+    tw = addr_of["BattleScript_TowerLinkBattleWon"]
+    want = bytes.fromhex("f8013a53033a")   # trainerslideout 1; waitstate; trainerslidein 3; waitstate
+    if rom[tw + 15 - ROM_BASE:tw + 21 - ROM_BASE] != want or rom[tw + 38 - ROM_BASE] != 0x57:
+        die("BattleScript_TowerLinkBattleWon: not the expected slide / endlinkbattle shape")
+    goto = bytes([0x28]) + struct.pack("<I", tw + 38)
+    first = struct.unpack_from("<I", rom, tw + 15 - ROM_BASE)[0]
+    out["SINGLE_WIN_GOTO_A"] = (tw + 15, [("ORIG", first, 8), ("NEW", struct.unpack_from("<I", goto, 0)[0], 8)],
+        "BattleScript_TowerLinkBattleWon's `trainerslideout; waitstate; trainerslidein` first 4 bytes (_NEW = goto + the target's low 3 bytes)")
+    out["SINGLE_WIN_GOTO_B"] = (tw + 19, [("ORIG", rom[tw + 19 - ROM_BASE], 2), ("NEW", goto[4], 2)],
+        "...its fifth byte (the target's high byte): the goto lands on the script's endlinkbattle, so the second trainer is never slid in")
+    return out
+
+
 def find_link_end_sites(rom, ranges, addr_of):
     """Task 5: CB2_InitEndLinkBattle's `if (gBattleTypeFlags & BATTLE_TYPE_FRONTIER)` (mask 0x003F0100) compiled as
     `ldr r0, =mask; ands r0, r1; cmp r0, #0; beq <the VS screen + record prompt>`: the beq becomes a nop (0x46C0) while a joined link
@@ -616,6 +764,22 @@ def find_link_rewards_sites(rom, ranges, k, addr_of):
     out["RW_TRADED_BEQ"] = (found[0], [("INSN", code.hw(found[0]), 4), ("NEW", 0x46C0, 4)],
                             "Cmd_getexp's `if (INGAME_PARTNER ...)` beq to the boost (_NEW = nop: slots 3-5 are never boosted)")
     return out
+
+
+def find_ball_anim_word(rom, ranges):
+    """run 9 (PlayerHandleBallThrowAnim, replaced whole by link_entry_BALLANIM): the shape of the game's function, which our copy repeats but for
+    the foe the animation is aimed at - `push {r4, r5, lr}; ldr r1, =gBattleBufferA; ldr r5, =gActiveBattler; ...; ldr r0, [r0, #8];
+    strb r1, [r0, #8]` (gBattleSpritesDataPtr->animationData->ballThrowCaseId), ..., `ldr r1, =CompleteOnSpecialAnimDone; str r1, [r0]` - and
+    the word its pool holds for the controller's next function (CompleteOnSpecialAnimDone, Thumb bit included)."""
+    start, end = ranges["PlayerHandleBallThrowAnim"]
+    code = Thumb(rom, start, end)
+    shape = {0x00: 0xB530, 0x04: 0x4D11, 0x14: 0x6880, 0x16: 0x7201, 0x3E: 0x4907, 0x40: 0x6001}
+    if any(code.hw(start + o) != v for o, v in shape.items()):
+        die("PlayerHandleBallThrowAnim: not the expected shape")
+    word = code.word(((start + 0x3E + 4) & ~3) + (code.hw(start + 0x3E) & 0xFF) * 4)
+    if word & 1 == 0 or not ROM_BASE <= word < ROM_BASE + len(rom):
+        die("PlayerHandleBallThrowAnim: no function pointer in its pool")
+    return word
 
 
 def assemble(equ, asm, code_addr, code_max, prefix):
@@ -693,7 +857,9 @@ def main():
     sites = find_link_end_sites(rom, ranges, addr_of)   # task 5
     arm_sites = find_arm_sites(rom, ranges, k, addr_of)
     arm_sites.update(find_link_wild_sites(rom, ranges, addr_of))   # task 3
+    arm_sites.update(find_link_single_sites(rom, syms, code_starts, addr_of))   # a joined one-trainer battle
     rw_sites = find_link_rewards_sites(rom, ranges, k, addr_of)
+    ball_anim_done = find_ball_anim_word(rom, ranges)
 
     def crc(addr):
         off = addr - ROM_BASE
@@ -756,6 +922,7 @@ def main():
         for suffix, value, digits in values:
             equ[name + "_" + suffix] = value
             L.append("#define %-*s 0x%0*Xu" % (width, "COOP_EM_" + name + "_" + suffix, digits, value))
+    define("RW_BALLANIM_DONE", ball_anim_done, "PlayerHandleBallThrowAnim's next controller function (CompleteOnSpecialAnimDone, Thumb bit set)")
 
     # the items whose battle use is the PP recovery (Ether / Elixir family): their gItems battleUseFunc pointers go to our wrapper
     pp_items = [i for i in range(k["ITEMS_COUNT"])

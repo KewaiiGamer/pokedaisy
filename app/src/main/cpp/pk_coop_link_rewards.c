@@ -3,7 +3,7 @@
 // can't be used", no balls); for a joined battle each is allowed and made right for two games, one of which only plays the other's
 // battle (the master, the host's game, runs the engine; the partner's game runs its own player's controller):
 //
-//   EXP    the skip of Cmd_getexp is lifted; each side's Pokémon get a single battle's full EXP (the master's wrapper of Cmd_getexp),
+//   EXP    the skip of Cmd_getexp is lifted; the two sides share a single battle's EXP (each foe's yield halved per side) (the master's wrapper of Cmd_getexp),
 //          the partner's Pokémon get theirs in the partner's game (its controller) and in the master's copy of them (so the level-up
 //          text and the stats are right); a partner Pokémon's moves are learned in the partner's own game, after the battle;
 //   BAG    the refusal is lifted; the item comes out of the bag of the game whose player used it; a partner's medicine / X item is
@@ -56,7 +56,7 @@ static const struct { const char* name; uint32_t addr, crc; } sRwCrcs[] = {
     RW_FN(ItemUseInBattle_PokeBall), RW_FN(Cmd_trysetcaughtmondexflags), RW_FN(Cmd_givecaughtmon),
     RW_FN(ItemUseInBattle_Medicine), RW_FN(ItemUseInBattle_StatIncrease), RW_FN(ExecuteTableBasedItemEffect),
     RW_FN(GetItemHoldEffect), RW_FN(GetMonData), RW_FN(BtlController_EmitOneReturnValue), RW_FN(BtlController_EmitTwoReturnValues),
-    RW_FN(Cmd_handleballthrow), RW_FN(Cmd_drawlvlupbox), RW_FN(ItemUseInBattle_PPRecovery),
+    RW_FN(Cmd_handleballthrow), RW_FN(Cmd_drawlvlupbox), RW_FN(ItemUseInBattle_PPRecovery), RW_FN(PlayerHandleBallThrowAnim),
     RW_FN(RemoveBagItem), RW_FN(DisplayItemMessage), RW_FN(CloseItemMessage), RW_FN(GetPartyIdFromBattleSlot),
 #undef RW_FN
 };
@@ -99,10 +99,11 @@ static const struct rw_patch sRwPatches[] = {
     RW_HEAD(CompleteWhenChoseItem),
     RW_HEAD(Cmd_trysetcaughtmondexflags),
     RW_HEAD(Cmd_givecaughtmon),
+    RW_HEAD(PlayerHandleBallThrowAnim),   // run 9: the ball's animation flies at the foe that stands (link_entry_BALLANIM)
 };
 #define RW_PATCH_COUNT ((int) (sizeof(sRwPatches) / sizeof(sRwPatches[0])))
-#define RW_HEAD_FIRST 13   // the first head patch's index in sRwPatches (the last 8 entries: four functions of two halves)
-_Static_assert(RW_PATCH_COUNT == RW_HEAD_FIRST + 8, "sRwPatches: the head patches are the last four functions");
+#define RW_HEAD_FIRST 13   // the first head patch's index in sRwPatches (the last 10 entries: five functions of two halves)
+_Static_assert(RW_PATCH_COUNT == RW_HEAD_FIRST + 10, "sRwPatches: the head patches are the last five functions");
 
 static uint32_t rw_crc32(const uint8_t* p, int len) {
     uint32_t c = 0xFFFFFFFFu;

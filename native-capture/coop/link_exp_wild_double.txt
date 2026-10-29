@@ -1,0 +1,422 @@
+# EXP is shared (2026-10-26): a DOUBLE joined wild battle (link_faint_wild's flow) with both foes left at 1 HP so both fall in the first turn pays
+# the two players ONE normal battle's total between them, not that total to each. The foes: species 288 (expYield 60) at Lv 50 and 286
+# (expYield 55) at Lv 40 (gBattleMons levels poked), so the game's own formula gives 60 x 50 / 7 = 428 and 55 x 40 / 7 = 314, 742 together = what a
+# normal battle pays the player's side. Each foe's yield is halved, one half per player side (214, 157: 371), each side has one Pokemon in
+# (TORCHIC / MUDKIP, 152 EXP each at the start; wild: no trainer x 1.5), so the host's TORCHIC and the partner's own Pokemon each gain 371 (both reach 523,
+# Lv 9) and 371 + 371 = 742 = the normal total. The partner's own Pokemon is its game's slot 0 after the battle (b_h0x).
+#
+# want: PASS expectnum foe1sp = 288
+# want: PASS expectdelta a_h0 -> a_h0x = 371
+# want: PASS expectdelta b_p3 -> b_h0x = 371
+# want: PASS expectnum a_h0x = 523
+# want: PASS expectnum b_h0x = 523
+# want: PASS linkwait 2
+# want: linknoerror 1
+# want: PASS linkwait 3
+pair $PARTNER_SAVE
+on b
+@boot
+poke16 0x02024542 999
+poke16 0x02024544 999
+on a
+poke16 0x02024542 999
+poke16 0x02024544 999
+coopinstall
+poke32 0x03005D80 9
+call 0x080B5288 2 2
+waittask 0x080B05F0 120
+joinhold
+linkstart 1
+on b
+linkstart 0 1 0 0
+linkwait 2 2500
+linknoerror 1
+on a
+waitmem32 0x03005D60 0x08057589 3000
+on b
+waitmem32 0x03005D68 0x08057589 3000
+on a
+poke16 0x02024104 1
+poke16 0x020241B4 1   # the other foe (battler 3) too: both fall in the first turn
+poke8 0x02024106 50
+poke8 0x020241B6 40
+peeknum foe1sp 0x020240DC 2
+peeknum foe3sp 0x0202418C 2
+monexp a_h0 0x020244EC
+monexp a_p3 0x02024618
+on b
+monexp b_h0 0x020244EC
+monexp b_p3 0x02024618
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+on a
+hold A 4
+linkrun 30
+on b
+hold A 4
+linkrun 30
+linkwait 3 3000
+monexp b_h0x 0x020244EC
+monexp b_p3x 0x02024618
+on a
+monexp a_h0x 0x020244EC
+monexp a_p3x 0x02024618
+linkinfo
+expectnum foe1sp 288
+expectnum foe3sp 286
+expectdelta a_h0 a_h0x 371
+expectdelta b_p3 b_h0x 371
+expectnum a_h0x 523
+expectnum b_h0x 523

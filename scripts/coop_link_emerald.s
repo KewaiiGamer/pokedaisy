@@ -519,7 +519,7 @@ link_call_r7:
 
 @ --- EXP ------------------------------------------------------------------------------------------------------------------
 @ Cmd_getexp's table pointer (a script command, called every frame until it has finished). Every Pokemon of a side gets a single
-@ battle's full EXP: Cmd_getexp divides by every Pokemon sent in (slots 0-5), but the host's (0-2) and the partner's (3-5) are two
+@ battle's EXP shared (each fainted foe's yield halved, one half per side): Cmd_getexp divides by every Pokemon sent in (slots 0-5), but the host's (0-2) and the partner's (3-5) are two
 @ parties fighting two foes together, so each side divides by its own. Around the game's own Cmd_getexp:
 @  state 1 (the shares are worked out and case 2 would use them at once): the controllers' exec flags are faked non-zero for the
 @     call, so the game works the totals out and waits; then both sides' shares are worked out here (link_exp_sides);
@@ -701,6 +701,13 @@ link_exp_sides:
     ldr r1, =37450
     muls r0, r1
     lsrs r7, r0, #18                        @ r7 = calculatedExp
+    movs r0, r7                             @ shared EXP: a joined battle pays one battle's total, so each player's side gets half
+    lsrs r7, r7, #1                         @ (rounded down per side, at least 1 when the yield is)
+    bne 13f
+    cmp r0, #0
+    beq 13f
+    movs r7, #1
+13:
     ldr r5, =link_rw
     movs r0, r7                             @ the host's side
     lsls r1, r6, #24
@@ -1263,6 +1270,56 @@ link_entry_BALLTHROW:
     ldr r0, =COOP_EM_gBattlerAttacker
     strb r4, [r0]
     pop {r4}
+    pop {r0}
+    bx r0
+    .ltorg
+
+@ PlayerHandleBallThrowAnim (replaced whole; the controller of the battler Cmd_handleballthrow sent the throw to): the game's function, but the
+@ animation's target is the one foe that still stands. The game aims it at GetBattlerAtPosition(B_POSITION_OPPONENT_LEFT), always foe 1:
+@ with foe 1 down and foe 3 the one left (a joined wild battle) the ball flew at a destroyed sprite - "the ball landed on a pokemon that was
+@ dead already" - and the battle hung there (run 9). The foes' standing is gAbsentBattlerFlags (bits 1 and 3: every game's copy has it, the
+@ partner's too, whose own game does not run the script and has no gBattlerTarget to read).
+    .align 1
+    .global link_entry_BALLANIM
+    .thumb_func
+link_entry_BALLANIM:
+    push {r4, r5, lr}
+    ldr r5, =COOP_EM_gActiveBattler
+    ldrb r4, [r5]
+    lsls r0, r4, #9                         @ gBattleBufferA[gActiveBattler][1] = the throw's case (shakes / success)
+    ldr r1, =COOP_EM_gBattleBufferA + 1
+    adds r0, r0, r1
+    ldrb r1, [r0]
+    ldr r0, =COOP_EM_gBattleSpritesDataPtr
+    ldr r0, [r0]
+    ldr r0, [r0, #8]                        @ ->animationData
+    strb r1, [r0, #8]                       @ ->ballThrowCaseId
+    ldr r1, =COOP_EM_gDoingBattleAnim
+    movs r0, #1
+    strb r0, [r1]
+    ldr r0, =COOP_EM_gAbsentBattlerFlags
+    ldrb r0, [r0]
+    movs r2, #1                             @ the game's own target: foe 1 (battler 1)
+    movs r1, #2
+    tst r0, r1
+    beq 1f                                  @ foe 1 stands
+    movs r1, #8
+    tst r0, r1
+    bne 1f                                  @ both are gone: the game's own answer
+    movs r2, #3                             @ foe 1 is down, foe 3 is the one left
+1:  movs r0, r4
+    movs r1, r4
+    movs r3, #3                             @ B_ANIM_BALL_THROW
+    ldr r5, =COOP_EM_InitAndLaunchSpecialAnimation + 1
+    bl link_call_r5
+    ldr r0, =COOP_EM_gActiveBattler
+    ldrb r0, [r0]
+    lsls r0, r0, #2
+    ldr r1, =COOP_EM_gBattlerControllerFuncs
+    adds r0, r0, r1
+    ldr r1, =COOP_EM_RW_BALLANIM_DONE
+    str r1, [r0]                            @ CompleteOnSpecialAnimDone
+    pop {r4, r5}
     pop {r0}
     bx r0
     .ltorg

@@ -291,7 +291,10 @@ class CoopLinkFlow(
         battleId = newId()
         heard = false; partnerLeft = false; isHost = true; readyEarly = false
         join = CoopHostJoin(now).also { it.battleStarting(battleId, true) }
-        if (!send(CoopBattleMsg.Offer(battleId, k, a, b, species, who.name, who.gender, who.otId))) { reset(); return false }
+        // The partner's game starts the moment it answers and its first block can reach the link thread before this thread has read the
+        // Answer: blocks of this battle are kept from the offer on (a lost first block stalled the battle at a black screen)
+        battle.expect(battleId)
+        if (!send(CoopBattleMsg.Offer(battleId, k, a, b, species, who.name, who.gender, who.otId))) { battle.forget(); reset(); return false }
         phase = Phase.H_ASKING
         return true
     }

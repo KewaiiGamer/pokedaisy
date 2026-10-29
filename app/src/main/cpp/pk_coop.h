@@ -115,6 +115,8 @@ int  pk_coop_link_state(struct mCore* core);                           // PK_COO
 // The last (up to 4) blocks give refused as malformed or take could not classify, for the log: records of [u16 check (a source line of
 // pk_coop_link.c, 0 = a check without a code)][u8 where: 1 give, 2 take][u8 kind][u16 size][the block, wire header included]. Bytes written.
 int  pk_coop_link_bad_blocks(uint8_t* out, int cap);
+// The bridge's position as one log line (counters, seqs, the game's receive flags / battle flags / callbacks): characters written.
+int  pk_coop_link_diag(struct mCore* core, char* out, int cap);
 // The battle is over (or the app says so): no more blocks go in. The hooks stay until reset.
 void pk_coop_link_end(struct mCore* core);
 // Hooks out, the party and the link flags put back, the area zeroed.
@@ -163,6 +165,9 @@ int  pk_coop_link_wild_patches_in(struct mCore* core, int* in);
 void pk_coop_link_wild_patches_out(struct mCore* core, int* in);
 // The host's two wild Pokémon rolled from the map's table into gEnemyParty slots 0 and 3 (the rest zeroed): 1 = rolled.
 int  pk_coop_link_wild_roll(struct mCore* core, pk_coop_call_fn call);
+// A joined one-trainer battle (pk_coop_link_wild.c's second table): one trainer throws both Pokémon, the VS screen is skipped; *in = how many went in.
+int  pk_coop_link_single_patches_in(struct mCore* core, int* in);
+void pk_coop_link_single_patches_out(struct mCore* core, int* in);
 // ---- task 6: story battles (pk_coop_link_story.c) ----
 // The story RAM (outside the bridge's area: begin zeroes that): state, the picked slots, the pick script (scripts/coop_link_emerald.s).
 #define PK_COOP_STORY_RAM     0x0203FA00u

@@ -1,10 +1,13 @@
-# Plan 6 Task 4: a ball catches the LAST wild Pokémon whichever slot it is in: foe 1 is down (absent, 0 HP), foe 3 sleeps with 1 HP, and the HOST's
-# ball (which the game aims at foe 1) catches foe 3: the master retargets it (link_entry_BALLTHROW). link_catch_host's twin; same checks:
-# ball -1 in the host's bag only, outcome 7 on both cores, the catch (a POOCHYENA this time) given to the host's own game after the battle.
-#
+# Plan 6 Task 4 + run 9, the REAL wild kind and a REAL faint: a ball catches the LAST wild Pokemon whichever slot it is in. The wild link battle starts as on a
+# device (linkstart: the TRAINER bit is already dropped), foe 1 is out (knocked out for real by the players' attacks, its HP left at 1 first), foe 3 is the
+# one left (asleep with 1 HP: the catch is sure) and the HOST throws a POKE BALL from its own bag (the game aims it at foe 1, the master retargets it). The ball's animation flies at the foe that stands (it
+# used to fly at foe 1 whatever its state, onto a fainted foe's spot, where it stayed and the battle hung: run 9). The ball leaves the host's bag only, both games
+# end with outcome 7 and the catch (a POOCHYENA) is given to the host's own game after the battle (`coopgive`): its real party grows to 4 with its own OT, the
+# other game's party and slot 3 are as they were. Needs EMERALD_PARTNER_SAVE (`$PARTNER_SAVE`).
 #
 # want: PASS linkwait 2
 # want: PASS linkwait 3
+# want: PASS expectnum a_dead = 0
 # want: link: caught by 1
 # want: PASS expectdelta a_ball -> a_ball2 = -1
 # want: PASS expectdelta b_ball -> b_ball2 = 0
@@ -20,33 +23,56 @@ on b
 @boot
 poke16 0x02024542 999
 poke16 0x02024544 999
-bagqty b_ball 4
 on a
 poke16 0x02024542 999
 poke16 0x02024544 999
-bagqty a_ball 4
-coopbegin 1 2 333 318
+coopinstall
+poke32 0x03005D80 9
+call 0x080B5288 2 2
+waittask 0x080B05F0 120
+joinhold
+linkstart 1
 on b
-coopbegin 0 2 333 318
-linkwait 2 1500
+linkstart 0 1 0 0
+linkwait 2 2500
+linknoerror 1
+on a
+expect8 0x082DAA3F 0x57
+on b
+expect8 0x082DAA3F 0x57
 on a
 waitmem32 0x03005D60 0x08057589 3000
-poke32 0x02022FEC 0x800163
-poke8 0x02024210 2
-poke16 0x02024104 0
-poke16 0x0202479A 0
-poke32 0x020241D8 7
-poke16 0x020241B4 1
 on b
 waitmem32 0x03005D68 0x08057589 3000
-poke16 0x0202479A 0
-poke32 0x02022FEC 0x800163
+on a
+bagqty a_ball 4
+on b
+bagqty b_ball 4
+on a
+poke16 0x02024104 1
+on a
 hold A 4
-linkrun 40
+linkrun 30
 hold A 4
-linkrun 40
+linkrun 30
 hold A 4
-linkrun 40
+linkrun 60
+on b
+hold A 4
+linkrun 30
+hold A 4
+linkrun 30
+hold A 4
+linkrun 60
+on a
+waitmem32 0x03005D60 0x08057589 2500
+on b
+waitmem32 0x03005D68 0x08057589 2500
+on a
+peeknum a_dead 0x02024104 2
+expectnum a_dead 0
+poke16 0x020241B4 1
+poke32 0x020241D8 7
 on a
 hold RIGHT 4
 linkrun 30
@@ -57,29 +83,37 @@ linkrun 30
 hold A 4
 linkrun 30
 hold A 4
-linkrun 100
+linkrun 200
+on b
 hold A 4
-linkrun 100
+linkrun 40
+hold A 4
+linkrun 40
+hold A 4
+linkrun 40
+on a
 linkrun 800
 hold B 4
 linkrun 60
 hold B 4
 linkrun 60
 linkwait 3 4000
-bagqty a_ball2 4
+on a
 peeknum a_out 0x0202433A 1
 expectnum a_out 7
 linkcaught /work/caught_host_far.bin
+bagqty a_ball2 4
 on b
-bagqty b_ball2 4
 peeknum b_out 0x0202433A 1
 expectnum b_out 7
+bagqty b_ball2 4
 linkreset
 on a
 linkreset
 waitmem32 0x030022C4 0x08085E5D 4000
 on b
 waitmem32 0x030022C4 0x08085E5D 4000
+linkrun 200
 peeknum b_count2 0x020244E9 1
 expectnum b_count2 3
 monexp b_slot3b 0x02024618

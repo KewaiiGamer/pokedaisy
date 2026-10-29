@@ -20,6 +20,10 @@ coopbegin 0 2 333 318
 linkwait 2 1500
 linknoerror 1
 on a
+expect8 0x082DAA3F 0x5C
+on b
+expect8 0x082DAA3F 0x5C
+on a
 waitmem32 0x03005D60 0x08057589 3000
 on b
 waitmem32 0x03005D68 0x08057589 3000
@@ -924,3 +928,7 @@ on b
 hold A 4
 linkrun 30
 linkwait 3 3000
+on a
+expect8 0x082DAA3F 0x5C
+on b
+expect8 0x082DAA3F 0x5C

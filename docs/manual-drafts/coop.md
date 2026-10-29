@@ -147,7 +147,7 @@ party, or their PC if the party is full, with their own name on it.
 
 ### Experience and level-ups
 
-Each Pokémon gets the experience a normal single battle would give. For the player who joined, a level-up box
+The experience is shared between the two players: a joined battle pays the same total as a normal one, split in two halves, one for each player. Each half goes to that player's own Pokémon that took part (or hold the shared-experience item). For the player who joined, a level-up box
 closes by itself, and a Pokémon that wants to learn a move or to evolve does that after the battle, in their own game.
 
 ### What each save gets

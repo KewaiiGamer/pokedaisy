@@ -125,6 +125,7 @@ struct pk_link_ctx {
     int patchesIn;       // head patch halves in (two per hook)
     int begun;           // pk_coop_link_begin went through, reset hasn't run
     int wildPatches;     // task 3: the wild kind's code patches in (pk_coop_link_wild.c)
+    int singlePatches;   // the one-trainer kind's code patches in (pk_coop_link_wild.c's second table)
     int endPatchIn;      // task 5: CB2_InitEndLinkBattle's beq is a nop
     struct pk_coop_link_setup setup;   // task 5: what begin was given (the end's prize and flags read the trainers from it)
     const char* refused;
@@ -640,6 +641,14 @@ int pk_coop_link_begin(struct mCore* core, const struct pk_coop_link_setup* setu
             goto fail;
         }
     }
+    if (setup->kind == PK_COOP_LINK_SINGLE) {   // one trainer on screen throwing both Pokemon: the foe side as a normal double battle's
+        if (!pk_coop_link_single_patches_in(core, &sLink.singlePatches)) {
+            extern uint32_t pk_coop_link_single_failed_at;
+            snprintf(sLink.refusedBuf, sizeof(sLink.refusedBuf), "single patch %08X", (unsigned) pk_coop_link_single_failed_at);
+            sLink.refused = sLink.refusedBuf;
+            goto fail;
+        }
+    }
     link_write(core, COOP_EM_gBattleTypeFlags, flags, 4);   // the tower flag comes after the parties: CreateNPCTrainerParty makes none for a Frontier battle
     if (setup->master && setup->kind == PK_COOP_LINK_WILD) {   // task 3: the two wild Pokemon, slots 0 and 3
         if (!pk_coop_link_wild_roll(core, sLink.call)) {
@@ -707,6 +716,7 @@ fail:
     pk_coop_link_start_unwind(core);   // task 2: the ids, savedCallback and enemy party as they were
     link_undo_game(core);
     pk_coop_link_wild_patches_out(core, &sLink.wildPatches);
+    pk_coop_link_single_patches_out(core, &sLink.singlePatches);
     pk_coop_link_rewards_out(core);   // task 4
     link_patches_out(core);
     link_zero_ram(core);
@@ -1301,10 +1311,31 @@ void pk_coop_link_reset(struct mCore* core) {
         return;
     }
     pk_coop_link_wild_patches_out(core, &sLink.wildPatches);
+    pk_coop_link_single_patches_out(core, &sLink.singlePatches);
     pk_coop_link_rewards_out(core);   // task 4
     link_patches_out(core);
     link_undo_game(core);
     link_zero_ram(core);
     sLink.begun = 0;
     pk_coop_link_start_forget();   // task 2
+}
+
+// The bridge's position for the log: counters, seqs, what the game itself holds (receive flags, the battle flags, gMain.callback2,
+// gBattleMainFunc, the first battle communication bytes). Text, at most cap-1 bytes.
+int pk_coop_link_diag(struct mCore* core, char* out, int cap) {
+    if (!core || cap < 2) return 0;
+    int n = snprintf(out, (size_t) cap,
+        "state %d active %d myId %d kind %d seen %d err %d ended %d tx %d rx %d sent %d recv %d refused %d dropped %d overrun %d malformed %d "
+        "recvFlags %d/%d flags 0x%X cb2 0x%X mainFunc 0x%X comm %d/%d/%d",
+        pk_coop_link_state(core), core->busRead8(core, LRAM(active)), core->busRead8(core, LRAM(myId)), core->busRead8(core, LRAM(kind)),
+        core->busRead8(core, LRAM(seen)), core->busRead8(core, LRAM(error)), core->busRead8(core, LRAM(ended)),
+        core->busRead8(core, LRAM(txSeq)), core->busRead8(core, LRAM(rxSeq)),
+        (int) link_read(core, LRAM(sent), 2), (int) link_read(core, LRAM(received), 2), (int) link_read(core, LRAM(refused), 2),
+        (int) link_read(core, LRAM(dropped), 2), (int) link_read(core, LRAM(overrun), 2), (int) link_read(core, LRAM_MALFORMED, 2),
+        core->busRead8(core, COOP_EM_gBlockReceivedStatus), core->busRead8(core, COOP_EM_gBlockReceivedStatus + 1),
+        (unsigned) link_read(core, COOP_EM_gBattleTypeFlags, 4), (unsigned) link_read(core, COOP_EM_gMain + COOP_EM_OFF_MAIN_CALLBACK2, 4),
+        (unsigned) link_read(core, COOP_EM_gBattleMainFunc, 4),
+        core->busRead8(core, COOP_EM_gBattleCommunication), core->busRead8(core, COOP_EM_gBattleCommunication + 1),
+        core->busRead8(core, COOP_EM_gBattleCommunication + 2));
+    return n < 0 ? 0 : (n >= cap ? cap - 1 : n);
 }

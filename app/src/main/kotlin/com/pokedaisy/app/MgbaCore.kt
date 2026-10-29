@@ -329,6 +329,9 @@ object MgbaCore {
     /** The last blocks the bridge refused as malformed (records of check u16, where u8, kind u8, size u16, bytes; see pk_coop_link_bad_blocks); null = none. */
     external fun pkCoopLinkBadBlocks(): ByteArray?
 
+    /** The bridge's position as one log line (counters, seqs, the game's receive flags / battle flags / callbacks); null = no core. */
+    external fun pkCoopLinkDiag(): String?
+
     /** Ends the link battle: [blackout] = a story battle lost to a link drop. The native pk_coop_link_leave (task 7): [blackout] = the game's whiteout, else back
      * to the field, no prize, set-aside party restored; the bridge is reset. Emu thread; pump state / take (CoopLinkBattle.afterFrame) every frame. */
     external fun pkCoopLinkLeave(blackout: Boolean)

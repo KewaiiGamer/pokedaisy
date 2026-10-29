@@ -2045,3 +2045,16 @@ JNIEXPORT void JNICALL
 Java_com_pokedaisy_app_MgbaCore_pkNdsTouch(JNIEnv* env, jobject thiz, jboolean down, jint x, jint y) {
     pk_nds_touch(down == JNI_TRUE, (int) x, (int) y);
 }
+
+// The bridge's position as a log line (pk_coop_link_diag); null when no core.
+JNIEXPORT jstring JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkCoopLinkDiag(JNIEnv* env, jobject thiz) {
+    char buf[512];
+    int n = 0;
+    pthread_rwlock_rdlock(&pk_coreLock);
+    if (g.core && pk_is_gba(g.core)) n = pk_coop_link_diag(g.core, buf, (int) sizeof(buf));
+    pthread_rwlock_unlock(&pk_coreLock);
+    if (n <= 0) return NULL;
+    buf[n] = 0;
+    return (*env)->NewStringUTF(env, buf);
+}

@@ -15,6 +15,8 @@ interface CoopLinkEngine {
     fun state(): Int
     /** The blocks the bridge last refused as malformed (pk_coop_link_bad_blocks' records), for the log of a STATE_ERROR; null = none or unknown. */
     fun badBlocks(): ByteArray? = null
+    /** The bridge's position as one line for the log (counters, seqs, what the game holds); empty = unknown. */
+    fun diag(): String = ""
     /** Ends the link battle: [blackout] = a story battle's loss for this game, else the battle just stops. */
     fun leave(blackout: Boolean)
     /** The 16-byte result, null until the game is back on its field with everything paid. */
@@ -99,6 +101,10 @@ class CoopLinkBattle(
         const val SETTLE_FRAMES = 1800
         /** Once the result is ready, the last blocks still queued get this many frames to leave (the other game ends by them). */
         const val FLUSH_FRAMES = 300
+        /** Blocks per direction kept for the log's trace. */
+        const val TRACE_MAX = 40
+        /** A head block refused this many frames running gets its bytes and the bridge's position in the log (once). */
+        const val STUCK_LOG_FRAMES = 120
     }
 
     var log: (String) -> Unit = {}
@@ -122,6 +128,12 @@ class CoopLinkBattle(
     private var settleFrames = 0
     private var flushFrames = 0
     private var reported = false
+    // the log's evidence: the first TRACE_MAX blocks each way (kind/seq/size), once per battle
+    private val sentTrace = StringBuilder(); private var sentN = 0
+    private val gotTrace = StringBuilder(); private var gotN = 0
+    private val heardTrace = StringBuilder(); private var heardN = 0
+    private var traceLogged = false
+    private var stuckLogged = false
     /** Blocks the game refused after its battle ended (the other player's trailing "done"): dropped, counted. */
     var dropped = 0
         private set
@@ -146,6 +158,7 @@ class CoopLinkBattle(
     fun start(battleId: Int, story: Boolean, start: () -> Int): Int {
         require(battleId != 0)
         if (active || pumping) return 0   // one link battle at a time: a second start is refused, the running one untouched
+        if (expected == 0) synchronized(inboxLock) { heardTrace.setLength(0); heardN = 0 }
         reset()
         val r = start()
         if (r != 1) return r
@@ -154,12 +167,18 @@ class CoopLinkBattle(
     }
 
     /** A join is on its way: the other player's blocks for [battleId] are kept until [start] (it may begin first). */
-    fun expect(battleId: Int) = synchronized(inboxLock) { inbox.clear(); inboxBytes = 0; expected = battleId }
+    fun expect(battleId: Int) = synchronized(inboxLock) {
+        if (expected == battleId) return@synchronized   // already kept for this battle (the host asks at its offer, again at its install): what came meanwhile stays
+        inbox.clear(); inboxBytes = 0; expected = battleId; heardTrace.setLength(0); heardN = 0
+    }
 
     /** The join fell through: nothing more is kept. */
     fun forget() = synchronized(inboxLock) { expected = 0; inbox.clear(); inboxBytes = 0 }
 
     fun onMessage(m: CoopBattleMsg) = synchronized(inboxLock) {
+        if (m is CoopBattleMsg.LinkBlock) {
+            if (heardN < TRACE_MAX) { heardN++; heardTrace.append(' ').append((m.bytes.getOrNull(0)?.toInt() ?: 0) and 0xFF).append('/').append(m.seq).append('/').append(m.bytes.size - 4).append(if (active) "" else "(idle)") }
+        }
         if (!active && !(m is CoopBattleMsg.LinkBlock && expected != 0 && m.battleId == expected)) return@synchronized
         val size = if (m is CoopBattleMsg.LinkBlock) m.bytes.size else 0
         // a flood is dropped (by count and by bytes): the game's refusals end the battle loudly anyway
@@ -182,7 +201,7 @@ class CoopLinkBattle(
     }
 
     /** The other side could not start its half (it said so): this game leaves at once, there is no drop wait and nothing is sent back. */
-    fun abandon() { if (active) finish(blackout = false) }
+    fun abandon() { if (active) { exitEvidence("the other side cancelled (ENGINE)"); finish(blackout = false) } }
 
     fun afterFrame() {
         if (!pumping) return
@@ -195,7 +214,6 @@ class CoopLinkBattle(
             return
         }
         if (st == CoopLinkEngine.STATE_ERROR) {
-            badBlocksLog(engine.badBlocks()).forEach { log("link battle: refused block $it") }
             return failLoud("the bridge reports the two games out of step")
         }
         if (st == CoopLinkEngine.STATE_ENDED && !endedSeen) { endedSeen = true; endFrames = 0; flushFrames = 0; ui.clear() }
@@ -276,6 +294,7 @@ class CoopLinkBattle(
             val seq = b[1].toInt() and 0xFF
             val (type, payload) = CoopBattleWire.encode(CoopBattleMsg.LinkBlock(battleId, seq, b))
             if (!channel.send(type, payload)) return
+            if (sentN < TRACE_MAX) { sentN++; sentTrace.append(' ').append(b[0].toInt() and 0xFF).append('/').append(seq).append('/').append(b.size - 4) }
             outbox.removeFirst()
         }
     }
@@ -287,11 +306,17 @@ class CoopLinkBattle(
      */
     private fun giveReady(): Boolean {
         while (ready.isNotEmpty()) {
-            if (engine.give(ready.first())) { if (refusals > 0) retried++; ready.removeFirst(); refusals = 0 }
+            if (engine.give(ready.first())) {
+                if (gotN < TRACE_MAX) { val h = ready.first(); gotN++; gotTrace.append(' ').append(h[0].toInt() and 0xFF).append('/').append(h[1].toInt() and 0xFF).append('/').append(h.size - 4) }
+                if (refusals > 0) retried++; ready.removeFirst(); refusals = 0; stuckLogged = false
+            }
             else if (endedSeen) {
                 ready.removeFirst(); dropped++; refusals = 0
                 log("link battle: a block came after the end and was dropped ($dropped)")
-            } else return ++refusals < MAX_REFUSALS
+            } else {
+                if (++refusals == STUCK_LOG_FRAMES && !stuckLogged) { stuckLogged = true; logStuck() }
+                return refusals < MAX_REFUSALS
+            }
         }
         return true
     }
@@ -311,8 +336,29 @@ class CoopLinkBattle(
         return out
     }
 
+    /** What the head block was refused as, the bridge's position and the refused blocks: the lines that say why a battle stood still. */
+    private fun logStuck() {
+        val h = ready.firstOrNull()
+        log("link battle: head block refused $STUCK_LOG_FRAMES frames: kind=${h?.getOrNull(0)?.toInt()?.and(0xFF)} seq=${h?.getOrNull(1)?.toInt()?.and(0xFF)} size=${h?.size} bytes=${h?.take(64)?.joinToString("") { "%02x".format(it.toInt() and 0xFF) }} queued=${ready.size} out=${outbox.size}")
+        log("link battle: bridge ${engine.diag()}")
+        badBlocksLog(engine.badBlocks()).forEach { log("link battle: refused block $it") }
+    }
+
+    /** Every exit of a running battle logs where it stood (the bridge's position, the refused blocks, the first blocks each way), once. */
+    private fun exitEvidence(why: String) {
+        log("link battle exit: $why; bridge ${engine.diag()}; refusals $refusals; ready ${ready.size}; outbox ${outbox.size}")
+        badBlocksLog(engine.badBlocks()).forEach { log("link battle: refused block $it") }
+        if (!traceLogged) {
+            traceLogged = true
+            log("link battle: first $sentN blocks sent (kind/seq/size):$sentTrace")
+            log("link battle: first $gotN blocks given (kind/seq/size):$gotTrace")
+            log("link battle: first $heardN blocks heard from the link (kind/seq/size):$heardTrace; lastSeq $lastSeq")
+        }
+    }
+
     private fun failLoud(why: String) {
         log("link battle ended: $why")
+        exitEvidence(why)
         ui.notice(CoopNotices.UNDONE)
         tell(CoopCancel.ENGINE)   // the other game must not wait for blocks of a game that left
         finish(blackout = false)
@@ -347,6 +393,7 @@ class CoopLinkBattle(
 
     private fun reset() {
         outbox.clear(); ready.clear()
+        sentTrace.setLength(0); gotTrace.setLength(0); sentN = 0; gotN = 0; traceLogged = false; stuckLogged = false
         lastSeq = -1; refusals = 0; downAt = null; endedSeen = false; endFrames = 0; settleFrames = 0; flushFrames = 0
         reported = false; active = false; pumping = false; cancelled = false; dropped = 0; retried = 0
     }

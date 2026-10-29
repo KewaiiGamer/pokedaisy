@@ -113,7 +113,8 @@
 //   waitmem8/16/32 ADDR VAL MAX - frames until the bus holds VAL at ADDR: `PASS waitmem` / FAIL after MAX
 //   waitchange32 ADDR MAX - frames until the bus word at ADDR is no longer what it is now: `PASS waitchange` / FAIL after MAX
 //   linkrun N          - N frames, as `wait` (both cores, blocks moved after each)
-//   linkdelay F        - blocks arrive F frames after they were sent (0 = the next pump)
+//   linkdelay F [G]    - blocks arrive F frames after they were sent (0 = the next pump); G = the delay of the blocks core b sends (asymmetric)
+//   linkjitter J       - each block takes 0..J frames more (the order is kept); linkskew K - the other core runs a frame too many (K > 0) or too few (K < 0) every K frames; 100 / -100 = always twice / half this core's speed
 //   linkstate          - `linkstate a S b S` (PK_COOP_LINK_*: 0 idle, 1 setup, 2 battle, 3 ended)
 //   linkwait STATE MAX - frames until every core is in link state STATE: `PASS linkwait` / FAIL after MAX
 //   coopbegin MASTER KIND TA TB - pk_coop_link_begin on the current core (kind 1 wild, 2 trainers, 3 single, 4 story; TA / TB the AI
@@ -1089,7 +1090,8 @@ static void pairSwap(int to) {
 struct pairMsg { unsigned due; int size, reported; uint8_t d[PK_COOP_LINK_WIRE_HEADER + PK_COOP_LINK_BLOCK_MAX]; };
 static struct pairMsg pairQ[2][PAIR_Q];
 static int pairQHead[2], pairQCount[2];
-static unsigned pairFrame, pairDelay;
+static unsigned pairFrame, pairDelay, pairDelayB;
+static int pairDelayBSet, pairJitter;   // `linkdelay F G`: blocks sent by core b take G frames; `linkjitter J`: each block +0..J frames, order kept
 static int pairHold;          // task 7: 1 = no block is delivered (`linkhold`)
 static int pairStuck[2];      // consecutive frames the head block of a direction was refused
 static long pairMoved[2];     // blocks delivered, per sending core
@@ -1133,7 +1135,8 @@ static void pairPump(void) {
                 break;
             }
             struct pairMsg* m = &pairQ[c][(pairQHead[c] + pairQCount[c]++) % PAIR_Q];
-            m->due = pairFrame + pairDelay;
+            m->due = pairFrame + ((c == 1 && pairDelayBSet) ? pairDelayB : pairDelay);
+            if (pairJitter) { unsigned j = (unsigned) (rand() % (pairJitter + 1)); if (pairQCount[c] > 1) { unsigned prev = pairQ[c][(pairQHead[c] + pairQCount[c] - 2) % PAIR_Q].due; if (m->due + j < prev) j = prev - m->due; } m->due += j; }
             m->reported = 0;
             // task 5: the block that carries CONTROLLER_ENDLINKBATTLE (a controller message, TO_CONTROLLER) arrives pairEndDelay frames later
             // still: that player's game is held back while the other one ends (`linkdelayend F`)
@@ -1185,14 +1188,24 @@ static void pairPump(void) {
     pairSwap(cur);
 }
 
+static int pairSkew;   // `linkskew K`: K>0 = every K-th frame the other core runs 2 frames; K<0 = every |K|-th it runs none
 static int pairNoPump;   // task 7: `linkpump 0` = the app's state / take poll is skipped (a slow pump)
 static void pairAfterFrame(void) {
     if (!pairOn) return;
     int cur = pairCur;
     pairSwap(1 - cur);
+    static unsigned skewN;
+    skewN++;
+    int skewRuns = 1;
+    if (pairSkew > 0 && skewN % (unsigned) pairSkew == 0) skewRuns = 2;
+    if (pairSkew < 0 && skewN % (unsigned) (-pairSkew) == 0) skewRuns = 0;
+    if (pairSkew == 100) skewRuns = 2;   // the other core always runs at twice this one's speed (a FF 2x phone beside a 1x one)
+    if (pairSkew == -100) skewRuns = (skewN & 1) ? 1 : 0;   // and at half
+    for (int sk = 0; sk < skewRuns; sk++) {
     core->runFrame(core);
     if (core->platform(core) == mPLATFORM_GBA) pk_rest_note(core);
     pk_coop_link_tick(core);   // task 5
+    }
     pairSwap(cur);
     if (!pairNoPump) pairPump();
 }
@@ -2333,8 +2346,15 @@ int main(int argc, char** argv) {
             sscanf(line, "%*s %d", &pairNoErr);
             printf("linknoerror %d\n", pairNoErr);
         } else if (!strcmp(cmd, "linkdelay")) {
-            sscanf(line, "%*s %u", &pairDelay);
-            printf("linkdelay %u\n", pairDelay);
+            unsigned g = 0; int k = sscanf(line, "%*s %u %u", &pairDelay, &g);
+            pairDelayBSet = k >= 2; pairDelayB = g;
+            printf("linkdelay %u %u\n", pairDelay, pairDelayBSet ? pairDelayB : pairDelay);
+        } else if (!strcmp(cmd, "linkskew")) {
+            sscanf(line, "%*s %d", &pairSkew);
+            printf("linkskew %d\n", pairSkew);
+        } else if (!strcmp(cmd, "linkjitter")) {
+            sscanf(line, "%*s %d", &pairJitter);
+            printf("linkjitter %d\n", pairJitter);
         // task 7 (a dropped link; pk_coop_link_drop.c): the line goes down / up, a core leaves its battle, a core restarts
         } else if (!strcmp(cmd, "linkhold")) {
             // linkhold 0|1: 1 = every block in flight (and every later one) stays in its queue; 0 = the line is up again
@@ -2469,7 +2489,7 @@ int main(int argc, char** argv) {
                 uint32_t sb2 = core->busRead32(core, COOP_EM_gSaveBlock2Ptr);
                 for (int b = 0; b < 8; b++) setup.partnerName[b] = core->busRead8(core, sb2 + COOP_EM_OFF_SB2_PLAYER_NAME + (uint32_t) b);
                 setup.partnerGender = core->busRead8(core, sb2 + COOP_EM_OFF_SB2_PLAYER_GENDER);
-                setup.partnerOtId = core->busRead32(core, sb2 + COOP_EM_OFF_SB2_PLAYER_TRAINER_ID);
+                for (int b = 0; b < 4; b++) setup.partnerOtId |= (uint32_t) core->busRead8(core, sb2 + COOP_EM_OFF_SB2_PLAYER_TRAINER_ID + (uint32_t) b) << (8 * b);   // (byte reads: the ID sits at an odd offset and an unaligned word comes back rotated: a 16-bit ID re-keyed the partner's catch into a Bad Egg)
                 pairSwap(cur);
             }
             if (!pk_coop_link_installed() && !pk_coop_link_install(core, coopCall)) {
@@ -2530,7 +2550,7 @@ int main(int argc, char** argv) {
                 uint32_t sb2 = core->busRead32(core, COOP_EM_gSaveBlock2Ptr);
                 for (int b = 0; b < 8; b++) setup.partnerName[b] = core->busRead8(core, sb2 + COOP_EM_OFF_SB2_PLAYER_NAME + (uint32_t) b);
                 setup.partnerGender = core->busRead8(core, sb2 + COOP_EM_OFF_SB2_PLAYER_GENDER);
-                setup.partnerOtId = core->busRead32(core, sb2 + COOP_EM_OFF_SB2_PLAYER_TRAINER_ID);
+                for (int b = 0; b < 4; b++) setup.partnerOtId |= (uint32_t) core->busRead8(core, sb2 + COOP_EM_OFF_SB2_PLAYER_TRAINER_ID + (uint32_t) b) << (8 * b);   // (byte reads: the ID sits at an odd offset and an unaligned word comes back rotated: a 16-bit ID re-keyed the partner's catch into a Bad Egg)
                 pairSwap(cur);
             }
             int tries = 0, began = 0;

@@ -36,7 +36,7 @@ two-trainer or one-trainer (2+ Pokémon) battle with their first three able Pok�
 stand at the same spot (same trainer, not beaten; the game's own choose-three screen). **A joined battle is Emerald's own link battle on both devices** (the tower's
 link multi, host = link master, `pk_coop_link*.c`, link.c's blocks carried by `CoopLinkFlow` over the co-op link, no serial emulation): each player sees it from their
 own side with their own game's menus, the app draws only the join prompt, the waits and notices. Rules: the prize is what a two-trainer battle pays (no x2); a ball works
-only with one wild Pokémon left and whoever catches it keeps it (the host holds the partner's catch until the partner has saved it); each side's EXP / bag is its own; a player
+only with one wild Pokémon left and whoever catches it keeps it (the host holds the partner's catch until the partner has saved it); the EXP is one normal battle's total shared between the two sides (a foe's yield halved per side), each side's bag is its own; a player
 blacks out only when no Pokémon in the whole party can fight; PLAYER LOOK / TEXT LOOK must be off; a dropped link waits 60 s, then a story battle is a loss with a blackout for
 both (every save, also on the team-pick screen) and any other battle ends for both with no prize, the trainer not beaten, what was earned kept, no evolution from it. A stop
 always puts the game back before any resume / suspend state is written (a stop that can't be confirmed writes none). Its manual text is the "Battling together" part of the draft.

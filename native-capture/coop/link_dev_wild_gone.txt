@@ -1,0 +1,37 @@
+# the host gives up mid-battle at device-like delays: both games end on the field (no black screen), the bridge idle on both (Plan 6 device regression, run 7)
+# want: PASS linkwait 2
+pair $PARTNER_SAVE
+linknoerror 1
+linkdelay 6
+linkjitter 8
+on b
+@boot
+on a
+coopinstall
+poke32 0x03005D80 9
+call 0x080B5288 2 2
+waittask 0x080B05F0 120
+joinhold
+on b
+linkstart 0 1 0 0
+linkrun 20
+on a
+linkstart 1
+linkwait 2 2500
+on a
+waitmem32 0x03005D60 0x08057589 6000
+on b
+waitmem32 0x03005D68 0x08057589 6000
+on a
+linkleave 0
+linkrun 90
+on b
+linkleave 0
+linkrun 400
+linkwait 0 10
+on a
+expect32 0x030022C4 0x08085E5D
+expect32 0x02022FEC 0
+on b
+expect32 0x030022C4 0x08085E5D
+expect32 0x02022FEC 0

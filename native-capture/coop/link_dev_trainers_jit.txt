@@ -1,0 +1,32 @@
+# device-like start of a joined trainers battle: the partner first, the host 20 frames later; linkdelay 6 linkjitter 8; both reach the action prompt and play one turn
+# want: PASS linkwait 2
+pair $PARTNER_SAVE
+linknoerror 1
+linkdelay 6
+linkjitter 8
+on b
+@boot
+poke16 0x02024542 999
+poke16 0x02024544 999
+on a
+poke16 0x02024542 999
+poke16 0x02024544 999
+poke32 0x0203F400 0x014D035C
+poke32 0x0203F404 0x7DD40000
+poke32 0x0203F408 0x00020831
+coopinstall
+call 0x08098EF8 0x0203F400
+waittask 0x080B05F0 300
+poke32 0x02022FEC 0x00008009
+poke16 0x02038BCC 0x013E
+joinhold
+on b
+linkstart 0 2 333 318
+linkrun 20
+on a
+linkstart 1
+linkwait 2 2500
+on a
+waitmem32 0x03005D60 0x08057589 6000
+on b
+waitmem32 0x03005D68 0x08057589 6000

@@ -309,6 +309,7 @@ private const val MAP_HEADER_REGION_MAPSEC_OFF = 0x14L
 private const val OBJECT_EVENT_FACING_OFF = 0x18L
 private const val BATTLE_TYPE_DOUBLE = 0x0001
 private const val BATTLE_TYPE_TRAINER = 0x0008
+private const val BATTLE_TYPE_LINK = 0x0002
 private const val BAG_POCKET_STRIDE = 8
 private const val BAG_POCKET_SLOTS = 255 // a pocket's u8 capacity (SoulGold's Items pocket holds 150)
 private const val BAG_MAX_ITEMS = 300
@@ -410,6 +411,7 @@ fun readNativeTelemetry(client: MemoryReader, cfg: NativeConfig): Telemetry {
     var isDouble = false
     var isTrainer = false
     var trainerRead = false
+    var linked = false
     var foeBattler = -1
     val battleMons = MutableList(4) { emptyBattleMon() }
     // battleMons == 0: not found for this game - show the battle as on with no
@@ -417,6 +419,7 @@ fun readNativeTelemetry(client: MemoryReader, cfg: NativeConfig): Telemetry {
     if (inBattle && cfg.battleMons != 0L) {
         runCatching { client.readCoreMemory(cfg.battleTypeFlags, 4) }
             .onSuccess {
+                linked = (u32le(it, 0).toInt() and BATTLE_TYPE_LINK) != 0
                 isDouble = (u32le(it, 0).toInt() and BATTLE_TYPE_DOUBLE) != 0
                 isTrainer = (u32le(it, 0).toInt() and BATTLE_TYPE_TRAINER) != 0
                 trainerRead = cfg.battleTypeFlags != 0L
@@ -432,6 +435,29 @@ fun readNativeTelemetry(client: MemoryReader, cfg: NativeConfig): Telemetry {
             val pos = (posRaw?.get(battler)?.toInt()?.and(0xFF)?.takeIf { it < 4 }) ?: battler
             decodeBattleMon(monsRaw, battler * layout.size, layout, pidShiny)?.let { battleMons[pos] = it }
             if (pos == BATTLE_POS_OPPONENT_LEFT) foeBattler = battler
+        }
+        // A joined co-op battle's partner is not the link master: only the master runs the engine, so its gBattleMons
+        // stay zero. Its party RAM is live (gPlayerParty holds both teams, gEnemyParty the foes), so the battlers come from there.
+        if (linked && battleMons.all { it.species == 0 } && cfg.battlerPartyIndexes != 0L) runCatching {
+            val idx = client.readCoreMemory(cfg.battlerPartyIndexes, 8)
+            fun slot(base: Long, i: Int): Mon? = if (i !in 0 until PARTY_SIZE) null else {
+                val raw = client.readCoreMemory(base + i * cfg.monStride, cfg.monStride)
+                decodePartyMon(raw, 0, cfg.partyMonLayout)?.masked(cfg)?.takeIf { m -> m.species != 0 }
+            }
+            fun asBattler(m: Mon?): BattleMon? = m?.let {
+                val st = activeSpeciesTypeData[it.species]
+                BattleMon(it.species, it.level, st?.type1 ?: TYPE_NONE, st?.type2 ?: TYPE_NONE, it.hp, it.maxHp, it.status,
+                    it.moves, it.pp, item = it.heldItem)
+            }
+            for (b in intArrayOf(0, 2)) asBattler(slot(cfg.playerParty, u16le(idx, b * 2)))?.let { battleMons[b] = it }
+            // The foes: the battlers' own slots when they hold a Pokémon, else the first still standing.
+            val alive = (0 until PARTY_SIZE).filter { slot(cfg.enemyParty, it)?.let { m -> m.hp > 0 } == true }.toMutableList()
+            for (b in intArrayOf(1, 3)) {
+                val own = u16le(idx, b * 2).takeIf { it in alive }
+                val i = own ?: alive.firstOrNull() ?: continue
+                alive.remove(i)
+                asBattler(slot(cfg.enemyParty, i))?.let { battleMons[b] = it }
+            }
         }
     }
 

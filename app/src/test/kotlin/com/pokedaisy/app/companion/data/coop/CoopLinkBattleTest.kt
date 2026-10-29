@@ -245,6 +245,30 @@ class CoopLinkBattleTest {
         assertEquals("the other game must not wait for a game that left", listOf(id to CoopCancel.ENGINE), cancelsSent())
     }
 
+    @Test fun refusalCapLogsTheStuckBlockTheBridgePositionAndTheFirstBlocks() {
+        val lines = ArrayList<String>()
+        battle.log = { lines += it }
+        begin()
+        engine.outgoing.addLast(byteArrayOf(5, 0, 2, 0, 9, 9))
+        engine.acceptGive = false
+        incoming(0)
+        repeat(CoopLinkBattle.MAX_REFUSALS) { battle.afterFrame() }
+        assertEquals(1, lines.count { it.startsWith("link battle: head block refused") })
+        assertTrue(lines.any { it.startsWith("link battle: bridge state ") })
+        assertTrue(lines.any { it.startsWith("link battle exit: the game refused a block") && it.contains("bridge state") })
+        assertTrue(lines.any { it == "link battle: first 1 blocks sent (kind/seq/size): 5/0/2" })
+        assertTrue(lines.any { it.startsWith("link battle: first 0 blocks given") })
+    }
+
+    @Test fun theOtherSidesCancelLogsWhereThisSideStood() {
+        val lines = ArrayList<String>()
+        battle.log = { lines += it }
+        begin()
+        battle.abandon()
+        assertTrue(lines.any { it.startsWith("link battle exit: the other side cancelled") })
+    }
+
+
     @Test fun fullOutboxEndsLoudlyNeverDropsOldest() {
         begin()
         channel.connected = false
@@ -326,6 +350,15 @@ class CoopLinkBattleTest {
         assertTrue(begin())
         battle.afterFrame()
         assertEquals(listOf(0, 1), engine.given.map { it[1].toInt() })
+    }
+
+    @Test fun askingAgainForTheSameBattleKeepsWhatCameMeanwhile() {
+        battle.expect(id)                       // the host's offer
+        incoming(0)                             // the partner's first block, before the Answer was read
+        battle.expect(id)                       // the host's install
+        assertTrue(begin())
+        battle.afterFrame()
+        assertEquals(listOf(0), engine.given.map { it[1].toInt() })
     }
 
     @Test fun forgetDropsWhatWasKept() {

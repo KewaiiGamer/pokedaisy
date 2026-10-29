@@ -161,8 +161,11 @@ class CoopBattleGlue(
     // --- messages and the link: arrive on the link's thread, handled on the emu thread ---
 
     /** One battle message from the link ([type] 0x0200-0x02FF); anything undecodable is dropped. */
+    private var undecoded = 0
+
     fun onReceived(type: Int, payload: ByteArray) {
-        val m = CoopBattleWire.decode(type, payload) ?: return
+        val m = CoopBattleWire.decode(type, payload)
+        if (m == null) { if (++undecoded <= 5) env.log("battle message dropped: type 0x${type.toString(16)} size ${payload.size}"); return }
         if (m is CoopBattleMsg.LinkBlock) { flow.onMessage(m); return }   // thread-safe queue, drained on the emu thread
         emu.post { if (!stopping) flow.onMessage(m) }
     }
@@ -378,6 +381,7 @@ class MgbaLinkEngine : com.pokedaisy.app.companion.data.coop.CoopLinkEngine {
     override fun give(block: ByteArray) = MgbaCore.pkCoopLinkGive(block)
     override fun state() = MgbaCore.pkCoopLinkState()
     override fun badBlocks(): ByteArray? = MgbaCore.pkCoopLinkBadBlocks()
+    override fun diag(): String = MgbaCore.pkCoopLinkDiag() ?: ""
     override fun leave(blackout: Boolean) = MgbaCore.pkCoopLinkLeave(blackout)
     override fun result(): ByteArray? = MgbaCore.pkCoopLinkResult()
     override fun caught(): ByteArray? = MgbaCore.pkCoopLinkCaught()
