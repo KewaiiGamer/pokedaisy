@@ -1,0 +1,15 @@
+# Pokémon Dreamstone Mysteries: boot as dreamstone.txt (title, CONTINUE, CARABRUE TOWN), then
+# `warp 0.4 (ROUTE 1) 255 20 12; waitstate; end` poked into free EWRAM and run through its ScriptContext_SetupScript
+# (0x081EAD35: the one that writes gScriptCmdTable 0x0826CF9C and its end into the global script context).
+wait 700
+press START
+wait 100
+press START
+wait 100
+press A
+wait 300
+poke32 0x0203f000 0xff040039
+poke32 0x0203f004 0x000c0014
+poke32 0x0203f008 0x00000227
+call 0x081ead35 0x0203f000
+wait 200

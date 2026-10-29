@@ -106,6 +106,15 @@ class EmulatorEngine(
     /** AUTO-RUN: B held for the player while walking on the field (holding B walks); never on a bike or in a menu. */
     @Volatile var autoRun = false
 
+    /** With AUTO-RUN off: frames the player walked on the field where it would have run for them, and of those the ones
+     *  B was held (AUTO-RUN's tip: someone who runs everywhere). Emu thread writes, the UI reads and resets. */
+    @Volatile var walkFrames = 0L
+    @Volatile var runFrames = 0L
+
+    /** The game's own region map (a Town Map, the Fly map) is up: [RegionMapWatch], GBA only. */
+    @Volatile var regionMapOpen = false
+        private set
+
     /** RUN INDOORS: the current map lets the player run (gMapHeader.allowRunning; FireRed / Emerald engines). */
     @Volatile var runIndoors = false
 
@@ -113,6 +122,10 @@ class EmulatorEngine(
      * encounters left (100 = the game's own rate, 0 = none). */
     @Volatile var wildFlag = 0L
     @Volatile var wildEncounters = 100
+
+    /** DS RESOLUTION ([Prefs.dsResolution]): a DS game's 3D scale, handed to the core before the next frame. */
+    @Volatile var ndsScale = 1
+    private var ndsScaleSet = -1
 
     /** REUSABLE TMS: the ROM's spots that use a TM up ([com.pokedaisy.app.companion.data.ReusableTms]; empty = none
      * known) and whether they're patched; both go in on the next frame boundary ([setReusableTms]). */
@@ -124,6 +137,20 @@ class EmulatorEngine(
         tmSites = sites
         reusableTms = on
         tmPatchDirty = true
+    }
+
+    /** SHINY ODDS ([com.pokedaisy.app.companion.data.ShinyOdds]): the game's foe party watched every frame, a new wild foe
+     * made shiny at 1 in [shinyOdds] ([com.pokedaisy.app.companion.data.ShinyOdds.NORMAL] = the game's own odds, nothing
+     * done); null = a game it doesn't know. */
+    @Volatile private var shinyRoller: com.pokedaisy.app.companion.data.ShinyOdds.Roller? = null
+    @Volatile var shinyOdds = com.pokedaisy.app.companion.data.ShinyOdds.NORMAL
+
+    @Volatile private var shinyTarget: com.pokedaisy.app.companion.data.ShinyOdds.Target? = null
+
+    fun setShinyTarget(target: com.pokedaisy.app.companion.data.ShinyOdds.Target?) {
+        if (target == shinyTarget) return
+        shinyTarget = target
+        shinyRoller = target?.let { com.pokedaisy.app.companion.data.ShinyOdds.Roller(it) }
     }
 
     /** PLAYER LOOK ([com.pokedaisy.app.companion.data.PlayerLook]): the patch to wear - its blocks into the ROM, then its
@@ -738,6 +765,7 @@ class EmulatorEngine(
     private fun loop(rom: File, save: File, resume: File?) {
         emuJobs.clear()   // the last game's
         SaveBackups.snapshot(save)
+        ndsScaleSet = -1
         if (!MgbaCore.pkInit(rom.absolutePath, save.absolutePath)) {
             loadError = "mGBA could not load ${rom.name}"
             running = false
@@ -747,6 +775,11 @@ class EmulatorEngine(
         vw = MgbaCore.pkVideoWidth()
         vh = MgbaCore.pkVideoHeight()
         videoBuf = MgbaCore.pkVideoBuffer()
+        // The core starts with no follower and no tint (pk_wide_extras_reset): so do what this engine last sent.
+        followerSent = null
+        followerShown = false
+        tintNow.fill(256f)
+        tintSent.fill(256)
         onCoreReady?.invoke(vw, vh)
 
         // A state carries the save as it was when it was made, and loading it writes
@@ -939,12 +972,20 @@ class EmulatorEngine(
                 MgbaCore.pkSetRewinding(rewinding)
                 // TURBO A / B: pressed 2 frames, released 2, in game frames - so FF mashes faster too.
                 val reset = if (softResetFrames > 0) { softResetFrames--; SOFT_RESET_KEYS } else 0
-                var keys = input.mask or reset or (if ((frame++ / 2) % 2 == 0L) input.turboMask else 0)
+                var keys = input.mask or reset or input.tapMask() or (if ((frame++ / 2) % 2 == 0L) input.turboMask else 0)
                 // AUTO-RUN: B flipped while walking on the player's own field (holding it walks) - never in a script, a
-                // battle, a menu screen (B leaves it) or on a bike (the Acro Bike's wheelie is B).
-                if (autoRun && (gba || nds) && keys and DIRECTIONS != 0 && fieldState and AUTO_RUN_BLOCKERS == MgbaCore.FIELD_KNOWN &&
-                    fieldScreen
+                // battle, a menu screen (B leaves it) or on a bike (the Acro Bike's wheelie is B). Nor with A held: the
+                // expansion's DexNav creeps on A (Seaglass & co.), but checks B's run first, so a held B scared the
+                // Pokémon off. A while walking does nothing in the other games.
+                if (autoRun && (gba || nds) && keys and DIRECTIONS != 0 && keys and MgbaCore.Key.A == 0 &&
+                    fieldState and AUTO_RUN_BLOCKERS == MgbaCore.FIELD_KNOWN && fieldScreen
                 ) keys = keys xor MgbaCore.Key.B
+                else if (!autoRun && (gba || nds) && keys and DIRECTIONS != 0 &&
+                    fieldState and AUTO_RUN_BLOCKERS == MgbaCore.FIELD_KNOWN && fieldScreen
+                ) {
+                    walkFrames++
+                    if (keys and MgbaCore.Key.B != 0) runFrames++
+                }
                 // CO-OP BATTLES (hook null = nothing changes): the hook gives this frame's keys (always the player's own: a joined
                 // battle is the game's own link battle); null = the game is held (a joined battle waiting at its start, a stop in flight).
                 val coop = coopBattles
@@ -967,6 +1008,10 @@ class EmulatorEngine(
                 }
                 MgbaCore.pkSetKeys(keys)
                 if (nds) {
+                    if (ndsScale != ndsScaleSet) {
+                        MgbaCore.pkNdsSetScale(ndsScale)
+                        ndsScaleSet = ndsScale
+                    }
                     // Fast-forward on the refresh shows the last frame of each group: the others skip their drawing, and
                     // EXPAND's slices (drawn after a frame, for the next) only come before a shown one - drawing them for
                     // every frame was two thirds of a DS frame's cost, and at 3x the group outran the refresh (stutter).
@@ -1031,6 +1076,7 @@ class EmulatorEngine(
 
                 // GBA memory watchers; a Game Boy game has none of these screens / engines to read.
                 mapOpen = gba && RegionMapWatch.isOpen(InProcessReader)
+                regionMapOpen = mapOpen
                 // A shop's screens count as the field: its clerk talks inside them (GitHub #41).
                 menuOpen = gba && FfMenuWatch.tick(InProcessReader) && !ShopWatch.isOpen(InProcessReader) ||
                     nds && fieldState and MgbaCore.FIELD_MENU != 0   // a DS menu screen: the field's child process
@@ -1072,6 +1118,13 @@ class EmulatorEngine(
                     nds -> MgbaCore.pkFieldState(false, wildKeep)
                     gba && fieldGame != WideScreen.OFF -> MgbaCore.pkFieldState(runIndoors, wildKeep)
                     else -> 0
+                }
+                // SHINY ODDS: a new wild foe, between the frame it's made and the battle drawing it.
+                if (gba && shinyOdds < com.pokedaisy.app.companion.data.ShinyOdds.NORMAL) shinyRoller?.let { r ->
+                    runCatching {
+                        val n = r.tick(shinyOdds, InProcessReader::readCoreMemory, MgbaCore::pkWriteBytes)
+                        if (n > 0) Log.i("pokedaisy", "shiny odds: foe made shiny (1 in $shinyOdds)")
+                    }.onFailure { Log.w("pokedaisy", "shiny odds failed", it) }
                 }
                 if (fieldState and MgbaCore.FIELD_AVATAR != 0) fieldMovesKnown = true
                 val bike = MgbaCore.FIELD_AVATAR or MgbaCore.FIELD_BIKE
@@ -1193,6 +1246,10 @@ class EmulatorEngine(
                     ffPerTick = ffPer
                     ffFit.reset(ffPer)
                     ffGroup = 1   // this frame ends a group: drawn, then the next refresh's tick
+                    // Timed from the next tick: kept from FF's last run, the first group "took" all the time FF was
+                    // off (seconds, minutes), the fit dropped to a frame a refresh - 1x - and FF only came back
+                    // seconds later, longer the longer it had been off; a refresh gap mid-FF did the same.
+                    ffGroupStart = 0L
                     if (ffPer > 0) vsyncTicks.drainPermits()
                 }
                 if ((perFrame > 0) != vsyncMode) {
@@ -1784,6 +1841,7 @@ internal fun ffFramesPerRefresh(speed: Float, refreshesPerFrame: Int): Int {
  * - under [ROOM] of a refresh for [wait] groups, a frame is tried; a try that ends up over [OVER] within [PROBE_GROUPS]
  *   groups goes back, and the next one waits twice as long ([MAX_WAIT_GROUPS] at most).
  * No cost per frame is modelled: a DS's skipped frames cost a fraction of its drawn one, and a group of 1 has none.
+ * A group over [STALL_PERIODS] refreshes is a stall and isn't counted.
  */
 internal class FfGroupFit {
     var size = 0
@@ -1807,6 +1865,9 @@ internal class FfGroupFit {
     /** A group of [size] frames took [groupNanos] against a refresh of [periodNanos]. */
     fun groupDone(groupNanos: Long, periodNanos: Long) {
         if (size <= 0 || periodNanos <= 0) return
+        // A stall, not the group's work (a map loading, a GC, the loop held up): left out, or as the first group it set
+        // the average outright and FF ran at 1x for seconds.
+        if (groupNanos > periodNanos * STALL_PERIODS) return
         avg = if (avg == 0.0) groupNanos.toDouble() else avg + (groupNanos - avg) * EMA
         val period = periodNanos.toDouble()
         if (avg > period * OVER) {
@@ -1843,6 +1904,8 @@ internal class FfGroupFit {
         const val ROOM = 0.85
         const val PROBE_GROUPS = 60
         const val MAX_WAIT_GROUPS = 1800
+        /** A group over this many refreshes is a stall ([groupDone]): 4 DS frames at their dearest (~20 ms) are ~5. */
+        const val STALL_PERIODS = 8
     }
 }
 

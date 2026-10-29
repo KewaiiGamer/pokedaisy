@@ -135,6 +135,8 @@ object RetroAchievements : CompanionAchievements {
      * until every cheat is off again, like other emulators do. Emu thread. */
     @Volatile private var cheatsActive = false
 
+    /** SHINY ODDS is raised on a game it works in (ShinyOdds.kt): paused the same way, since sets reward catching a shiny. */
+    @Volatile private var shinyOddsActive = false
     /** A co-op battle is running on this device (CoopBattles): the link battle is not the player's own game,
      * so achievements idle as they do with cheats (no popup: the battle is short). Any thread. */
     @Volatile var coopBattle = false
@@ -411,7 +413,7 @@ object RetroAchievements : CompanionAchievements {
             resumeProgress?.let { RaNative.raDeserializeProgress(it) }
             resumeProgress = null
         }
-        if (cheatsActive || coopBattle) RaNative.raIdle() else RaNative.raDoFrame()
+        if (cheatsActive || shinyOddsActive || coopBattle) RaNative.raIdle() else RaNative.raDoFrame()
         // Debug builds: what rc_client sees, every ~10 s of emulated time.
         if (BuildConfig.DEBUG && ++debugFrames >= 600) {
             debugFrames = 0
@@ -433,6 +435,18 @@ object RetroAchievements : CompanionAchievements {
         if (!ready || !coreAttached) return
         if ((_state.value.game?.total ?: 0) > 0) _popups.tryEmit(cheatsPopup(active))
     }
+
+    fun setShinyOddsActive(active: Boolean) {
+        if (active == shinyOddsActive) return
+        shinyOddsActive = active
+        _state.update { it.copy(shinyOddsPaused = active) }
+        if (!ready || !coreAttached) return
+        if ((_state.value.game?.total ?: 0) > 0) _popups.tryEmit(shinyOddsPopup(active))
+    }
+
+    private fun shinyOddsPopup(active: Boolean) =
+        if (active) AchievementPopup(AchievementPopup.Kind.NOTICE, tr("SHINY ODDS RAISED"), tr("Achievements are paused while SHINY ODDS is raised."))
+        else AchievementPopup(AchievementPopup.Kind.NOTICE, tr("SHINY ODDS NORMAL"), tr("Achievements are back on."))
 
     private fun cheatsPopup(active: Boolean) =
         if (active) AchievementPopup(AchievementPopup.Kind.NOTICE, tr("CHEATS ON"), tr("Achievements are paused until every cheat is off."))
@@ -585,6 +599,7 @@ object RetroAchievements : CompanionAchievements {
                     )
                     // The game started with cheats on: say why nothing will unlock.
                     if (cheatsActive) _popups.tryEmit(cheatsPopup(true))
+                    if (shinyOddsActive) _popups.tryEmit(shinyOddsPopup(true))
                 }
             }
             // An unknown hash: rc_client still keeps a placeholder game (id 0).

@@ -35,12 +35,12 @@ class RomItemTextTest {
         // With no config (a table that isn't where its config says): gItems is found by its shape.
         Case("Pokemon - FireRed Version (USA, Europe) (Rev 1).gba", GameKind.FIRERED, null, mapOf(13 to "20 points", 289 to "executed last")),
         Case("Pokemon - Emerald Version (USA, Europe).gba", GameKind.EMERALD, null, mapOf(13 to "20 points")),
-        Case("emerald-multilang/Pokemon - Edicion Esmeralda (Spain).gba", GameKind.EMERALD, NATIVE_EMERALD_ES,
+        Case("../Pokemon Multi Language/Pokemon - Edicion Esmeralda (Spain)/Pokemon - Edicion Esmeralda (Spain).gba", GameKind.EMERALD, NATIVE_EMERALD_ES,
             mapOf(13 to "Restaura 20 PS", 310 to "2.º turno")),
-        Case("emerald-multilang/Pokemon - Smaragd-Edition (Germany).gba", GameKind.EMERALD, NATIVE_EMERALD_DE, mapOf(13 to "um 20 Punkte")),
-        Case("emerald-multilang/Pokemon - Version Emeraude (France).gba", GameKind.EMERALD, NATIVE_EMERALD_FR, mapOf(13 to "de 20 points")),
-        Case("emerald-multilang/Pokemon - Versione Smeraldo (Italy).gba", GameKind.EMERALD, NATIVE_EMERALD_IT, mapOf(13 to "20 PS")),
-        Case("emerald-multilang/Pocket Monsters - Emerald (Japan).gba", GameKind.EMERALD, NATIVE_EMERALD_JA, mapOf(13 to "20　かいふく")),
+        Case("../Pokemon Multi Language/Pokemon - Smaragd-Edition (Germany)/Pokemon - Smaragd-Edition (Germany).gba", GameKind.EMERALD, NATIVE_EMERALD_DE, mapOf(13 to "um 20 Punkte")),
+        Case("../Pokemon Multi Language/Pokemon - Version Emeraude (France)/Pokemon - Version Emeraude (France).gba", GameKind.EMERALD, NATIVE_EMERALD_FR, mapOf(13 to "de 20 points")),
+        Case("../Pokemon Multi Language/Pokemon - Versione Smeraldo (Italy)/Pokemon - Versione Smeraldo (Italy).gba", GameKind.EMERALD, NATIVE_EMERALD_IT, mapOf(13 to "20 PS")),
+        Case("../Pokemon Multi Language/Pocket Monsters - Emerald (Japan)/Pocket Monsters - Emerald (Japan).gba", GameKind.EMERALD, NATIVE_EMERALD_JA, mapOf(13 to "20　かいふく")),
         Case("Pokemon Unbound (v2.1.1.1).gba", GameKind.UNBOUND, NATIVE_UNBOUND_WITH_DEX, mapOf(16 to "frostbite")),
         Case("Pokemon Gaia (v3.2).gba", GameKind.GAIA, NATIVE_GAIA_V3_2, mapOf(13 to "20 points")),
         Case("Pokemon Odyssey (v4.1.1).gba", GameKind.ODYSSEY, NATIVE_ODYSSEY, mapOf(13 to "restores 50 HP")),
@@ -66,8 +66,8 @@ class RomItemTextTest {
         Case("Pokemon Quetzal (Alpha 9.0) (English).gba", GameKind.QUETZAL, NATIVE_QUETZAL, mapOf(28 to "by 20 points")),
         // Its Spanish release has its own (Spanish) descriptions; Unbound's French translation rewrote them in place.
         Case("Pokemon Quetzal (Alpha 9.0) (Spanish).gba", GameKind.QUETZAL, NATIVE_QUETZAL_ES, mapOf(28 to "Restaura 20 PS")),
-        Case("Quetzal English Alpha 9v1.gba", GameKind.QUETZAL, NATIVE_QUETZAL_V1, mapOf(28 to "by 20 points")),
-        Case("Quetzal Spanish Alpha 9v1.gba", GameKind.QUETZAL, NATIVE_QUETZAL_ES_V1, mapOf(28 to "Restaura 20 PS")),
+        Case("Pokemon Quetzal (Alpha 9v1) (English).gba", GameKind.QUETZAL, NATIVE_QUETZAL_V1, mapOf(28 to "by 20 points")),
+        Case("Pokemon Quetzal (Alpha 9v1) (Spanish).gba", GameKind.QUETZAL, NATIVE_QUETZAL_ES_V1, mapOf(28 to "Restaura 20 PS")),
         Case("Pokemon Quetzal (Alpha 0.8.4) (English).gba", GameKind.QUETZAL, NATIVE_QUETZAL_V084, mapOf(28 to "by 20 points")),
         Case("Pokemon Quetzal (Alpha 0.8.4) (Spanish).gba", GameKind.QUETZAL, NATIVE_QUETZAL_V084_ES, mapOf(28 to "Restaura 20 PS")),
         Case("Moemon Quetzal (Alpha 0.8.4 Hotfix) (English).gba", GameKind.QUETZAL, NATIVE_QUETZAL_MOEMON_V084, mapOf(28 to "by 20 points")),
@@ -98,6 +98,10 @@ class RomItemTextTest {
         Case("Super Mariomon (v1.2.1).gba", GameKind.MARIOMON, NATIVE_MARIOMON_V1_2_1, mapOf(28 to "by 20 points")),
         // Team Rocket Edition: Dragonsden's ESCAPE ROPE, as its battle bag shows it (expansion's item ids).
         Case("Pokemon Team Rocket Dragonsden Version.gba", GameKind.TEAM_ROCKET, NATIVE_TEAM_ROCKET, mapOf(121 to "a cave or a dungeon")),
+        // Wishes of Tomorrow's POTION, as its bag screen prints it.
+        Case("Pokemon Wishes of Tomorrow (v1.2.6).gba", GameKind.WISHES, NATIVE_WISHES, mapOf(28 to "by 20 points")),
+        // Dreamstone Mysteries' REPEL, as its bag shows it, and its own LAB PACKAGE ("Just a bunch of notes and things.").
+        Case("Pokemon Dreamstone Mysteries.gba", GameKind.DREAMSTONE, NATIVE_DREAMSTONE, mapOf(114 to "for 100 steps", 829 to "notes and things")),
     )
 
     /** What the Poller does on detecting [cfg]'s game: its table, or the vanilla one found by shape. */

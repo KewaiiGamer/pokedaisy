@@ -88,6 +88,8 @@ data class BattleMon(
     val stats: IntArray? = null,
     /** Attack, Defense, Speed, Sp. Atk, Sp. Def, accuracy, evasion; 6 = unchanged (0..12). */
     val statStages: IntArray? = null,
+    /** Shiny, where the game's shiny check is known ([NativeConfig.shinyBelow]). */
+    val shiny: Boolean = false,
 )
 
 data class Item(val itemId: Int, val quantity: Int, val pocket: Int = POCKET_ITEMS)
@@ -121,6 +123,8 @@ data class Telemetry(
     val enemyParty: List<Mon> = emptyList(),
     /** gEnemyParty in any battle, wild ones included: where the foe battlers' IVs come from. */
     val battleFoes: List<Mon> = emptyList(),
+    /** gBattleTypeFlags' TRAINER bit: a trainer battle, not a wild one; null = not read (the NUZLOCKE tracker skips it). */
+    val isTrainerBattle: Boolean? = null,
     /** [enemyParty] index of the foe that's out, and of monToSwitchIntoId (its trainer's last pick); -1 = unknown. */
     val enemyActive: Int = -1,
     val enemyNext: Int = -1,
@@ -178,6 +182,9 @@ data class IconTables(
     // Each species' own icon palette (a pointer per gSpeciesInfo entry, [monIconStride]
     // apart) instead of an index into the 6 shared ones: SoulGold's. 0 = the shared ones.
     val monIconPalettes: Long = 0,
+    // gMonPaletteTable ({LZ77 palette, tag} per species), with gMonShinyPaletteTable right after it: a shared-palette icon's
+    // shiny colours (decodeMonIcon). 0 = no shiny icons.
+    val battlePalettes: Long = 0,
 ) {
     // Split per-kind: some hacks relocate one table but not the other (Gaia
     // keeps sItemIconTable at its vanilla address but moved gMonIconTable

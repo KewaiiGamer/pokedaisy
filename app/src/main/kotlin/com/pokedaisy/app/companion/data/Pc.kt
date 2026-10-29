@@ -25,11 +25,8 @@ data class PcFns(
     val script: Long = 0x0203FFF4L,
 )
 
-/** Retail FireRed rev 1 (its gSpecials and ScriptContext_SetupScript traced from the ROM's script command table). */
-val PC_FIRERED_REV1 = PcFns(0x08069AF8L, 60, 0x0815FDD8L, 0x0808C6BDL, listOf(0xAAC00946L, 0x9662F022L))
-val PC_LEAFGREEN_REV0 = PcFns(0x08069AE4L, 60, 0x0815FD3CL, 0x0808C67DL, listOf(0xAAC00946L, 0x5333E53EL))
-val PC_LEAFGREEN_REV1 = PcFns(0x08069AF8L, 60, 0x0815FDB4L, 0x0808C691L, listOf(0xAAC00946L, 0x5333E53EL))
-val PC_EMERALD = PcFns(0x08098EF8L, 63, 0x081DBA64L, 0x080C7579L, listOf(0xEF3698BAL, 0x81188148L))
+// PC_FIRERED_REV1 / _LEAFGREEN_REV0 / _REV1 / _EMERALD are records in gamedata/gen3/records/ (GameDataRecordsGen.kt).
+
 /** Ruby / Sapphire rev 1 and 2 (the same in both revisions): ShowPokemonStorageSystem, special 60, the same five
  * commands (pokeruby's opcodes are Emerald's). The other languages' come with FieldItemsPortsGen.kt. */
 val PC_RUBY = PcFns(0x080655D8L, 60, 0x0814B1B4L, 0x08096121L, listOf(0xBC36478CL, 0x62C153A4L))

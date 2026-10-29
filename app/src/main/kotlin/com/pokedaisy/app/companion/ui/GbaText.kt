@@ -7,6 +7,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -142,6 +144,36 @@ fun GbaText(
     }
 }
 
+/**
+ * [GbaText] in more than one colour, wrapping as one text: each part is (text, colour, its shadow) - WHAT'S NEW's
+ * red lead-in before the grey rest of the line.
+ */
+@Composable
+fun GbaRichText(
+    parts: List<Triple<String, Color, Color>>,
+    m: GbaTextMetrics,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    val style = gbaTextStyle(pixelFontFamily(), m, gameFontScaleX(m))
+    val k = m.fontPixel.roundToInt()
+    fun build(shadow: Boolean) = androidx.compose.ui.text.buildAnnotatedString {
+        for ((text, color, shade) in parts) {
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = if (shadow) shade else color))
+            append(text)
+            pop()
+        }
+    }
+    val shadow = remember(parts) { build(true) }
+    val main = remember(parts) { build(false) }
+    Box(modifier) {
+        for ((dx, dy) in listOf(k to 0, 0 to k, k to k)) {
+            Text(shadow, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.offset { IntOffset(dx, dy) })
+        }
+        Text(main, style = style, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 /** How far right [GbaText]'s bold copy goes: half a font pixel ([pixelWidthPx] screen pixels wide), at least one. */
 fun boldOffsetPx(pixelWidthPx: Float): Int = (pixelWidthPx * 0.5f).roundToInt().coerceAtLeast(1)
 
@@ -201,5 +233,23 @@ fun DrawScope.drawLayeredBox(
             fill, Offset(inset, inset - top), Size(size.width + extraW - 2 * inset, size.height + extraH - 2 * inset),
             r.coerceAtLeast(0f),
         )
+    }
+}
+
+/**
+ * A one-line label wider than its room drawn narrower instead of cut short: its letters lose whole font pixels of width
+ * (4 wide -> 3 -> 2 -> 1, the height kept, like [FittedGbaText]), centred. A plain layout, so a row measuring its
+ * children's intrinsic sizes (the tab bar) can hold it.
+ */
+internal fun Modifier.narrowToFit(m: GbaTextMetrics): Modifier = layout { measurable, constraints ->
+    val p = measurable.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
+    val room = constraints.maxWidth
+    val scale = if (p.width <= room) 1f else {
+        val steps = (m.fontPixel.toInt() - 1 downTo 1).map { it / m.fontPixel }
+        steps.firstOrNull { p.width * it <= room } ?: (room.toFloat() / p.width)
+    }
+    val w = minOf(p.width, room).coerceAtLeast(constraints.minWidth)
+    layout(w, p.height) {
+        p.placeWithLayer((w - p.width) / 2, 0) { scaleX = scale }
     }
 }

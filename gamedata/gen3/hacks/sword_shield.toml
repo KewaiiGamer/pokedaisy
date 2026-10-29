@@ -1,0 +1,27 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Sword and Shield Ultimate Plus v1.2.1.2 (32 MB, sha1 afe4c8e0…): Galar on CFRU, so
+# FireRed 1.0's code and RAM with its data repointed. The words FireRed loads its tables from
+# hold the hack's: gItems 0x093C0000 (Radical Red's address too), gMonIconTable 0x099F1EB8,
+# gMonIconPaletteIndices 0x099F1980 (the palettes stay vanilla's), sItemIconTable 0x093C8100.
+# The headless capture of the user's save (`sword_shield_up`: SCORBUNNY Lv5 21/21, GROWL /
+# TACKLE, ₽5000, POTION x2 / SOOTHE BELL / OLD ROD) decodes with rev 0's RAM. Its Casual / Performance /
+# Casual and Performance patches keep every table and the RAM: the same save and battle decode in each.
+[config.sword_shield]
+base = 'firered_rev0'
+# FireRed's battle menu cursors (CFRU), checked headless like Unbound's (a scripted WOOLOO battle on the base patch).
+actionCursor = 0x02023FF8
+moveCursor = 0x02023FFC
+itemDescs = { preset = 'vanilla', base = 0x093C0000 }
+monIconTable = 0x099F1EB8
+monIconPaletteIndices = 0x099F1980
+itemIconTable = 0x093C8100
+pokedex = 'POKEDEX_SWORD_SHIELD'
+guideTables = 'GUIDE_TABLES_SWORD_SHIELD'
+# Battle (headless, a scripted wild WOOLOO: `sword_shield_up_battle`): rev 0's battle RAM and
+# BattlePokemon hold, gEnemyParty holds the WOOLOO, and rev 0's action handler is what
+# gBattlerControllerFuncs points at while the action menu waits (CFRU patched it in place).
+enemyParty = { from = 'firered_rev1' }
+battlerPartyIndexes = { from = 'firered_rev1' }
+battleStructPtr = { from = 'firered_rev1' }
+monToSwitchIntoOff = { from = 'firered_rev1' }

@@ -1,0 +1,114 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Emerald Seaglass v3.0 - BPEE, exactly 16 MB (so Poller.detect()'s >16 MB
+# hack-hash branch never saw it - see its own 16 MB branch). No source
+# access; a pokeemerald-expansion-style recompile (mixed-case names, National
+# Dex species numbering, expansion item order) with its own link layout -
+# none of NATIVE_EMERALD's RAM addresses hold. Every field overridden below
+# was found from HEADLESS captures (scripts/capture_fixture_headless.sh,
+# no device) of the user's real save - 1 Torchic Lv5 + a Shiny Charm - and
+# confirmed stable across 5 independent captures with different boot timing
+# (so different RNG seeds, so a different SaveBlock offset each time -
+# Emerald's per-load save-block relocation):
+# - playerParty: checksum-valid mon at 0x02019C20 in all 5; the only other
+# hit (0x0200CBxx) drifted every capture and sits at exactly
+# gSaveBlock1Ptr+0x238 (vanilla's SaveBlock1.playerParty) - it's the
+# save-block copy, not the global. Count byte at party-3, like vanilla.
+# - saveBlock1Ptr/saveBlock2Ptr: the IWRAM pair that always points at that
+# drifting copy (-0x238) / at a SaveBlock2 whose name reads "LIDOR".
+# encryptionKey stays at vanilla's +0xAC: every empty bag slot's
+# quantity is exactly key&0xFFFF in all 5 captures.
+# - gMain: the only IWRAM pair counting exactly the captured frame deltas
+# (vblankCounter1/2 at +0x20/+0x24, vanilla offsets); callback1/2 are
+# stable Thumb ROM pointers.
+# - bagPockets: stable {ptr,cap} x5 table whose pointers track SaveBlock1
+# (+0x560 cap 80, +0x740 cap 20, +0x790 cap 70, +0x8A8 cap 60, +0x6A0
+# cap 40) - vanilla Emerald's pocket order; the Shiny Charm (a key item,
+# id 691 in ItemNamesSeaglass.kt) sits in pocket 4.
+# - mapHeader: stable, mapsec 0x00 (Littleroot) + MAP_TYPE_INDOOR while
+# SaveBlock1 says map 1.4 (Birch's Lab) - vanilla Hoenn mapsec ids.
+# - objectEvents: gObjectEvents[0] = the player (currentCoords = SaveBlock1
+# pos + 7), stable; the drifting 0x0200D4xx hit is SaveBlock1's copy.
+# NOT found (no battle in any capture): battleMons/battlerPositions/
+# battlersCount/battleTypeFlags are still NATIVE_EMERALD's - known wrong,
+# same gap as Lazarus/Emerald Rogue - and expansion's struct BattlePokemon
+# likely isn't vanilla's layout either, so decodeBattleMon would need a
+# variant regardless. Touch-battle-input addresses zeroed so that stays
+# cleanly disabled, same as Heart and Soul.
+#
+# Icons (ROM data, found by static analysis of the ROM file - no RAM
+# involved): expansion has no gMonIconTable/gMonIconPaletteIndices/
+# gItemIconTable arrays; the same fields live inside each fixed-stride
+# gSpeciesInfo / gItemsInfo entry, so the bases below point at the field
+# within entry 0 and the strides are the whole structs' sizes:
+# - gSpeciesInfo: 0xD0-byte entries (inline species names are exactly
+# 0xD0 apart - "Bulbasaur"@0x088F087C, "Ivysaur" +0xD0, "Torchic" at
+# species 255). Relative to the name: +0x4C = iconSprite (raw 1024-byte
+# 4bpp, the only per-species pointer whose target isn't LZ77 - the
+# neighbours are front/back pics and palettes), +0x5A = iconPalIndex in
+# the low 3 bits (upper bits: iconPalIndexFemale).
+# - gMonIconPaletteTable: still a separate array (0x0893F0B8 - the only
+# place in ROM with six {ptr, tag 56000..56005} entries).
+# - gItemsInfo: 0x54-byte entries, name-relative +0x34/+0x38 = iconPic/
+# iconPalette (every item's pair points at LZ77 data decompressing to
+# exactly 288/32 bytes = a 24x24 icon + palette).
+# Verified by decoding offline with these exact rules: species 1-60,
+# 252-311, Mewtwo, Rayquaza, Pecharunt all render as the right Pokémon in
+# the right colours; balls, Potion, Mint, Gengarite and the user's Shiny
+# Charm all render correctly as items. Species Seaglass doesn't include
+# (e.g. #445) and TMs (expansion draws TM discs per move type in code) have
+# NULL pointers there, which DecompIconSource already treats as "no icon".
+# Battle (2026-10-07, headless - the emerald_seaglass_battle fixture: a scripted
+# wild battle run through ScriptContext_SetupScript 0x081EF598): the same
+# expansion layout as Lazarus - gBattleTypeFlags 0x020002C0, gBattlersCount
+# 0x02000344, gBattlerPartyIndexes 0x02000348 (1 after switching to slot 2),
+# gBattlerPositions 0x02000350, gBattleMons 0x02000360 (0x60-byte entries) - but
+# the gBattleStruct pointer is 0x02000824 (monToSwitchIntoId at +0x3C, 06 06 06 06
+# then 01 23 45); gEnemyParty 0x02019E78, right after the party. Before this the
+# config inherited vanilla Emerald's battle addresses: a blank INFO page.
+# Touch battle input: gBattlerControllerFuncs 0x03002244 (IWRAM), the action /
+# move / bag / party handlers 0x0805CD35 / 0x0805D5CD / 0x0805F41D / 0x0805F34D,
+# HandleInputChooseTarget 0x0805CF85 by code (the move handler's pool; it returns
+# to the move handler on B). gPartyMenu 0x02019964, Emerald's list (DOWN walks it).
+[config.emerald_seaglass]
+base = 'emerald'
+# gItemsInfo: 0x54-byte entries, inline names, the description pointer 8 bytes before.
+itemDescs = { base = 0x0867E77C, stride = 0x54, descOff = -8 }
+guideTables = 'GUIDE_TABLES_SEAGLASS'
+playerParty = 0x02019C20
+playerPartyCount = 0x02019C1D
+gMain = 0x030014B4
+saveBlock1Ptr = 0x030051B8
+saveBlock2Ptr = 0x030051BC
+objectEvents = 0x0200564C
+mapHeader = 0x0200B04C
+bagPockets = 0x0200B0B8
+monIconTable = 0x088F07F8  # gSpeciesInfo[0].iconSprite
+monIconStride = 0xD0
+monIconPaletteIndices = 0x088F0806  # gSpeciesInfo[0].iconPalIndex
+monPalIdxStride = 0xD0
+monPalIdxMask = 0x07
+monIconPaletteTable = 0x0893F0B8
+itemIconTable = 0x0867E7B0  # gItemsInfo[0].iconPic
+itemIconStride = 0x54
+battleTypeFlags = 0x020002C0
+battlersCount = 0x02000344
+battlerPartyIndexes = 0x02000348
+battlerPositions = 0x02000350
+battleMons = 0x02000360
+battleMonLayout = 'EXPANSION_BATTLE_MON'
+battleStructPtr = 0x02000824
+# gActionSelectionCursor / gMoveSelectionCursor: +0x10 / +0x14 past the gBattleStruct pointer (Lazarus's layout,
+# 8 bytes earlier). Checked headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a
+# written move 1 + A spends its PP.
+actionCursor = 0x02000834
+moveCursor = 0x02000838
+monToSwitchIntoOff = 0x3C
+enemyParty = 0x02019E78
+battlerControllerFuncs = 0x03002244
+handleInputChooseAction = 0x0805CD35
+handleInputChooseMove = 0x0805D5CD
+completeWhenChoseItem = 0x0805F41D
+waitForMonSelection = 0x0805F34D
+handleInputChooseTarget = 0x0805CF85
+pokedex = 'POKEDEX_EMERALD_SEAGLASS'

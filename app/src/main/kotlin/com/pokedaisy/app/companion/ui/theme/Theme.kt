@@ -230,6 +230,9 @@ object AppColors {
         "Prism" to Color(0xFFE070D8),
         // Pokémon Odyssey's AETHER (type 9): ours too.
         "Aether" to Color(0xFF9DB7F5),
+        // PureRGB's own: NONE (STRUGGLE's), CRYSTAL (a hardened rock), FLOATING, MAGMA - ours (TRI is Prism's above).
+        "None" to Color(0xFF68A090), "Crystal" to Color(0xFF8CC8D8), "Floating" to Color(0xFFB8A0D8),
+        "Magma" to Color(0xFFC8481C),
     )
 
     /** By the game's own type name: title-cased ("Fire"), or Gen 1's capitals ("FIRE", and its unused BIRD as Flying). */
@@ -314,6 +317,7 @@ fun rememberGameFont(game: GameKind?): FontFamily? {
         val path = when (game) {
             GameKind.YELLOW -> com.pokedaisy.app.companion.data.Gen1Art.yellowFont(com.pokedaisy.app.companion.data.romLanguage)
             GameKind.RED, GameKind.BLUE -> com.pokedaisy.app.companion.data.Gen1Art.RED_BLUE_FONT
+            GameKind.PURE_RED, GameKind.PURE_BLUE -> com.pokedaisy.app.companion.data.Gen1Art.PURE_FONT
             GameKind.CRYSTAL -> com.pokedaisy.app.companion.data.Gen2Art.CRYSTAL_FONT
             GameKind.CRYSTAL_CLEAR -> com.pokedaisy.app.companion.data.Gen2Art.CRYSTAL_CLEAR_FONT
             GameKind.PRISM -> com.pokedaisy.app.companion.data.Gen2Art.PRISM_FONT
@@ -406,6 +410,8 @@ private fun backdropColors(game: GameKind): IntArray? = when (game) {
     GameKind.LAZARUS -> IntArray(3) { 0xFFFFFFFF.toInt() }
     // Imperium's party grid: grey / near-black rows.
     GameKind.IMPERIUM -> intArrayOf(0xFF424242.toInt(), 0xFF101821.toInt(), 0xFF101821.toInt())
+    // Dreamstone Mysteries' party grid: Imperium's rows, the same two colours.
+    GameKind.DREAMSTONE -> intArrayOf(0xFF424242.toInt(), 0xFF101821.toInt(), 0xFF101821.toInt())
     GameKind.ROWE -> IntArray(3) { 0xFF292929.toInt() }
     // Super Mariomon's party menu: flat brown behind its wood-plank slots.
     GameKind.MARIOMON -> IntArray(3) { 0xFF845A4A.toInt() }
@@ -418,6 +424,8 @@ private fun backdropColors(game: GameKind): IntArray? = when (game) {
     GameKind.SWORD_SHIELD -> intArrayOf(0xFFCE3131.toInt(), 0xFFCE3131.toInt(), 0xFF9C2121.toInt())
     // HeartGold / SoulSilver's party screen: teal behind its Poké Ball, a deeper teal below.
     GameKind.HEARTGOLD, GameKind.SOULSILVER -> intArrayOf(0xFF8ADBDB.toInt(), 0xFF69CBCB.toInt(), 0xFF38B2BA.toInt())
+    // Wishes of Tomorrow's party menu: FireRed's lined backdrop in its own blues (sampled headless).
+    GameKind.WISHES -> intArrayOf(0xFF63A5BD.toInt(), 0xFF186B8C.toInt(), 0xFF213163.toInt())
     else -> null
 }
 

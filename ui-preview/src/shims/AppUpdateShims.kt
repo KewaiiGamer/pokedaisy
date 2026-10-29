@@ -17,6 +17,8 @@ class PackageInfo {
     val packageName = ""
     val versionCode = 0
     val longVersionCode = 0L
+    val firstInstallTime = 0L
+    val lastUpdateTime = 0L
     val signingInfo: SigningInfo? = null
     val signatures: Array<Signature>? = null
 }

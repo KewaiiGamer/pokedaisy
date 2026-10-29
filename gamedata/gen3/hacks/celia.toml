@@ -1,0 +1,73 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokemon Celia's Stupid Romhack v1.1.4 - BPRE rev 0, ~28.7 MB, no source.
+# A full pokefirered RECOMPILE (unlike Unbound/Gaia's in-place ASM patches),
+# so nothing sits at its vanilla address. Found headlessly (no device):
+# - RAM: 5 captures with varied boot timing, same method as
+# NATIVE_EMERALD_SEAGLASS. playerParty is the only checksum-valid copy
+# that never moved (the other sits at gSaveBlock1Ptr+0x38 and drifts);
+# gSaveBlock1Ptr/2Ptr are the IWRAM pair pointing at it; gMain's
+# callbacks are ROM ptrs and +0x24 counts frames exactly; bagPockets/
+# mapHeader/objectEvents found by the same structural scans (stable
+# across captures). Pocket order is vanilla FireRed's but Items/Key
+# Items are enlarged (52/40 slots vs 42/30) - the {ptr,cap} table
+# carries its own capacities, so nothing else to change.
+# - encryptionKey moved to SaveBlock2+0xB18 (an identical copy also sits
+# at +0xB40): the only offsets whose value tracks the per-load key in
+# every capture; SaveBlock1 money decrypts to 2999 with it.
+# - playerPartyCount and all four battle globals come from the ROM's CODE,
+# not RAM (a field capture has no battle in it, and a story script at
+# Pallet's north exit blocks reaching grass on this save): count
+# 0x020240E1 shares 35 literal pools with gPlayerParty (and is vanilla's
+# own party-0x25B). The battle block moved +0x14 as a unit - vanilla's
+# most-referenced global there, gActiveBattler (955 refs), lines up with
+# Celia's 0x02023BD8 (1001), and battleTypeFlags/battlersCount/
+# battlerPositions/battleMons each match at the same +0x14 with similar
+# ref counts (305->374, 154->180, 30->31, 380->513). NOT live-verified in
+# a battle, and struct BattlePokemon's layout is assumed vanilla.
+# - Icons (ROM): vanilla icon bytes for Bulbasaur/Mewtwo found in Celia's
+# ROM, then the pointers to them - both give gMonIconTable 0x08C12A48
+# once you use THIS hack's species ids (Bulbasaur=2, Mewtwo=151; an
+# off-by-one here was caught by rendering). Palette table = the unique
+# six {ptr, tag 56000..56005}; palette indices = the u8<=5 run right
+# after the icon table; item table = the {tiles,pal} pairs whose entry 1
+# is vanilla's Master Ball tiles. All checked by decoding offline and
+# looking: species 0-23 + a spread up to 410, and 12 items incl. the
+# user's ETHER, render as the right Pokemon/items.
+# Touch battle control disabled (addresses not derived).
+[config.celia]
+base = 'firered_rev0'
+itemDescs = { preset = 'vanilla', base = 0x08C1D0BC }  # relocated (15 references)
+playerParty = 0x0202433C
+playerPartyCount = 0x020240E1
+battleMons = 0x02023BF8
+battlerPositions = 0x02023BEA
+battlersCount = 0x02023BE0
+battleTypeFlags = 0x02022B60
+gMain = 0x03003490
+saveBlock1Ptr = 0x030053A8
+saveBlock2Ptr = 0x030053AC
+objectEvents = 0x02037034
+mapHeader = 0x02036FF8
+bagPockets = 0x02039B44
+encryptionKeyOff = 0xB18
+monIconTable = 0x08C12A48
+monIconPaletteIndices = 0x08C13F0C
+monIconPaletteTable = 0x08C14440
+itemIconTable = 0x08C1469C
+# Found by diffing headless dumps of a scripted battle (celia_battle's README): the IWRAM word holding a different
+# ROM pointer at the action menu, the move menu and the party menu; the bag's from a written BAG cell + A. No
+# target handler yet. Its battle block is FireRed's moved 0x14 up (gBattleMons 0x02023BF8), gBattlerPartyIndexes
+# with it (0x02023BE2: 0 -> 1 after a SHIFT to slot 1), the cursors 0x020240AC / 0x020240B0 (0 -> 1 -> 3), and a
+# written move 1 + A spent one PP byte (0x02023C1E).
+battlerControllerFuncs = 0x03005380
+handleInputChooseAction = 0x08037AFD
+handleInputChooseMove = 0x08038185
+completeWhenChoseItem = 0x0803A005
+waitForMonSelection = 0x08039E99
+actionCursor = 0x020240AC
+moveCursor = 0x020240B0
+battlerPartyIndexes = 0x02023BE2
+handleInputChooseTarget = 0
+pokedex = 'POKEDEX_CELIA'
+guideTables = 'GUIDE_TABLES_CELIA'

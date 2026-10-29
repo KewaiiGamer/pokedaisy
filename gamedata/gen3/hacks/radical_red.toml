@@ -1,0 +1,40 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Radical Red v4.1 - a 32 MB BPRE hack like Gaia/Unbound above, but
+# LESS verified: static byte comparison against the same vanilla rev-0 build
+# (2026-09-20) was mixed, unlike Gaia's clean ten-for-ten. Identical:
+# ZeroPlayerPartyMons (0x0803da14 - so gPlayerParty stays 0x02024284),
+# CompleteWhenChoseItem/WaitForMonSelection/HandleInputChooseTarget (bag/
+# party-open detection and the target-select screen). Genuinely DIFFERENT
+# (not just a patched constant, real rewritten code from the first byte):
+# ReadKeys and SetSaveBlocksPointers - both suggests gMain and/or
+# gSaveBlock1Ptr/gSaveBlock2Ptr may have shifted, unlike every other hack
+# checked so far. HandleInputChooseAction/HandleInputChooseMove also differ
+# (expected - Radical Red is well known for a heavily reworked battle UI,
+# same as CFRU/Unbound), so touch battle control (hasBattleInputAddrs) is
+# left unverified here even though gBattlerControllerFuncs's own address is
+# probably still 0x03004fe0 (three of its five call sites matched byte-for-
+# byte). Inheriting rev-0's gMain/saveBlock addresses unchanged for now
+# (untested guess) rather than blocking basic party/item display on a full
+# gMain/SaveBlock re-discovery - if HP/status/bag quantities come out as
+# garbage, THAT'S the next thing to re-derive, the same way NATIVE_GAIA_V3_2
+# was (find a still-identical function that loads the address, read its
+# literal pool).
+#
+# Icons: CFRU repoints FireRed's literal pools, so the words retail rev 0 loads
+# gMonIconTable / gMonIconPaletteIndices / sItemIconTable from (0x08097050,
+# 0x080971F4, 0x0809899C) hold Radical Red's own tables; the palette table is
+# still vanilla's. Inheriting rev 0's read species past 411 off the end of
+# vanilla's tables - the broken party / bag sprites.
+[config.radical_red_v4_1]
+base = 'firered_rev0'
+# Repointed by CFRU; indexed by slot, as the game's ItemId_GetDescription does.
+itemDescs = { preset = 'vanilla', base = 0x093C0000 }
+monIconTable = 0x097FE6CC
+monIconPaletteIndices = 0x097FE164
+itemIconTable = 0x093C8100
+pokedex = 'POKEDEX_RADICAL_RED'
+guideTables = 'GUIDE_TABLES_RADICAL_RED'
+# FireRed's battle menu cursors (CFRU's EWRAM), checked headless like Unbound's (radical_red_battle's README).
+actionCursor = 0x02023FF8
+moveCursor = 0x02023FFC

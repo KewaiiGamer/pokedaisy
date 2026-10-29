@@ -42,7 +42,7 @@ class PolishedCrystalGuideTest {
         assertFalse(g.verified)
         assertTrue(g.world === PolishedCrystalWorld)
         // Other Game Boy games still have none.
-        assertEquals(null, guideId(GameKind.CRYSTAL, null))
+        assertEquals(null, guideId(GameKind.GOLD, null))
     }
 
     @Test

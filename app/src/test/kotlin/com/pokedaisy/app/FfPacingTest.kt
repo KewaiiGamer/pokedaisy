@@ -60,6 +60,15 @@ class FfPacingTest {
         assertEquals(4, fit.size)
     }
 
+    /** FF turned on again (or a stalled first group, a map loading): one long group must not take it down to 1x. */
+    @Test fun aStalledFirstGroupChangesNothing() {
+        val fit = FfGroupFit().apply { reset(2) }
+        fit.groupDone(90_000_000_000L, period)   // FF off for a minute and a half, timed as one group
+        assertEquals(2, fit.size)
+        fit.run(30, 3_000_000L, 2_000_000L)
+        assertEquals(2, fit.size)
+    }
+
     /** Walking: 2 frames (12 + 3 ms) slightly over or near a refresh still make ~2 a refresh: not halved to 1. */
     @Test fun walkingKeepsTwo() {
         val fit = FfGroupFit().apply { reset(4) }

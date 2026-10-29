@@ -41,7 +41,7 @@ class QuetzalV1Test {
         activeGame = GameKind.QUETZAL
         // Without the ROM (BAG4's lists), the party and the rest still read.
         assertEquals(1, decodeNative("quetzal_v1", NATIVE_QUETZAL_V1).party.size)
-        val en = v1("quetzal_v1", NATIVE_QUETZAL_V1, "Quetzal English Alpha 9v1.gba")
+        val en = v1("quetzal_v1", NATIVE_QUETZAL_V1, "Pokemon Quetzal (Alpha 9v1) (English).gba")
         assumeTrue("Quetzal v1 ROMs not on this machine", en != null)
         en!!
         same(decodeNative("quetzal", NATIVE_QUETZAL), en)
@@ -51,7 +51,7 @@ class QuetzalV1Test {
         assertEquals("Route 1", mapSecDataQuetzal.getValue(en.regionMapSectionId).name)
         assertEquals(QuetzalNames(), readQuetzalNames(FixtureMemoryReader.load("quetzal_v1"), NATIVE_QUETZAL_V1))
 
-        val es = v1("quetzal_es_v1", NATIVE_QUETZAL_ES_V1, "Quetzal Spanish Alpha 9v1.gba")!!
+        val es = v1("quetzal_es_v1", NATIVE_QUETZAL_ES_V1, "Pokemon Quetzal (Alpha 9v1) (Spanish).gba")!!
         same(decodeNative("quetzal_es", NATIVE_QUETZAL_ES), es)
         assertEquals(1_048_458L, es.money)
         assertEquals(QuetzalNames(species = 1, moves = 1, items = 1, places = 1),
@@ -95,8 +95,8 @@ class QuetzalV1Test {
     fun `every table reads what v0's reads`() {
         val details = ArrayList<Any?>()
         for ((v0File, v1File, cfgs) in listOf(
-            Triple("Pokemon Quetzal (Alpha 9.0) (English).gba", "Quetzal English Alpha 9v1.gba", NATIVE_QUETZAL to NATIVE_QUETZAL_V1),
-            Triple("Pokemon Quetzal (Alpha 9.0) (Spanish).gba", "Quetzal Spanish Alpha 9v1.gba", NATIVE_QUETZAL_ES to NATIVE_QUETZAL_ES_V1),
+            Triple("Pokemon Quetzal (Alpha 9.0) (English).gba", "Pokemon Quetzal (Alpha 9v1) (English).gba", NATIVE_QUETZAL to NATIVE_QUETZAL_V1),
+            Triple("Pokemon Quetzal (Alpha 9.0) (Spanish).gba", "Pokemon Quetzal (Alpha 9v1) (Spanish).gba", NATIVE_QUETZAL_ES to NATIVE_QUETZAL_ES_V1),
         )) {
             val r0 = rom(v0File)
             val r1 = rom(v1File)

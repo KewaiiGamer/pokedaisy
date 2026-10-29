@@ -1,0 +1,70 @@
+# DexFlags's fields (Pokedex.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | ref (a Kotlin
+# val's name, or a record in gamedata/gen3/records/); record names the schema of a value a config may
+# spell out as a sub-table.
+
+version = 1
+kotlin_class = 'DexFlags'
+kotlin_file = 'Pokedex.kt'
+
+[field.block]
+kotlin = 'DexFlagBlock'
+type = 'ref'
+
+[field.seen]
+kotlin = 'Long'
+type = 'long'
+
+[field.caught]
+kotlin = 'Long'
+type = 'long'
+
+[field.bytes]
+kotlin = 'Int'
+type = 'int'
+
+# SaveBlock1 offsets of FireRed / Emerald's two anti-cheat copies of
+# `seen`. When set, a bit only counts if every copy agrees, and caught
+# needs seen too - exactly what the game's own check does.
+[field.seenCopies]
+kotlin = 'List<Long>'
+type = 'long_list'
+default = []
+
+[field.firstBit]
+kotlin = 'Int'
+type = 'int'
+default = 1
+
+# Quetzal: `seen` holds a 3-bit level per species (0 unseen, 1 seen, 2 caught), 8 to a u32
+# (bits 0-23), so [bytes] * 4 of them.
+[field.seenLevels]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# Quetzal: caught is one bit array per region ([bytes] each, at these offsets) and counts in
+# any of them - what its card and continue screen count; [caught] is then unused.
+[field.caughtRegions]
+kotlin = 'List<Long>'
+type = 'long_list'
+default = []
+
+# Quetzal Alpha 0.8.4: no caught arrays - a [seenLevels] level of 2 or more is caught (its POKéDEX's OWN).
+[field.caughtFromLevel]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# Emerald Rogue: the arrays are indexed by species id, not dex number (No. n reads its species' bit).
+[field.bySpecies]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# Emerald Rogue's 2-bit state per species: [seen] holds bit 0 and [caught] bit 1 (1 seen, 2 caught,
+# 3 caught shiny), so a caught species is seen even with its [seen] bit clear.
+[field.seenOrCaught]
+kotlin = 'Boolean'
+type = 'bool'
+default = false

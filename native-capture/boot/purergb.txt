@@ -1,0 +1,39 @@
+# PureRed / PureBlue v2.7.6 from the user's retail Red save (fixtures purered* / pureblue*): CONTINUE finds a save from
+# "an older build" and runs the game's own save updater (engine/menus/save_file_updater.asm). Its text, A by A; on
+# "Which older build did it come from?" DOWN to "Original Game" and START (A only repeats "Press START to confirm."); it
+# moves the bag / PC items to PureRGB's places, fixes its flags and writes the save. Then "Warp to PALLET?" - NO: the
+# save keeps Red's map header and tileset pointers for its map (Vermilion City's Pokemon Center), which the game skips
+# reloading on CONTINUE (wCurMapTileset bit 7), so the bit is cleared first and LoadMapHeader reads PureRGB's own from
+# the cart (without it the Pokemon Center draws as garbage; YES froze the game headless). On the field.
+wait 1600
+press START
+wait 200
+press A
+wait 120
+press A
+wait 200
+press A
+wait 150
+press A
+wait 150
+press A
+wait 150
+hold DOWN 3
+wait 30
+hold START 3
+wait 600
+press A
+wait 150
+press A
+wait 150
+press A
+wait 150
+press A
+wait 150
+press A
+wait 150
+hold DOWN 3
+wait 30
+gbpoke 1 d36f 06
+press A
+wait 600

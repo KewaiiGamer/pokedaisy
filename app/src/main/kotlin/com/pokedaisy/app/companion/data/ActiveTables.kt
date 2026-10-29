@@ -26,7 +26,8 @@ package com.pokedaisy.app.companion.data
 // NativeReader.kt. Heart and Soul and Lazarus now have their own
 // ROM-extracted tables (*Hns.kt / *Lazarus.kt, scripts/gen_expansion_tables.py).
 enum class GameKind { FIRERED, EMERALD, UNBOUND, GAIA, RADICAL_RED, ODYSSEY, HEART_AND_SOUL, LAZARUS, ROWE, EMERALD_ROGUE, AMETHYST, EMERALD_SEAGLASS, CELIA, TMT2, SOULGOLD, YELLOW, GLAZED, IMPERIUM, QUETZAL, ORANGE_ISLANDS, RECHARGED_YELLOW, MARIOMON, SWORD_SHIELD, GS_CHRONICLES, CRYSTAL, CRYSTAL_CLEAR, PRISM,
-    GOLD, SILVER, RED, BLUE, ELITE_REDUX, POLISHED_CRYSTAL, PLATINUM, HEARTGOLD, SOULSILVER, TEAM_ROCKET }
+    GOLD, SILVER, RED, BLUE, ELITE_REDUX, POLISHED_CRYSTAL, PLATINUM, HEARTGOLD, SOULSILVER, TEAM_ROCKET, BLACK,
+    WISHES, PURE_RED, PURE_BLUE, DREAMSTONE }
 
 @Volatile
 var activeGame: GameKind = GameKind.FIRERED
@@ -72,6 +73,9 @@ private inline val rechargedYellow get() = activeGame == GameKind.RECHARGED_YELL
 // them too: every table the generator reads comes out as Yellow's in both (gen_gen1_tables.py red / blue checks it).
 private inline val yellow get() = activeGame.isGen1
 private inline val redBlue get() = activeGame.isRedBlue
+// PureRed / PureBlue (Vortyne/pureRGB): Gen 1's reader, tables of their own (gen_gen1_tables.py purered: its types, moves,
+// items, places). Checked before [yellow], which they also are.
+private inline val pureRgb get() = activeGame.isPureRgb
 // Pokémon Crystal (Game Boy Color): Gen 2's own tables (gen_gen2_tables.py), keyed by National Dex number. Crystal
 // Clear kept its species, moves and types (the generator checks them against Crystal's); its items and places are its own.
 // Gold and Silver kept the same species, moves and types too; their items and landmarks are their own (one table for both).
@@ -95,6 +99,8 @@ private inline val platinum get() = activeGame == GameKind.PLATINUM
 // and icons (gen_gen4_tables.py heartgold, from pret/pokeheartgold).
 private inline val heartGold get() = activeGame.isHgss
 private inline val gen4 get() = activeGame.isDsGame
+// Pokémon Black (Nintendo DS, Gen 5): its own tables from the cart (gen_gen5_tables.py), checked before Gen 4's.
+private inline val black get() = activeGame == GameKind.BLACK
 
 /** SoulGold v1.2 runs on v1.1.4's tables (byte for byte the same) but for one TM: its
  * TM75 teaches Agility, not Swords Dance. Set with [activeGame] by the Poller. */
@@ -187,10 +193,12 @@ fun emeraldHackFor(cfg: NativeConfig?): HackText? = when {
 
 /** Whether the MAP and place names come from the ROM's own region map ([RomRegionMap]): every
  * FireRed-engine hack but the ones that kept FireRed's (FireRed itself carries its title-cased names). */
-val readsRomRegionMap: Boolean get() = when (activeGame) {
+val readsRomRegionMap: Boolean get() = when {
+    // Game Boy and DS games: never a GBA ROM's map (Crystal Clear after Unbound drew Unbound's).
+    activeGame.isGameBoyGame || activeGame.isDsGame -> false
     // Recharged Yellow is a rebuild: FireRed 1.0's literal pools RomRegionMap follows aren't its code.
-    GameKind.YELLOW, GameKind.RED, GameKind.BLUE, GameKind.RECHARGED_YELLOW, GameKind.PLATINUM, GameKind.HEARTGOLD, GameKind.SOULSILVER -> false
-    GameKind.FIRERED -> runningFireRedHack?.ownRegionMap == true
+    activeGame == GameKind.RECHARGED_YELLOW -> false
+    activeGame == GameKind.FIRERED -> runningFireRedHack?.ownRegionMap == true
     else -> true
 }
 /** Super Mariomon v1.2.1 / v1.2.2 / v1.3 share their tables, v1.5.x has its own (a species and seven
@@ -224,6 +232,10 @@ private inline val rogue get() = activeGame == GameKind.EMERALD_ROGUE
 private inline val eliteRedux get() = activeGame == GameKind.ELITE_REDUX
 // Pokémon Team Rocket Edition: Dragonsden Version: its own species / moves / items / map sections (gen_team_rocket_tables.py).
 private inline val teamRocket get() = activeGame == GameKind.TEAM_ROCKET
+// Pokémon Wishes of Tomorrow: its own species / moves / items / map sections (gen_expansion_tables.py wishes).
+private inline val wishes get() = activeGame == GameKind.WISHES
+// Pokémon Dreamstone Mysteries: its own species / moves / items / types / map sections (gen_expansion_tables.py dreamstone).
+private inline val dreamstone get() = activeGame == GameKind.DREAMSTONE
 
 /** Elite Redux 2.65.3b is running (its few names / types / moves over 2.65.4.1b's). Set with [activeGame] by the Poller. */
 var eliteRedux265_3 = false
@@ -232,7 +244,9 @@ var eliteRedux265_3 = false
 
 
 val activeSpeciesNames: Map<Int, String> get() = localText?.species ?: when {
+    black -> NdsArt.names?.speciesMerged ?: speciesNamesBlack
     gen4 -> NdsArt.names?.speciesMerged ?: speciesNamesPlatinum   // the cart's own words (GitHub #230)
+    pureRgb -> speciesNamesPureRgb
     yellow -> speciesNamesYellow
     polished -> speciesNamesPolishedCrystal
     prism -> speciesNamesPrism
@@ -262,10 +276,14 @@ val activeSpeciesNames: Map<Int, String> get() = localText?.species ?: when {
     mariomon -> if (mariomonV13) speciesNamesMariomonV13 else speciesNamesMariomon
     eliteRedux -> if (eliteRedux265_3) speciesNamesEliteRedux265_3 else speciesNamesEliteRedux
     teamRocket -> speciesNamesTeamRocket
+    wishes -> speciesNamesWishes
+    dreamstone -> speciesNamesDreamstone
     else -> frHack?.speciesMerged ?: speciesNames
 }
 val activeMoveData: Map<Int, MoveInfo> get() = localText?.moveData ?: when {
+    black -> NdsArt.names?.movesMerged ?: moveDataBlack
     gen4 -> NdsArt.names?.movesMerged ?: moveDataPlatinum
+    pureRgb -> moveDataPureRgb
     yellow -> moveDataYellow
     polished -> if (faithful) moveDataPolishedCrystalFaithful else moveDataPolishedCrystal
     prism -> moveDataPrism
@@ -291,12 +309,16 @@ val activeMoveData: Map<Int, MoveInfo> get() = localText?.moveData ?: when {
     amethyst -> moveDataAmethyst   // both versions' (GitHub #96: past Gen 3's 354 they read "Move#N")
     eliteRedux -> if (eliteRedux265_3) moveDataEliteRedux265_3 else moveDataEliteRedux
     teamRocket -> moveDataTeamRocket
+    wishes -> moveDataWishes
+    dreamstone -> moveDataDreamstone
     odyssey -> fireRedHackOdyssey.movesMerged
     else -> frHack?.movesMerged ?: moveData
 }
 val activeItemNames: Map<Int, String> get() = localText?.items ?: when {
+    black -> NdsArt.names?.itemsMerged(false) ?: itemNamesBlack
     heartGold -> NdsArt.names?.itemsMerged(true) ?: itemNamesHeartGold
     platinum -> NdsArt.names?.itemsMerged(false) ?: itemNamesPlatinum
+    pureRgb -> itemNamesPureRgb
     yellow -> itemNamesYellow
     polished -> if (faithful) itemNamesPolishedCrystalFaithful else itemNamesPolishedCrystal
     prism -> itemNamesPrism
@@ -324,11 +346,15 @@ val activeItemNames: Map<Int, String> get() = localText?.items ?: when {
     mariomon -> itemNamesMariomon
     eliteRedux -> if (eliteRedux265_3) itemNamesEliteRedux265_3 else itemNamesEliteRedux
     teamRocket -> itemNamesTeamRocket
+    wishes -> itemNamesWishes
+    dreamstone -> itemNamesDreamstone
     odyssey -> fireRedHackOdyssey.itemsMerged
     else -> frHack?.itemsMerged ?: itemNames
 }
 val activeSpeciesTypeData: Map<Int, SpeciesTypes> get() = when {
+    black -> speciesTypesBlack
     gen4 -> speciesTypesPlatinum
+    pureRgb -> speciesTypeDataPureRgb
     yellow -> speciesTypeDataYellow
     polished -> if (faithful) speciesTypeDataPolishedCrystalFaithful else speciesTypeDataPolishedCrystal
     prism -> speciesTypeDataPrism
@@ -353,6 +379,8 @@ val activeSpeciesTypeData: Map<Int, SpeciesTypes> get() = when {
     emeraldLegacy -> speciesTypeDataEmeraldLegacy
     eliteRedux -> if (eliteRedux265_3) speciesTypeDataEliteRedux265_3 else speciesTypeDataEliteRedux
     teamRocket -> speciesTypeDataTeamRocket
+    wishes -> speciesTypeDataWishes
+    dreamstone -> speciesTypeDataDreamstone
     odyssey -> fireRedHackOdyssey.typesMerged   // its regional forms (GitHub #206)
     else -> frHack?.typesMerged ?: speciesTypeData
 }
@@ -362,6 +390,7 @@ private val speciesTypeDataEmeraldLegacy: Map<Int, SpeciesTypes> by lazy {
 }
 private const val SPECIES_DEOXYS = 410
 val activeTypeEffectiveness: Map<Int, Int> get() = when {
+    pureRgb -> typeEffectivenessPureRgb
     yellow -> typeEffectivenessYellow
     polished -> typeEffectivenessPolishedCrystal
     prism -> typeEffectivenessPrism
@@ -383,10 +412,13 @@ val activeTypeEffectiveness: Map<Int, Int> get() = when {
     mariomon -> typeEffectivenessMariomon
     eliteRedux -> typeEffectivenessEliteRedux
     teamRocket -> typeEffectivenessTeamRocket
+    wishes -> typeEffectivenessWishes
+    dreamstone -> typeEffectivenessDreamstone
     odyssey -> fireRedHackOdyssey.typeChart ?: typeEffectiveness
     else -> frHack?.typeChart ?: typeEffectiveness
 }
 val activeTypeNames: Map<Int, String> get() = when {
+    pureRgb -> typeNamesPureRgb
     yellow -> typeNamesYellow
     polished -> typeNamesPolishedCrystal
     prism -> typeNamesPrism
@@ -408,10 +440,13 @@ val activeTypeNames: Map<Int, String> get() = when {
     mariomon -> typeNamesMariomon
     eliteRedux -> typeNamesEliteRedux
     teamRocket -> typeNamesTeamRocket
+    wishes -> typeNamesWishes
+    dreamstone -> typeNamesDreamstone
     else -> frHack?.typeNamesMerged ?: typeNames
 }
 val activeMapSecData: Map<Int, MapSecInfo> get() = localText?.mapSecData ?: when {
     gen4 -> emptyMap()   // no region map yet: the place comes from the map header (Telemetry.mapSecName)
+    pureRgb -> mapSecDataPureRgb
     yellow -> mapSecDataYellow
     polished -> mapSecDataPolishedCrystal
     prism -> mapSecDataPrism
@@ -441,6 +476,10 @@ val activeMapSecData: Map<Int, MapSecInfo> get() = localText?.mapSecData ?: when
     eliteRedux -> mapSecDataEliteRedux
     // Its own sections' names; no map of its own is drawn yet (it has several), so none is "on the map".
     teamRocket -> mapSecDataTeamRocket
+    // Its own JOKAIM sections (Munen Village...) on its own region map; Emerald's / Kanto's leftovers off it.
+    wishes -> mapSecDataWishes
+    // Its own Cormoria sections (and Emerald's leftovers, off the map), on its own region map.
+    dreamstone -> mapSecDataDreamstone
     else -> frHack?.mapSecsMerged ?: mapSecData
 }
 /**
@@ -526,6 +565,7 @@ private val regionMapImagesRechargedEmerald = arrayOf("recharged_emerald")
 
 val activeRegionMapImages: Array<String> get() = when {
     redBlue -> arrayOf(Gen1Art.RED_BLUE_TOWN_MAP_NAME)   // Red's / Blue's town map, in their own colours (Gen1Art)
+    pureRgb -> arrayOf(Gen1Art.pureTownMapName(activeGame))   // PureRed's / PureBlue's, in each one's colours (Gen1Art)
     gen4 -> emptyArray()   // Sinnoh's map comes from RegionMapModel's own; Johto / Kanto's aren't read yet
     yellow -> arrayOf("yellow")   // its town map, rebuilt from the ROM (Gen1Art)
     polished -> Gen2Art.POLISHED_TOWN_MAPS   // Johto, Kanto and the Orange Islands, from the ROM
@@ -552,6 +592,10 @@ val activeRegionMapImages: Array<String> get() = when {
     orangeIslands || swordShield || gsChronicles || frHack?.ownRegionMap == true -> emptyArray()
     // Team Rocket Edition: Dragonsden's Kanto / Sevii / Johto maps aren't read yet - the MAP tab names the place.
     teamRocket -> emptyArray()
+    // Wishes of Tomorrow's JOKAIM map, rebuilt from its ROM (RomArt's WSH_REGION_*).
+    wishes -> regionMapImagesWishes
+    // Dreamstone Mysteries' Cormoria map, rebuilt from its ROM (RomArt's DSM_REGION_*).
+    dreamstone -> regionMapImagesDreamstone
     else -> regionMapImages
 }
 
@@ -563,8 +607,10 @@ val activeRegionMapImages: Array<String> get() = when {
 val activeMonSpriteDir: String get() = when {
     unbound -> "pokemon-unbound"
     redBlue -> Gen1Art.RED_BLUE_ICONS
+    pureRgb -> Gen1Art.pureIcons(activeGame)
     yellow -> Gen1Art.YELLOW_ICONS   // its own party icons, rebuilt from the ROM
     polished -> Gen2Art.POLISHED_ICONS
+    black -> NdsArt.BLACK_ICONS
     platinum -> NdsArt.PLATINUM_ICONS   // the cart's icon archive, rebuilt from it (NdsArt)
     heartGold -> NdsArt.HEARTGOLD_ICONS
     prism -> Gen2Art.PRISM_ICONS
@@ -576,6 +622,7 @@ val activeMonSpriteDir: String get() = when {
 val activeItemSpriteDir: String? get() = when {
     unbound -> "items-unbound"
     yellow -> null   // Gen 1 has no item icons
+    black -> NdsArt.BLACK_ITEMS
     heartGold -> NdsArt.HEARTGOLD_ITEMS   // the cart's item_icon.narc, rebuilt from it (NdsArt)
     platinum -> NdsArt.PLATINUM_ITEMS
     crystal -> null   // nor has Gen 2
@@ -611,6 +658,8 @@ fun GameKind.displayName(): String = when (this) {
     GameKind.GS_CHRONICLES -> "Pokémon GS Chronicles"
     GameKind.ELITE_REDUX -> "Pokémon Elite Redux"
     GameKind.TEAM_ROCKET -> "Pokémon Team Rocket Edition: Dragonsden Version"
+    GameKind.WISHES -> "Pokémon Wishes of Tomorrow"
+    GameKind.DREAMSTONE -> "Pokémon Dreamstone Mysteries"
     GameKind.RECHARGED_YELLOW -> "Pokémon Recharged Yellow"
     GameKind.MARIOMON -> "Super Mariomon"
     GameKind.CRYSTAL -> "Pokémon Crystal"
@@ -622,4 +671,7 @@ fun GameKind.displayName(): String = when (this) {
     GameKind.PLATINUM -> "Pokémon Platinum"
     GameKind.HEARTGOLD -> "Pokémon HeartGold"
     GameKind.SOULSILVER -> "Pokémon SoulSilver"
+    GameKind.BLACK -> "Pokémon Black"
+    GameKind.PURE_RED -> "Pokémon PureRed"
+    GameKind.PURE_BLUE -> "Pokémon PureBlue"
 }

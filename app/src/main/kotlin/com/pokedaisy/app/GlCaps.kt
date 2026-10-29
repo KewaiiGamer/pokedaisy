@@ -9,4 +9,9 @@ object GlCaps {
     fun gles3(context: Context): Boolean =
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
             .deviceConfigurationInfo.reqGlEsVersion >= 0x30000
+
+    /** OpenGL ES 3.2 or newer: what melonDS's GPU renderer needs (SETTINGS > DS RESOLUTION, nds/pk_nds_gl.h). */
+    fun gles32(context: Context): Boolean =
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+            .deviceConfigurationInfo.reqGlEsVersion >= 0x30002
 }

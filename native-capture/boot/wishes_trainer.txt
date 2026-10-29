@@ -1,0 +1,28 @@
+# Pokémon Wishes of Tomorrow: a scripted trainer battle - trainerbattle TRAINER_BATTLE_SINGLE_NO_INTRO_TEXT (5C 34),
+# trainer 885 (GENERAL EDWARDS, six Pokémon, his TYRANITAR holding its Mega Stone), local id 0, lose text 0x08387FEF
+# (his own), then end - run through ScriptContext_SetupScript (0x081FDCC9); dumped at the action menu.
+wait 600
+press START
+wait 300
+# the main menu takes the second A (the first only wakes it)
+press A
+wait 60
+press A
+wait 400
+poke32 0x0203FC00 0x7500345C
+poke32 0x0203FC04 0x00000003
+poke32 0x0203FC08 0x387FEF00
+poke32 0x0203FC0C 0x00000008
+poke32 0x0203FC10 0x00000000
+poke32 0x0203FC14 0x00000000
+poke32 0x0203FC18 0x00000000
+poke32 0x0203FC1C 0x00000000
+poke32 0x0203FC20 0x00000000
+poke32 0x0203FC24 0x00000000
+poke32 0x0203FC28 0x00000200
+call 0x081FDCC9 0x0203FC00
+wait 300
+press A
+wait 300
+press A
+wait 300

@@ -1,0 +1,21 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Glazed 9.2.0 - BPEE, 32 MB, an in-place binary edit of retail
+# Emerald (no source). Its RAM is retail's: every literal pool that loads
+# gPlayerParty / gSaveBlock1Ptr / gMain / gMapHeader / gObjectEvents /
+# gBagPockets / the battle globals / gBattlerControllerFuncs / gPartyMenu holds
+# retail's address (compared word for word against retail Emerald), and the
+# headless captures agree (`glazed`: CHIMCHAR Lv6 at 0x020244EC, Forest Pass;
+# `glazed_battle`: a wild SENTRET). The battle handlers are retail's code byte
+# for byte, at retail's addresses (FIGHT / POKéMON read 0x08057BFD / 0x08059829
+# in the battle). Its own tables (species in retail's 412 slots, renamed moves
+# and items, FAIRY as type 9, the Tunod / Johto map sections and cursor grid)
+# come from scripts/gen_glazed_tables.py; the icon tables are retail's addresses
+# holding its own icons, and RomArt rebuilds its region map (GZ_REGION_*). Its
+# POKéDEX is retail's tables rewritten in place (its own 1..386 numbering).
+# Pokémon Emerald Kaizo v2.0 - BPEE, 16 MB, an in-place edit of retail Emerald (95% of the ROM byte for byte): retail's
+# code, RAM and save, so everything retail reads; its own moves (KAIZO_TEXT) and wild table (GUIDE_TABLES_EMERALD_KAIZO).
+[config.emerald_kaizo]
+base = 'emerald_retail'
+gameCode = { ref = 'KAIZO_TEXT' }
+guideTables = 'GUIDE_TABLES_EMERALD_KAIZO'

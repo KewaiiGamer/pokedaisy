@@ -203,6 +203,8 @@ private data class BagPalette(
     /** [divider]'s width in u, and an optional 1u shadow line under it. */
     val dividerWidth: Int = 2,
     val dividerShadow: Color? = null,
+    /** A DS game's own bag-screen pattern ([DsBackdrop]) in place of [backdrop]'s stripes, which dark mode still dims. */
+    val pattern: DsPattern? = null,
 ) {
     val tabLayers get() = panelLayers.take(tabLayerCount)
     val tabFill get() = panelLayers[tabLayerCount].first
@@ -573,6 +575,14 @@ private val RedBlueBag = YellowBag.copy(
     backdrop = Color(0xFFFFEFFF) to Color(0xFFFFEFFF),
 )
 
+/** PureRed / PureBlue (on a Color, headless): Yellow's ITEM window in pure black on white. */
+private val PureRgbBag = YellowBag.copy(
+    panelLayers = listOf(Color.Black to 1, Color.White to 1, Color.Black to 1, Color.White to 1),
+    text = Color.Black, tabText = Color.Black, tabUnderline = Color.Black,
+    descLayers = listOf(Color.Black to 1, Color.White to 1, Color.Black to 1),
+    descText = Color.Black, iconBoxEdge = Color.Black,
+)
+
 /** Pokémon Ghost Grey's bag (headless): Yellow's black-on-white boxes with its grey row lines, on white. */
 private val GhostGreyBag = YellowBag.copy(
     panelLayers = listOf(Color.Black to 1, Color.White to 1, Color.Black to 1, Color.White to 1),
@@ -580,6 +590,39 @@ private val GhostGreyBag = YellowBag.copy(
     text = Color.Black, tabText = Color.Black, tabUnderline = Color.Black,
     descLayers = listOf(Color.Black to 1, Color.White to 1, Color.Black to 1), descText = Color.Black,
     iconBoxEdge = Color.Black,
+)
+
+/**
+ * Pokémon Black's bag (headless, its touch screen): white names on charcoal rows in a grey line, the blue between them,
+ * a blue description panel with a pale icon box (its top screen), all over its blue dotted screen.
+ */
+private val BlackBag = BagPalette(
+    panelLayers = listOf(Color(0xFF282828) to 1, Color(0xFFB2B2B2) to 1, Color(0xFF282828) to 1, Color(0xFF616161) to 2),
+    tabLayerCount = 3,
+    fill = Color(0xFF303030), divider = Color(0xFF2069D3), dividerDash = null,
+    text = Color(0xFFFBFBFB), textShadow = Color(0xFF616161),
+    tabText = Color(0xFFFBFBFB), tabTextShadow = Color(0xFF282828), tabUnderline = Color(0xFF088AFB),
+    descLayers = listOf(Color(0xFF004192) to 1, Color(0xFF1871E3) to 1), descFill = Color(0xFF0049A2),
+    descText = Color(0xFFFBFBFB), descTextShadow = Color(0xFF7992AA),
+    iconBox = Color(0xFFCBF3FB), iconBoxEdge = Color(0xFF71B2F3),
+    backdrop = Color(0xFF2069D3) to Color(0xFF00519A), pattern = DsPattern.BLACK_BAG,
+)
+
+/**
+ * Pokémon Platinum's bag (headless, a few items poked into the save's pocket): its white list in a grey-blue frame,
+ * dark text with a grey shadow and no row lines, the pocket tab's orange, the purple description bar with white text,
+ * over its touch screen's yellows.
+ */
+private val PlatinumBag = BagPalette(
+    panelLayers = listOf(Color(0xFF717992) to 2, Color(0xFFBAD3DB) to 1, Color(0xFFDBEBEB) to 2),
+    tabLayerCount = 2,
+    fill = Color(0xFFFBFBFB), divider = null,
+    text = Color(0xFF101820), textShadow = Color(0xFFAABABA),
+    tabText = Color(0xFF101820), tabTextShadow = Color(0xFFAABABA), tabUnderline = Color(0xFFF3AA51),
+    descLayers = listOf(Color(0xFF51619A) to 1, Color(0xFFA2AAF3) to 1), descFill = Color(0xFF7151F3),
+    descText = Color(0xFFFBFBFB), descTextShadow = Color(0xFF303030),
+    iconBox = Color(0xFFFBFBFB), iconBoxEdge = Color(0xFF717992),
+    backdrop = Color(0xFFEBCB79) to Color(0xFFEBC369), pattern = DsPattern.PLATINUM_BAG,
 )
 
 /** Whether [ItemsBackdrop] replaces the party backdrop behind this game's Items tab. */
@@ -595,6 +638,7 @@ fun ItemsBackdrop(game: GameKind, modifier: Modifier = Modifier) {
     val hgss = LocalHgssBag.current
     val pal = bagPaletteFor(game, hgss?.pocket ?: 0)
     val (a, b) = pal.backdrop ?: return
+    pal.pattern?.let { DsBackdrop(it, modifier); return }
     val m = rememberGbaTextMetrics()
     val context = LocalContext.current
     val gen = rememberArtGeneration()
@@ -674,6 +718,7 @@ private fun lightBagFor(game: GameKind, hgssPocket: Int = 0): BagPalette = when 
     GameKind.SOULGOLD -> SoulGoldBag
     GameKind.YELLOW -> YellowBag
     GameKind.RED, GameKind.BLUE -> RedBlueBag
+    GameKind.PURE_RED, GameKind.PURE_BLUE -> PureRgbBag
     // Gold's and Silver's PACK is Crystal's, pixel for pixel (sampled headless in both).
     GameKind.CRYSTAL, GameKind.GOLD, GameKind.SILVER -> CrystalBag
     GameKind.CRYSTAL_CLEAR -> CrystalClearBag
@@ -682,9 +727,14 @@ private fun lightBagFor(game: GameKind, hgssPocket: Int = 0): BagPalette = when 
     GameKind.POLISHED_CRYSTAL -> PolishedCrystalBag
     GameKind.MARIOMON -> MariomonBag
     GameKind.HEARTGOLD, GameKind.SOULSILVER -> hgssBags.getOrElse(hgssPocket) { HeartGoldBag }
+    GameKind.PLATINUM -> PlatinumBag
+    GameKind.BLACK -> BlackBag
     // Too Many Types 2's, Glazed's, Imperium's and Quetzal's bags are Emerald's; Gaia's and Celia's are FireRed's.
     // Elite Redux's and Team Rocket Edition: Dragonsden's bag screens are Emerald's too.
-    GameKind.TMT2, GameKind.GLAZED, GameKind.IMPERIUM, GameKind.QUETZAL, GameKind.ELITE_REDUX, GameKind.TEAM_ROCKET -> EmeraldBag
+    // Dreamstone Mysteries' is Emerald's (headless: its bag screen in battle, seven pockets).
+    GameKind.DREAMSTONE,
+    GameKind.TMT2, GameKind.GLAZED, GameKind.IMPERIUM, GameKind.QUETZAL, GameKind.ELITE_REDUX, GameKind.TEAM_ROCKET,
+    GameKind.WISHES -> EmeraldBag
     GameKind.FIRERED -> if (com.pokedaisy.app.companion.data.runningGhostGrey) GhostGreyBag else FireRedBag
     else -> FireRedBag
 }

@@ -1,0 +1,213 @@
+# TrainerCardSave's fields (TrainerCard.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | ref (a Kotlin
+# val's name, or a record in gamedata/gen3/records/); record names the schema of a value a config may
+# spell out as a sub-table.
+
+version = 1
+kotlin_class = 'TrainerCardSave'
+kotlin_file = 'TrainerCard.kt'
+
+[field.style]
+kotlin = 'CardStyle'
+type = 'ref'
+
+# SaveBlock1.gameStats.
+[field.gameStatsOff]
+kotlin = 'Long'
+type = 'long'
+
+# SaveBlock1.flags / .vars.
+[field.flagsOff]
+kotlin = 'Long'
+type = 'long'
+
+[field.varsOff]
+kotlin = 'Long'
+type = 'long'
+
+[field.badgeFlag]
+kotlin = 'Int'
+type = 'int'
+
+# FLAG_SYS_POKEDEX_GET: the POKéDEX line only shows once the player has one.
+[field.pokedexFlag]
+kotlin = 'Int'
+type = 'int'
+
+# IsNationalPokedexEnabled: SaveBlock2.pokedex.nationalMagic, VAR_NATIONAL_DEX and FLAG_SYS_NATIONAL_DEX all set.
+[field.nationalMagicOff]
+kotlin = 'Long'
+type = 'long'
+
+[field.nationalMagic]
+kotlin = 'Int'
+type = 'int'
+
+[field.nationalVar]
+kotlin = 'Int'
+type = 'int'
+
+[field.nationalVarValue]
+kotlin = 'Int'
+type = 'int'
+
+[field.nationalFlag]
+kotlin = 'Int'
+type = 'int'
+
+[field.dexFlags]
+kotlin = 'DexFlags'
+type = 'ref'
+record = 'gen3_dexflags'
+
+# The National Dex is always there (Unbound), counted up to [nationalCount].
+[field.nationalAlways]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+[field.nationalCount]
+kotlin = 'Int'
+type = 'int'
+default = 386
+
+# Before the National Dex: Kanto counts No. 1-151, Hoenn its own 202 in sHoennToNationalOrder.
+[field.regionalDex]
+kotlin = 'IntArray'
+type = 'ref'
+
+# Emerald's extra stars: the Battle Frontier symbols (FLAG_SYS_TOWER_SILVER, gold right after,
+# a pair per facility) and the museum's five contest paintings (SaveBlock1.contestWinners).
+[field.frontierSymbolFlag]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+[field.museumWinnersOff]
+kotlin = 'Long'
+type = 'long'
+default = -1
+
+# SaveBlock2.frontier.cardBattlePoints (Emerald).
+[field.frontierBpOff]
+kotlin = 'Long'
+type = 'long'
+default = -1
+
+# VAR_HOF_BRAG_STATE, the egg and link-win ones right after (FireRed's stickers).
+[field.stickerVar]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+# A flag worth one more star (Emerald Legacy's FLAG_CAUGHT_MEW: its fifth, on a black card); -1 = none.
+[field.extraStarFlag]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+# GetSetPokedexFlag reads the caught bitmap alone (no seen copies to agree with): Lazarus.
+[field.caughtOnly]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# The regional count and "all caught" check loop one entry past the dex: that entry is national 0, whose caught
+# bit is (0 - 1) & 0xFFFF - bit 7 of caught + 0x1FFF, out in the PC boxes (Lazarus).
+[field.regionalStrayBit]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# How many of the regional dex's last entries the "all caught" star leaves out (retail: JIRACHI and DEOXYS).
+[field.allRegionalDrop]
+kotlin = 'Int'
+type = 'int'
+default = 2
+
+# Stars drawn by a rule of the game's own, while the card's colour keeps retail's (Lazarus: entered the
+# HALL OF FAME + each of these flags + the frontier symbols); null = the stars drawn are the colour's.
+[field.drawnStarFlags]
+kotlin = 'List<Int>?'
+type = 'ref'
+default = 'none'
+
+# How many bytes of flags to read (enough for the highest flag used).
+[field.flagBytes]
+kotlin = 'Int'
+type = 'int'
+default = 0x12C
+
+# Regional entries the "all caught" star leaves out (SoulGold's legendaries).
+[field.allRegionalSkip]
+kotlin = 'Set<Int>'
+type = 'ref'
+default = { kotlin = 'emptySet()' }
+
+# SoulGold's star for a Battle Frontier record: any of these SaveBlock2 u16s past 49.
+[field.frontierRecordOffs]
+kotlin = 'List<Long>'
+type = 'ref'
+default = { kotlin = 'emptyList()' }
+
+# SoulGold's star for its achievements: at least [achievementsNeeded] of [achievementIds]' bits set at SaveBlock1
+# + [achievementBitsOff], counted only while the u16 at + [achievementMagicOff] reads 0xACE1; -1 = none.
+[field.achievementBitsOff]
+kotlin = 'Long'
+type = 'long'
+default = -1
+
+[field.achievementMagicOff]
+kotlin = 'Long'
+type = 'long'
+default = -1
+
+[field.achievementIds]
+kotlin = 'IntArray'
+type = 'ref'
+default = { kotlin = 'IntArray(0)' }
+
+[field.achievementsNeeded]
+kotlin = 'Int'
+type = 'int'
+default = 80
+
+# The National Dex is on with [nationalFlag] alone (Recharged Yellow: no magic, no var).
+[field.nationalFlagOnly]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# One more star for having caught every one of these (Recharged Yellow: 1-248 and 252-384).
+[field.allCaughtStar]
+kotlin = 'IntArray?'
+type = 'ref'
+default = 'none'
+
+# FireRed's UNION ROOM / BERRY CRUSH lines: only on a link partner's card in Recharged Yellow.
+[field.linkLines]
+kotlin = 'Boolean'
+type = 'bool'
+default = true
+
+# Recharged Yellow's back: six Pokémon icons from vars [iconVar].. (mail species), tinted by [tintVar], their
+# tiles from [monIconTable] (the first 0x200 bytes) and colours from [monPaletteTable] (8-byte LZ77 records).
+[field.iconVar]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+[field.tintVar]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+[field.monIconTable]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.monPaletteTable]
+kotlin = 'Long'
+type = 'long'
+default = 0

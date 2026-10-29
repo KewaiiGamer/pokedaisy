@@ -12,18 +12,107 @@
 // How far the stylus moves on a list before it scrolls instead of tapping.
 #define DRAG_SLOP 6
 
-// The tab bar's chips; SETTINGS is the gear after them. A battle puts BATTLE
+// The tab bar's chips: the ones TAB BAR keeps on it (at most PD_MAX_BAR_TABS, in this order), MORE when one of
+// PARTY .. DEX is off it (CARD also opens from SETTINGS), fast-forward, then the SETTINGS gear. A battle puts BATTLE
 // in the last chip's slot (the app's rule) and gives it back afterwards.
-#define BAR_TABS 5
-static const enum pd_tab BAR[BAR_TABS] = { PD_TAB_PARTY, PD_TAB_BAG, PD_TAB_MAP, PD_TAB_GUIDE, PD_TAB_DEX };
+const enum pd_tab UI_BAR_CHOICE[UI_BAR_CHOICES] = { PD_TAB_PARTY, PD_TAB_BAG, PD_TAB_MAP, PD_TAB_GUIDE, PD_TAB_DEX, PD_TAB_CARD };
 static const char* const TAB_LABELS[PD_TAB_COUNT] = {
     [PD_TAB_PARTY] = "PARTY", [PD_TAB_BAG] = "BAG", [PD_TAB_MAP] = "MAP", [PD_TAB_GUIDE] = "GUIDE",
     [PD_TAB_DEX] = "DEX", [PD_TAB_BATTLE] = "BATTLE", [PD_TAB_SETTINGS] = "", [PD_TAB_CARD] = "CARD",
 };
 
+const char* ui_tab_label(enum pd_tab t) { return t < PD_TAB_COUNT ? TAB_LABELS[t] : ""; }
+
+// The bar's tabs from the settings (0, which TAB BAR never leaves, = the default bar: settings zeroed by a host).
+static int bar_tabs(const struct pd_ui* ui, enum pd_tab out[PD_MAX_BAR_TABS]) {
+    int n = 0, bits = ui->settings && ui->settings->tabBar ? ui->settings->tabBar : PD_TAB_BAR_DEFAULT;
+    for (int i = 0; i < UI_BAR_CHOICES && n < PD_MAX_BAR_TABS; i++)
+        if (bits & (1 << UI_BAR_CHOICE[i])) out[n++] = UI_BAR_CHOICE[i];
+    if (!n) out[n++] = PD_TAB_PARTY;
+    return n;
+}
+
+// Whether MORE is on the bar: a tab other than CARD left off it.
+static bool has_more(const struct pd_ui* ui) {
+    enum pd_tab bar[PD_MAX_BAR_TABS];
+    int n = bar_tabs(ui, bar);
+    for (int i = 0; i < UI_BAR_CHOICES - 1; i++) {
+        bool on = false;
+        for (int k = 0; k < n; k++) on |= bar[k] == UI_BAR_CHOICE[i];
+        if (!on) return true;
+    }
+    return false;
+}
+
+int ui_bar_count(const struct pd_ui* ui) {
+    enum pd_tab bar[PD_MAX_BAR_TABS];
+    return bar_tabs(ui, bar);
+}
+
+int ui_more_tabs(const struct pd_ui* ui, enum pd_tab out[UI_BAR_CHOICES]) {
+    enum pd_tab bar[PD_MAX_BAR_TABS];
+    int n = bar_tabs(ui, bar), m = 0;
+    for (int i = 0; i < UI_BAR_CHOICES; i++) {
+        bool on = false;
+        for (int k = 0; k < n; k++) on |= bar[k] == UI_BAR_CHOICE[i];
+        if (!on) out[m++] = UI_BAR_CHOICE[i];
+    }
+    return m;
+}
+
+const char* pd_hud_part_name(int part) {
+    static const char* const NAMES[PD_HUD_PARTS] = { "PARTY", "MINIMAP", "POKé BALLS", "REPEL STEPS" };
+    return part >= 0 && part < PD_HUD_PARTS ? NAMES[part] : "";
+}
+
+void ui_toggle_act(struct pd_ui* ui, int i) {
+    struct pd_settings* s = ui->settings;
+    if (ui->overlay == PD_OVERLAY_MORE) {
+        enum pd_tab more[UI_BAR_CHOICES];
+        if (i < ui_more_tabs(ui, more)) {
+            ui->tab = more[i];
+            ui->summarySlot = -1;
+            ui->moreOpened = true;
+        }
+        ui->overlay = PD_OVERLAY_NONE;
+        return;
+    }
+    if (ui->overlay == PD_OVERLAY_HUD) {
+        if (i == 0) s->hud = !s->hud;
+        else if (i <= PD_HUD_PARTS) s->hudHidden ^= 1 << (i - 1);
+        ui->action = PD_ACTION_SETTINGS_CHANGED;
+        return;
+    }
+    // TAB BAR: never more than PD_MAX_BAR_TABS on, never none.
+    if (i >= UI_BAR_CHOICES) return;
+    int bit = 1 << UI_BAR_CHOICE[i];
+    int on = 0;
+    for (int k = 0; k < UI_BAR_CHOICES; k++) on += (s->tabBar >> UI_BAR_CHOICE[k]) & 1;
+    if (s->tabBar & bit) {
+        if (on <= 1) return;
+    } else if (on >= PD_MAX_BAR_TABS) {
+        return;
+    }
+    s->tabBar ^= bit;
+    // A tab taken off the bar while it's open stays open (from MORE now).
+    if (!(s->tabBar & bit) && ui->tab == UI_BAR_CHOICE[i]) ui->moreOpened = true;
+    ui->action = PD_ACTION_SETTINGS_CHANGED;
+}
+
 // The tab a bar slot shows now.
 static enum pd_tab slot_tab(const struct pd_ui* ui, int slot) {
-    return slot == ui->battleSlot ? PD_TAB_BATTLE : BAR[slot];
+    enum pd_tab bar[PD_MAX_BAR_TABS];
+    int n = bar_tabs(ui, bar);
+    return slot == ui->battleSlot ? PD_TAB_BATTLE : bar[slot < n ? slot : n - 1];
+}
+
+// Whether a tab is one of the bar's chips (else MORE or SETTINGS opened it).
+static bool on_bar(const struct pd_ui* ui, enum pd_tab t) {
+    enum pd_tab bar[PD_MAX_BAR_TABS];
+    int n = bar_tabs(ui, bar);
+    for (int i = 0; i < n; i++)
+        if (slot_tab(ui, i) == t) return true;
+    return false;
 }
 
 // The SETTINGS gear, 11x11 (bit 0 = left):
@@ -39,6 +128,7 @@ void pd_ui_init(struct pd_ui* ui, struct pd_settings* settings) {
     ui->summarySlot = -1;
     ui->bagSelected = -1;
     ui->pressedId = -1;
+    ui->focusId = -1;
     ui->battleSlot = -1;
     ui->dexNational = -1;
     ui->mapPage = -1;
@@ -56,7 +146,8 @@ void pd_ui_update(struct pd_ui* ui, const struct pd_snapshot* s) {
         // BATTLE takes the bar's last tab's place (the app's rule - PARTY,
         // what a battle needs most, stays); its end brings back what was open.
         ui->tabBeforeBattle = ui->tab;
-        ui->battleSlot = BAR_TABS - 1;
+        enum pd_tab bar[PD_MAX_BAR_TABS];
+        ui->battleSlot = bar_tabs(ui, bar) - 1;
         ui->tab = PD_TAB_BATTLE;
         ui->summarySlot = -1;
         ui->overlay = PD_OVERLAY_NONE;
@@ -92,40 +183,69 @@ static const struct pd_hit* hit_at(const struct pd_ui* ui, int x, int y) {
     return NULL;
 }
 
+// The tab bar runs along the bottom, like the app's (CompanionScreen).
+#define BAR_Y(c) ((c)->h - CHIP_H - 2)
+
 static void chip(struct pd_ui* ui, struct pd_canvas* c, int x, int w, bool open, int id) {
-    pd_title_box(c, x, 2, w, CHIP_H, open || ui->pressedId == id ? PD_TITLE_FILL : PD_LIST_FILL);
-    ui_add_hit(ui, x, 2, w, CHIP_H, id);
+    pd_title_box(c, x, BAR_Y(c), w, CHIP_H, open || ui->pressedId == id ? PD_TITLE_FILL : PD_LIST_FILL);
+    ui_add_hit(ui, x, BAR_Y(c), w, CHIP_H, id);
 }
 
+// MORE's icon: three dots, 11x3 (bit 0 = left).
+static const uint16_t MORE_DOTS[3] = { 0x739, 0x739, 0x739 };
+
 static void tab_bar(struct pd_ui* ui, struct pd_canvas* c, const struct pd_host_info* host) {
-    int w = (c->w - MARGIN * (BAR_TABS + 3) - FF_W - GEAR_W) / BAR_TABS;
+    int by = BAR_Y(c);
+    enum pd_tab bar[PD_MAX_BAR_TABS];
+    int n = bar_tabs(ui, bar);
+    bool more = has_more(ui);
+    int moreW = more ? GEAR_W + MARGIN : 0;
+    // The chips share what's left, but never wider than five would be (a short bar keeps its chips' size).
+    int w = (c->w - MARGIN * (n + 3) - FF_W - GEAR_W - moreW) / n;
+    int five = (c->w - MARGIN * (PD_MAX_BAR_TABS + 3) - FF_W - GEAR_W - GEAR_W - MARGIN) / PD_MAX_BAR_TABS;
+    if (n < PD_MAX_BAR_TABS && w > five * 3 / 2) w = five * 3 / 2;
     int x = MARGIN;
-    for (int i = 0; i < BAR_TABS; i++, x += w + MARGIN) {
+    for (int i = 0; i < n; i++, x += w + MARGIN) {
         enum pd_tab t = slot_tab(ui, i);
         bool open = ui->tab == t;
         chip(ui, c, x, w, open, HIT_TAB + (int) t);
         int tw = pd_text_width(TAB_LABELS[t]);
-        pd_text(c, x + (w - tw) / 2, pd_text_y(2, CHIP_H), TAB_LABELS[t], open ? PD_VALUE : PD_TITLE_TEXT,
+        pd_text(c, x + (w - tw) / 2, pd_text_y(by, CHIP_H), TAB_LABELS[t], open ? PD_VALUE : PD_TITLE_TEXT,
                 open ? PD_VALUE_SHADOW : PD_TITLE_SHADOW);
+    }
+    // MORE: an icon chip, lit while a tab it opens is up.
+    if (more) {
+        bool lit = ui->overlay == PD_OVERLAY_MORE ||
+                   (!on_bar(ui, ui->tab) && ui->tab != PD_TAB_SETTINGS && ui->tab != PD_TAB_CARD && ui->tab != PD_TAB_BATTLE) ||
+                   (ui->tab == PD_TAB_CARD && ui->moreOpened);
+        chip(ui, c, x, GEAR_W, lit, HIT_MORE);
+        pd_bitmap(c, x + (GEAR_W - 11) / 2, by + (CHIP_H - 3) / 2, MORE_DOTS, 3, lit ? PD_VALUE : PD_TITLE_TEXT);
+        x += GEAR_W + MARGIN;
     }
     // Fast-forward: lit while on.
     bool ff = host && host->ffOn;
     chip(ui, c, x, FF_W, ff, HIT_FF);
     uint32_t col = ff ? PD_VALUE : PD_TITLE_TEXT;
-    pd_triangle(c, x + 7, 2 + CHIP_H / 2 - 4, 5, PD_RIGHT, col);
-    pd_triangle(c, x + 13, 2 + CHIP_H / 2 - 4, 5, PD_RIGHT, col);
+    pd_triangle(c, x + 7, by + CHIP_H / 2 - 4, 5, PD_RIGHT, col);
+    pd_triangle(c, x + 13, by + CHIP_H / 2 - 4, 5, PD_RIGHT, col);
     x += FF_W + MARGIN;
-    // The TRAINER CARD is under SETTINGS: the gear stays lit.
-    bool open = ui->tab == PD_TAB_SETTINGS || ui->tab == PD_TAB_CARD;
+    // The TRAINER CARD opened from SETTINGS keeps the gear lit.
+    bool open = ui->tab == PD_TAB_SETTINGS || (ui->tab == PD_TAB_CARD && !on_bar(ui, PD_TAB_CARD) && !ui->moreOpened);
     chip(ui, c, x, GEAR_W, open, HIT_TAB + PD_TAB_SETTINGS);
-    pd_bitmap(c, x + (GEAR_W - 11) / 2, 2 + (CHIP_H - 11) / 2, GEAR, 11, open ? PD_VALUE : PD_TITLE_TEXT);
+    pd_bitmap(c, x + (GEAR_W - 11) / 2, by + (CHIP_H - 11) / 2, GEAR, 11, open ? PD_VALUE : PD_TITLE_TEXT);
 }
 
 void pd_ui_draw(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g,
                 const struct pd_snapshot* s, const struct pd_host_info* host) {
     ui->hitCount = 0;
+    ui->startId = -1;
     pd_backdrop(c);
     tab_bar(ui, c, host);
+    // The tabs draw above the bar: the same pixels, a shorter canvas.
+    struct pd_canvas full = *c, view = *c;
+    view.h = BAR_Y(c) - 2;
+    if (view.cy1 > view.h) view.cy1 = view.h;
+    c = &view;
     if (ui->tab == PD_TAB_SETTINGS) {
         ui_settings_tab(ui, c, g, s, host);
     } else if (!g->cfg) {
@@ -145,6 +265,8 @@ void pd_ui_draw(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g,
     } else {
         ui_battle_tab(ui, c, g, s);
     }
+    // Overlays black out the whole companion, the bar too.
+    c = &full;
     if (ui->overlay == PD_OVERLAY_PLACES) {
         ui_places_overlay(ui, c, g);
     } else if (ui->overlay == PD_OVERLAY_GUIDE_NOTICE) {
@@ -161,6 +283,7 @@ static int* scroll_target(struct pd_ui* ui) {
     case PD_TAB_BAG: return &ui->bagScroll;
     case PD_TAB_DEX: return &ui->dexScroll;
     case PD_TAB_GUIDE: return &ui->guideScroll;
+    case PD_TAB_SETTINGS: return &ui->settingsScroll;
     default: return NULL;
     }
 }
@@ -184,11 +307,20 @@ static void act(struct pd_ui* ui, int id) {
     if (ui_map_act(ui, id) || ui_dex_act(ui, id) || ui_guide_act(ui, id) || ui_battle_act(ui, id) || ui_card_act(ui, id)) {
         return;
     }
+    if (ui->overlay == PD_OVERLAY_TAB_BAR || ui->overlay == PD_OVERLAY_HUD || ui->overlay == PD_OVERLAY_MORE) {
+        if (id >= HIT_OPTION && id < HIT_OPTION + 8) {
+            ui_toggle_act(ui, id - HIT_OPTION);
+        } else if (id == HIT_NO || id == HIT_SCRIM) {
+            close_overlay(ui, PD_ACTION_NONE);
+        }
+        return;
+    }
     if (ui->overlay != PD_OVERLAY_NONE) {
         if (id >= HIT_OPTION && id < HIT_OPTION + 8) {
             int i = id - HIT_OPTION;
             if (ui->overlay == PD_OVERLAY_PICK_SCREEN) ui->settings->screenMode = i;
             if (ui->overlay == PD_OVERLAY_PICK_FF) ui->settings->ffSpeed = PD_FF_MIN + i;
+            if (ui->overlay == PD_OVERLAY_PICK_ASPECT && i < PD_ASPECTS) ui->settings->aspect = i;
             close_overlay(ui, PD_ACTION_SETTINGS_CHANGED);
         } else if (id == HIT_YES) {
             enum pd_action a = ui->overlay == PD_OVERLAY_CONFIRM_SAVE ? PD_ACTION_SAVE_STATE
@@ -203,26 +335,36 @@ static void act(struct pd_ui* ui, int id) {
     if (id >= HIT_TAB && id < HIT_TAB + PD_TAB_COUNT) {
         ui->tab = (enum pd_tab) (id - HIT_TAB);
         ui->summarySlot = -1;
+        ui->moreOpened = false;
+    } else if (id == HIT_MORE) {
+        ui->overlay = PD_OVERLAY_MORE;
+    } else if (id == HIT_SETTING + SETTING_TAB_BAR) {
+        ui->overlay = PD_OVERLAY_TAB_BAR;
+    } else if (id == HIT_SETTING + SETTING_HUD) {
+        ui->overlay = PD_OVERLAY_HUD;
     } else if (id == HIT_FF) {
         ui->action = PD_ACTION_TOGGLE_FF;
     } else if (id >= HIT_SLOT && id < HIT_SLOT + PD_PARTY_SIZE) {
         ui->summarySlot = id - HIT_SLOT;
     } else if (id == HIT_BACK) {
         pd_ui_back(ui);
-    } else if (id == HIT_POCKET_PREV || id == HIT_POCKET_NEXT) {
-        int dir = id == HIT_POCKET_NEXT ? 1 : -1;
-        ui->bagPocket = (ui->bagPocket + PD_POCKET_COUNT + dir) % PD_POCKET_COUNT;
+    } else if (id >= HIT_BAG_TAB && id < HIT_BAG_TAB + 8) {
+        ui->bagPocket = id - HIT_BAG_TAB;
         ui->bagSelected = -1;
         ui->bagScroll = 0;
     } else if (id >= HIT_BAG_ROW && id < HIT_BAG_ROW + PD_POCKET_SLOTS) {
         ui->bagSelected = id - HIT_BAG_ROW;
-    } else if (id >= HIT_SETTING && id <= HIT_SETTING + SETTING_LEAVE) {
+    } else if (id == HIT_SETTING + SETTING_AUTO_ZOOM) {
+        ui->settings->autoZoom = !ui->settings->autoZoom;
+        ui->action = PD_ACTION_SETTINGS_CHANGED;
+    } else if (id >= HIT_SETTING && id <= HIT_SETTING + SETTING_ASPECT) {
         static const enum pd_overlay OPENS[] = {
             [SETTING_SCREEN] = PD_OVERLAY_PICK_SCREEN,
             [SETTING_FF] = PD_OVERLAY_PICK_FF,
             [SETTING_SAVE_STATE] = PD_OVERLAY_CONFIRM_SAVE,
             [SETTING_LOAD_STATE] = PD_OVERLAY_CONFIRM_LOAD,
             [SETTING_LEAVE] = PD_OVERLAY_CONFIRM_LEAVE,
+            [SETTING_ASPECT] = PD_OVERLAY_PICK_ASPECT,
         };
         ui->overlay = OPENS[id - HIT_SETTING];
     }
@@ -277,17 +419,17 @@ bool pd_ui_touch(struct pd_ui* ui, int x, int y, bool down) {
 
 void pd_ui_next_tab(struct pd_ui* ui, int dir) {
     if (ui->overlay != PD_OVERLAY_NONE) return;
-    // The bar's order, then the gear.
-    enum pd_tab order[BAR_TABS + 1];
-    int at = 0;
-    for (int i = 0; i < BAR_TABS; i++) {
+    // The bar's order, then the gear (a tab MORE opened steps on from the gear).
+    enum pd_tab bar[PD_MAX_BAR_TABS], order[PD_MAX_BAR_TABS + 1];
+    int n = bar_tabs(ui, bar), at = n;
+    for (int i = 0; i < n; i++) {
         order[i] = slot_tab(ui, i);
         if (order[i] == ui->tab) at = i;
     }
-    order[BAR_TABS] = PD_TAB_SETTINGS;
-    if (ui->tab == PD_TAB_SETTINGS || ui->tab == PD_TAB_CARD) at = BAR_TABS;
-    ui->tab = order[(at + BAR_TABS + 1 + dir) % (BAR_TABS + 1)];
+    order[n] = PD_TAB_SETTINGS;
+    ui->tab = order[(at + n + 1 + dir) % (n + 1)];
     ui->summarySlot = -1;
+    ui->moreOpened = false;
 }
 
 bool pd_ui_back(struct pd_ui* ui) {
@@ -313,7 +455,7 @@ bool pd_ui_back(struct pd_ui* ui) {
         ui->mapSel = ui->mapDungeon = ui->mapPage = -1;
         return true;
     }
-    if (ui->tab == PD_TAB_CARD) {
+    if (ui->tab == PD_TAB_CARD && !on_bar(ui, PD_TAB_CARD) && !ui->moreOpened) {
         ui->tab = PD_TAB_SETTINGS;
         return true;
     }

@@ -1,0 +1,22 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Ultra Violet v1.22 (16 MB, sha1 3b6c51d8…): FireRed 1.0 edited in place, under a
+# game code of its own (PUVV, revision byte 0). Every literal pool the config points through
+# still names rev 0's address - the party / save / battle RAM, gItems, the icon and dex
+# tables, gTrainers, gLevelUpLearnsets - and the headless capture of the user's save
+# (`ultra_violet`: CHARMANDER Lv6 10/21, SCRATCH / GROWL, POTION, ₽3080 in PALLET TOWN)
+# decodes with rev 0's addresses. It moved gWildMonHeaders (0x087339C0) and gMapGroups
+# (0x0872AF04) for its new maps, and renamed a few things (GameKind.FIRERED with
+# ActiveTables' fireRedHack: UltraVioletGen.kt). Its region map is FireRed's byte for byte.
+[config.ultra_violet]
+base = 'firered_rev0'
+# FireRed's battle menu cursors (retail rev 0's EWRAM), checked headless like Unbound's: RIGHT / DOWN walk
+# 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = { from = 'firered_rev1' }
+moveCursor = { from = 'firered_rev1' }
+pokedex = 'POKEDEX_ULTRA_VIOLET'
+guideTables = 'GUIDE_TABLES_ULTRA_VIOLET'
+enemyParty = { from = 'firered_rev1' }
+battlerPartyIndexes = { from = 'firered_rev1' }
+battleStructPtr = { from = 'firered_rev1' }
+monToSwitchIntoOff = { from = 'firered_rev1' }

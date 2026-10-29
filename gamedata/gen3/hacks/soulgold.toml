@@ -1,0 +1,168 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon SoulGold v1.1.4 - a 32 MB BPEE hack on newer pokeemerald-expansion
+# (gcc), no source. Everything below from headless mgba_dump captures of the
+# user's save (Cherrygrove City, one Lv6 Cyndaquil) - the soulgold /
+# soulgold_battle fixtures; ROM tables from scripts/gen_expansion_tables.py.
+# - struct Pokemon is its own (SOULGOLD_PARTY_MON): 96 bytes, plaintext
+# substructs in a fixed order and no checksum (decodePartyMon's fallback
+# path), species as National Dex numbers packed with teraType.
+# - gPlayerParty 0x0203901C (the copy whose HP the party menu shows - the
+# one at 0x020168A8 is SaveBlock1's), gEnemyParty 0x02038DDC right before,
+# and gPlayerPartyCount before that, 0x02038DD5 (77 literal-pool refs; a
+# six-mon save reads 6 there). 0x020394D0 was taken for it once and showed
+# only the first mon.
+# - gSaveBlock1Ptr 0x030040C4 (pos at +0, money at +0x478: the trainer
+# card's 3080), gSaveBlock2Ptr 0x030040C0 (name "Lidor"; the encryption
+# key at +0xB4 matched the bag's XORed quantities); gMain 0x030055C0
+# (vblankCounter1 +16 over 16 frames, inBattle bit at the usual +0x439).
+# - gMapHeader 0x02003828: regionMapSectionId is a u16 (Cherrygrove 0xCD;
+# ids run to 0x139), mapType at +0x18 (mapSecWide). gObjectEvents
+# 0x02003314 (player first, coords = pos + 7).
+# - gBagPockets 0x020088D4: 8 {slots, u8 capacity} - Items 150, Medicine 65,
+# Battle Items 100, Poké Balls 27, TMs & HMs 128, Mega Stones 35, Berries
+# 70, Key Items 50, in the bag screen's own tab order.
+# - Battle (a scripted wild battle: setwildbattle / dowildbattle bytes run
+# through ScriptContext_SetupScript 0x0823647C, whose setwildbattle takes
+# a fourth u16 per battler): gBattleTypeFlags 0x02001AB4 (4: wild),
+# gBattlersCount 0x02001AB8, gBattlerPositions 0x02001B58,
+# gBattlerPartyIndexes 0x02001B5C (2 after a switch to the third mon),
+# gBattleMons 0x02001ECC (SOULGOLD_BATTLE_MON), the gBattleStruct pointer
+# 0x02001ABC with monToSwitchIntoId at +0x115.
+# - Touch battle input: gBattlerControllerFuncs 0x03002E44 (IWRAM) - the
+# action / move / bag / party menus run 0x08061CD1 / 0x08060E21 /
+# 0x0805FAC5 / 0x0805FB09; HandleInputChooseTarget 0x0805FEA5 by code (the
+# move handler's literal pool, and it returns to the move handler on B).
+# The POKéMON switch: gPartyMenu 0x02038D24, one column (DOWN walks it),
+# SHIFT first.
+# - Icons: gSpeciesInfo 0x118-byte entries (iconSprite / iconPalIndex), raw
+# item palettes and smol item tiles (DecompIconSource handles both).
+# - POKéDEX: POKEDEX_SOULGOLD (Pokedex.kt).
+#
+[config.soulgold]
+base = 'emerald'
+# gItemsInfo: 0x2C-byte entries, the description pointer 8 bytes before the name's.
+itemDescs = { base = 0x087520A0, stride = 0x2C, descOff = -8 }
+playerParty = 0x0203901C
+playerPartyCount = 0x02038DD5
+monStride = 96
+partyMonLayout = 'SOULGOLD_PARTY_MON'
+gMain = 0x030055C0
+saveBlock1Ptr = 0x030040C4
+saveBlock2Ptr = 0x030040C0
+encryptionKeyOff = 0xB4
+moneyOff = 0x478
+objectEvents = 0x02003314
+mapHeader = 0x02003828
+mapSecWide = true
+bagPockets = 0x020088D4
+bagPocketCount = 8
+bagPocketOrder = 'SOULGOLD_BAG_POCKET_ORDER'
+speciesMask = 0x07FF
+moveMask = 0x07FF
+ppMask = 0x7F
+battleTypeFlags = 0x02001AB4
+battlersCount = 0x02001AB8
+battlerPositions = 0x02001B58
+battlerPartyIndexes = 0x02001B5C
+battleMons = 0x02001ECC
+battleMonLayout = 'SOULGOLD_BATTLE_MON'
+battleStructPtr = 0x02001ABC
+monToSwitchIntoOff = 0x115
+# gActionSelectionCursor / gMoveSelectionCursor, adjacent as in battle_main.c: found headless by walking them
+# (0 -> 1 -> 3 on RIGHT / DOWN) on v1.1.4 and all three v1.2 builds (same RAM: the v1.2 configs inherit them),
+# and a cell written before A is what the game takes (2 opens the party menu, a move cell spends its own PP).
+actionCursor = 0x02001E50
+moveCursor = 0x02001E54
+enemyParty = 0x02038DDC
+battlerControllerFuncs = 0x03002E44
+handleInputChooseAction = 0x08061CD1
+handleInputChooseMove = 0x08060E21
+completeWhenChoseItem = 0x0805FAC5
+waitForMonSelection = 0x0805FB09
+handleInputChooseTarget = 0x0805FEA5
+partyMenu = 0x02038D24
+eggSpecies = 1578
+monIconTable = 0x087D4514  # gSpeciesInfo[0].iconSprite
+monIconStride = 0x118
+monIconPaletteIndices = 0x087D453A  # gSpeciesInfo[0].iconPalIndex
+monPalIdxStride = 0x118
+monPalIdxMask = 0x07
+monIconPaletteTable = 0x08F15970
+monIconPalettes = 0x087D453C  # gSpeciesInfo[0]'s own icon palette (+0x94; shiny +0x98)
+itemIconTable = 0x087520B0  # gItemsInfo[0].iconPic
+itemIconStride = 0x2C
+itemPalCompressed = false
+pokedex = 'POKEDEX_SOULGOLD'
+guideTables = 'GUIDE_TABLES_SOULGOLD'
+# AddMoney (0x081B0E5C) caps at 9,999,999, and the card prints 7 digits.
+maxMoney = 9_999_999
+trainerCard = 'TRAINER_CARD_SOULGOLD'
+
+# Pokémon SoulGold v1.2 - a rebuild of v1.1.4 (same save format: the user's
+# save loads in both). Found by matching v1.1.4's code and data in it (literal
+# pools for the RAM addresses, masked byte runs for the ROM), then checked on
+# headless captures of that save (the soulgold_v12 / soulgold_v12_battle
+# fixtures): gPlayerParty / gPlayerPartyCount / gEnemyParty / gPartyMenu moved
+# 8 bytes, the save, map, bag and battle globals didn't. The battle handlers
+# moved 0x38-0x3C bytes, ScriptContext_SetupScript is 0x08236D5C, gSpeciesInfo
+# grew to 0x120-byte entries (8 bytes added past the fields read here), and the
+# ROM tables shifted a few KB - their contents are v1.1.4's but TM75 (Agility,
+# was Swords Dance; see ActiveTables' soulGoldV12).
+[config.soulgold_v1_2]
+base = 'soulgold'
+itemDescs = { base = 0x08753834, stride = 0x2C, descOff = -8 }  # its own TM75 text included
+guideTables = 'GUIDE_TABLES_SOULGOLD_V1_2'
+playerParty = 0x02039024
+playerPartyCount = 0x02038DDD
+enemyParty = 0x02038DE4
+partyMenu = 0x02038D2C
+handleInputChooseAction = 0x08061D09
+handleInputChooseMove = 0x08060E59
+completeWhenChoseItem = 0x0805FB01
+waitForMonSelection = 0x0805FB45
+handleInputChooseTarget = 0x0805FEE1
+monIconTable = 0x087D5D3C  # gSpeciesInfo[0].iconSprite
+monIconStride = 0x120
+monIconPaletteIndices = 0x087D5D62  # gSpeciesInfo[0].iconPalIndex
+monPalIdxStride = 0x120
+monIconPaletteTable = 0x08F20ABC
+monIconPalettes = 0x087D5D64
+itemIconTable = 0x08753844  # gItemsInfo[0].iconPic
+pokedex = 'POKEDEX_SOULGOLD_V1_2'
+trainerCard = 'TRAINER_CARD_SOULGOLD_V1_2'
+
+# A second build released as SoulGold v1.2 (sha1 5d6a0362..., its title screen says v1.2 too):
+# a few small code changes, so every RAM global and the battle handlers sit where they do in
+# NATIVE_SOULGOLD_V1_2 (checked on the same save headlessly: the soulgold_v12b fixtures, and the
+# action / move / bag / party handlers in a scripted wild battle) and only the ROM data moved,
+# 0x98 bytes (gSpeciesInfo, gItemsInfo) or 0xA4 (the icon palettes). Its tables are byte for byte
+# the first v1.2's, TM75 included.
+[config.soulgold_v1_2b]
+base = 'soulgold_v1_2'
+itemDescs = { base = 0x0875379C, stride = 0x2C, descOff = -8 }
+guideTables = 'GUIDE_TABLES_SOULGOLD_V1_2B'
+monIconTable = 0x087D5CA4
+monIconPaletteIndices = 0x087D5CCA
+monIconPaletteTable = 0x08F20A18
+monIconPalettes = 0x087D5CCC
+itemIconTable = 0x087537AC
+pokedex = 'POKEDEX_SOULGOLD_V1_2B'
+
+# A third build released as SoulGold v1.2 (sha1 2be7c99a..., "v1.2" on its title screen as well):
+# every RAM global and battle handler is still NATIVE_SOULGOLD_V1_2's (checked on the same save
+# headlessly: the soulgold_v12c fixtures, and the action / move / bag / party handlers in a scripted
+# wild battle - ScriptContext_SetupScript is 0x08236DBC). ROM data moved 0x18C bytes (gSpeciesInfo,
+# gItemsInfo, gTrainers), 0x190 (ability names, the Johto list) or 0x198 (icon palettes); ~180 KB
+# of new data sits before the wild / map tables (0x2DF30 later). Its tables are byte for byte the
+# other v1.2 builds', TM75 included.
+[config.soulgold_v1_2c]
+base = 'soulgold_v1_2'
+itemDescs = { base = 0x08753928, stride = 0x2C, descOff = -8 }
+guideTables = 'GUIDE_TABLES_SOULGOLD_V1_2C'
+monIconTable = 0x087D5E30
+monIconPaletteIndices = 0x087D5E56
+monIconPaletteTable = 0x08F20BB0
+monIconPalettes = 0x087D5E58
+itemIconTable = 0x08753938
+pokedex = 'POKEDEX_SOULGOLD_V1_2C'

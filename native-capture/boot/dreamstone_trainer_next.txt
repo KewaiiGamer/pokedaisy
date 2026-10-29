@@ -1,0 +1,37 @@
+# Pokémon Dreamstone Mysteries: dreamstone_trainer.txt, then the foe CUBONE's HP poked to 1 (gBattleMons[1].hp,
+# 0x020005EE: the clock seeds the RNG, so a fair fight doesn't replay the same way) and FIGHT / EMBER; dumped at
+# "Backpacker Ronnie is about to send out Sentret." (gBattleStruct's monToSwitchIntoId[1] = 1).
+wait 700
+press START
+wait 100
+press START
+wait 100
+press A
+wait 300
+call 0x081ead35 0x08367dab
+wait 720
+press A
+wait 90
+press A
+wait 90
+press A
+wait 90
+press A
+wait 90
+press A
+wait 90
+press A
+wait 300
+poke16 0x020005EE 1
+press A
+wait 60
+press A
+wait 100
+press A
+wait 100
+press A
+wait 100
+press A
+wait 100
+press A
+wait 100

@@ -1,0 +1,62 @@
+name: Linux foundation
+on:
+  pull_request:
+    paths: ['linux/**', '3ds/core/**', '3ds/test/host_display_test.c', '3ds/test/configs_gen_test.c', '3ds/Makefile', '3ds/desktop/pd_png.*', 'app/src/main/cpp/pk_savevf.*', 'third_party/mgba', '.github/workflows/linux.yml', 'gamedata/**']
+  push:
+    branches: [main, dev]
+    paths: ['linux/**', '3ds/**', 'app/src/main/cpp/pk_savevf.*', 'third_party/mgba', '.github/workflows/linux.yml', 'gamedata/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: linux-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: git submodule update --init third_party/mgba
+      - run: sudo apt-get update && sudo apt-get install -y cmake libsdl2-dev
+      - name: Shared host capability and legacy previews
+        run: make -C 3ds test-host-display test-configs-gen preview
+      - name: Build native host and tests
+        run: |
+          cmake -S linux -B linux/build -DCMAKE_BUILD_TYPE=Release -DBUILD_LTO=OFF
+          cmake --build linux/build -j2
+          ctest --test-dir linux/build --output-on-failure
+      - name: Package native artifact
+        run: python3 linux/package.py linux/build/pokedaisy-linux "$RUNNER_TEMP/linux-artifacts"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pokedaisy-linux-x86_64
+          path: ${{ runner.temp }}/linux-artifacts/*.zip
+          if-no-files-found: error
+  trimui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: git submodule update --init third_party/mgba
+      - run: sudo apt-get update && sudo apt-get install -y cmake qemu-user-static
+      - name: Prepare checksum-pinned toolchain and SDK
+        run: |
+          python3 linux/setup_trimui_sdk.py "$RUNNER_TEMP/trimui-sdk"
+          echo "NEXTUI_TOOLCHAIN=$RUNNER_TEMP/trimui-sdk/cross/x86_64-aarch64-nextui-linux-gnu" >> "$GITHUB_ENV"
+      - name: Build and test AArch64 host under QEMU
+        run: |
+          cmake -S linux -B linux/build-arm -DCMAKE_TOOLCHAIN_FILE=trimui-toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_LTO=OFF \
+            -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-aarch64-static;-L;$NEXTUI_TOOLCHAIN/aarch64-nextui-linux-gnu/libc"
+          cmake --build linux/build-arm -j2
+          ctest --test-dir linux/build-arm --output-on-failure
+      - name: Package TrimUI and PortMaster artifacts
+        run: |
+          python3 linux/package.py linux/build-arm/pokedaisy-linux "$RUNNER_TEMP/linux-artifacts"
+          python3 linux/package.py --portmaster linux/build-arm/pokedaisy-linux "$RUNNER_TEMP/linux-artifacts"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pokedaisy-linux-aarch64
+          path: ${{ runner.temp }}/linux-artifacts/*.zip
+          if-no-files-found: error

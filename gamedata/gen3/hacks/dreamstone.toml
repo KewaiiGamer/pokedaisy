@@ -1,0 +1,76 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Dreamstone Mysteries (32 MB, BPEE, sha1 20e91aec…; dsmyst, no version shown in the game): the Cormoria region on
+# pokeemerald-expansion - its debug menu's EXPANSION VERSION prints "v1.11.2 Development Build" - built with gcc, no
+# source. pokeemerald-expansion's 1.11.2 tag built plain (`make`, Debian's arm-none-eabi-gcc 12) was the map: every RAM
+# global below sits within a few bytes of that build's, each one then checked in headless dumps of a new game played in
+# it (`dreamstone*` fixtures: the user had no save), and offsetof() compiled against its headers for the struct fields.
+# - gPlayerParty 0x02032314 (545 literal-pool refs) / gPlayerPartyCount 0x020320B5, gEnemyParty 0x020320BC (before the
+# player's, +0x258) with its count at 0x020320B6: vanilla's 100-byte encrypted mon with 1.10's packing (species /
+# moves 11 bits, PP 7, experience 21), like Imperium's. The egg is species 1524 (gSpeciesInfo's last entry).
+# - gSaveBlock2Ptr / 1Ptr 0x030069E4 / 0x030069E8; money SaveBlock1 +0x490 XOR SaveBlock2 +0xAC (₽3000 on a new game,
+# a Potion x5 decodes the same way). gMain 0x0300373C (vblankCounter1 +0x20 ran 1205 in 1205 frames; inBattle bit 1
+# of +0x439). Its SaveBlock1 differs from 1.11.2's past the bag: flags +0x148C, vars +0x15B8, dex flags +0x3494.
+# - gMapHeader 0x02001D4C (byte mapsec at +0x14: 0xD5 CARABRUE TOWN, 0xE0 ROUTE 1), gObjectEvents 0x0200183C (player
+# first, pos + 7).
+# - gBagPockets 0x02006DC8: seven {ItemSlot *, capacity} ([DREAMSTONE_BAG_POCKET_ORDER]); quantities XOR the key.
+# - Battle (scripted wild ZIGZAGOON, BACKPACKER RONNIE's two): gBattleTypeFlags 0x020000A4 (4 wild, 0xC trainer),
+# gBattlersCount 0x020000AA, gBattleStruct 0x020000AC, gBattlerPositions 0x02000158, gBattlerPartyIndexes 0x0200015C
+# (2 after a SHIFT to slot 2), the menu cursors 0x0200043C / 0x02000440 (RIGHT / DOWN walk 0 -> 1 -> 3; a written 2
+# + A opened the party menu, a written move 1 + A spent QUICK ATTACK's PP), gBattleMons 0x02000564 (expansion's 0x60
+# bytes, EXPANSION_BATTLE_MON), monToSwitchIntoId at gBattleStruct + 0x5B (1.11.2's offsetof; [1] = 1 at "is about
+# to send out SENTRET"). gBattlerControllerFuncs 0x03003C48: action / move / bag / party menus 0x080561FD /
+# 0x08055329 / 0x080543CD / 0x0805432D read live; HandleInputChooseTarget 0x080546FD by code (the one handler
+# before the move menu's that it points at: gMultiUsePlayerCursor, back to the move menu on B). gPartyMenu
+# 0x02031E04 (slotId +9; a two-column grid: RIGHT 0 -> 1, DOWN 0 -> 2).
+# - Icons: gSpeciesInfo 0x087B0160 (0x104-byte entries, Imperium's offsets: iconSprite +0x68, iconPalIndex +0x8A),
+# gMonIconPaletteTable 0x08E6A420 (tags 0xDAC0..); gItemsInfo 0x0872F6B8 (0x50-byte entries, icon + LZ77 palette
+# at +0x48 / +0x4C). Names / types / moves / chart / map sections: gen_expansion_tables.py dreamstone.
+[config.dreamstone]
+base = 'emerald'
+# gItemsInfo: 0x50-byte entries, inline names, the description pointer 8 bytes before.
+itemDescs = { base = 0x0872F6CC, stride = 0x50, descOff = -8 }
+playerParty = 0x02032314
+playerPartyCount = 0x020320B5
+enemyParty = 0x020320BC
+gMain = 0x0300373C
+saveBlock1Ptr = 0x030069E8
+saveBlock2Ptr = 0x030069E4
+encryptionKeyOff = 0xAC
+moneyOff = 0x490
+objectEvents = 0x0200183C
+mapHeader = 0x02001D4C
+bagPockets = 0x02006DC8
+bagPocketCount = 7
+bagPocketOrder = 'DREAMSTONE_BAG_POCKET_ORDER'
+speciesMask = 0x07FF
+moveMask = 0x07FF
+ppMask = 0x7F
+battleTypeFlags = 0x020000A4
+battlersCount = 0x020000AA
+battlerPartyIndexes = 0x0200015C
+battlerPositions = 0x02000158
+battleMons = 0x02000564
+battleMonLayout = 'EXPANSION_BATTLE_MON'
+battleStructPtr = 0x020000AC
+monToSwitchIntoOff = 0x5B
+actionCursor = 0x0200043C
+moveCursor = 0x02000440
+battlerControllerFuncs = 0x03003C48
+handleInputChooseAction = 0x080561FD
+handleInputChooseMove = 0x08055329
+completeWhenChoseItem = 0x080543CD
+waitForMonSelection = 0x0805432D
+handleInputChooseTarget = 0x080546FD
+partyMenu = 0x02031E04
+eggSpecies = 1524
+monIconTable = 0x087B01C8  # gSpeciesInfo[0].iconSprite
+monIconStride = 0x104
+monIconPaletteIndices = 0x087B01EA  # gSpeciesInfo[0].iconPalIndex
+monPalIdxStride = 0x104
+monPalIdxMask = 0x07
+monIconPaletteTable = 0x08E6A420
+itemIconTable = 0x0872F700  # gItemsInfo[0].iconPic
+itemIconStride = 0x50
+pokedex = 'POKEDEX_DREAMSTONE'
+guideTables = 'GUIDE_TABLES_DREAMSTONE'

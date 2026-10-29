@@ -155,7 +155,7 @@ fun TouchControlsPage(
         else {
             val w = stage.h
             val upright = stage.w > stage.h   // the other way round from what's shown
-            val strip = if (expand && underGame && touchShown && upright) TouchGeometry.naturalHeight(style, w, stage.dp, stage.gameBoy) else 0
+            val strip = if (expand && underGame && touchShown && upright) TouchGeometry.naturalHeight(style, w, stage.dp, stage.gameBoy, stage.ds) else 0
             simulateTouchStage(
                 w, stage.w, stage.dp, stage.gameAspect, portraitRatio = portraitRatio, underGame = underGame,
                 gameBoy = stage.gameBoy, expand = expand, padStrip = strip,

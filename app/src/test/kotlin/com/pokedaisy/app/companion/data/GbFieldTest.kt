@@ -42,6 +42,7 @@ class GbFieldTest {
             "Pokemon - Versione Gialla - Speciale Edizione Pikachu (Italy) (GBC,SGB Enhanced).gb" to GB_FIELD_YELLOW_IT,
             "Pokemon - Edicion Amarilla - Edicion Especial Pikachu (Spain) (GBC,SGB Enhanced).gb" to GB_FIELD_YELLOW_ES,
             "Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb" to GB_FIELD_RED_BLUE,
+            "Pokemon PureRed (v2.7.6).gb" to GB_FIELD_PURE_RGB,
         )
         for ((name, own) in carts) {
             val rom = romOf(name)
@@ -139,6 +140,30 @@ class GbFieldTest {
         m[0xD056] = 1                                              // a battle: its bytes are the enemy's then
         GB_FIELD_YELLOW.holdWild(m)
         assertEquals(25, m[0xD886])
+    }
+
+    @Test
+    fun `PureRed and PureBlue - the same code, their own banks, WRAM bank 1`() {
+        assertTrue(GB_FIELD_PURE_RGB.matches(romOf("Pokemon PureBlue (v2.7.6).gb")))
+        val rom = romOf("Pokemon PureRed (v2.7.6).gb")
+        val m = Memory(rom.copyOf(0x200000))
+        assertEquals(ItemUseResult.USED, GB_FIELD_PURE_RGB.openPc(m))
+        assertEquals(listOf(0x03D7, 0x3297, 0, 0x33, 0x46B5), m.calledAt)
+        m[wramx(1, 0xD35E)] = 0x04
+        m[wramx(1, 0xD16B)] = 1
+        m[wramx(1, 0xD17B + 3)] = 19
+        m[wramx(1, 0xD713)] = 0b1000_0011                  // Pallet, Viridian, Saffron (7: before Fuchsia in PureRGB)
+        m[wramx(1, 0xD73A)] = 0x01
+        val t = GB_FIELD_PURE_RGB.flyTargets(m)
+        assertEquals(FlyTargets(FlyResult.OK, listOf(0, 1, 7), 0), t)
+        assertEquals(FlyResult.OK, GB_FIELD_PURE_RGB.fly(7, t, m))
+        assertEquals(listOf(7, 0x09, 0x80), listOf(m[wramx(1, 0xD722)], m[wramx(1, 0xD73A)], m[wramx(1, 0xD73B)]))
+        // ROUTE 21 (0x20): grass 25, water 7 in its wild data (bank 0x2C, data/wild/maps/Route21.asm).
+        m[wramx(1, 0xD73A)] = 0x01
+        m[wramx(1, 0xD366)] = 0x20
+        GB_FIELD_PURE_RGB.holdWild(m)
+        assertTrue(GB_FIELD_PURE_RGB.releaseWild(m))
+        assertEquals(25 to 7, m[wramx(1, 0xD88F)] to m[wramx(1, 0xD8AC)])
     }
 
     @Test

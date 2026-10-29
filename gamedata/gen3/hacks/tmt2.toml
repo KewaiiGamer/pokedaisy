@@ -1,0 +1,84 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokemon Too Many Types 2 v1.5.2 - BPEE, 32 MB, a NEWER
+# pokeemerald-expansion recompile than Seaglass: BoxPokemon packs
+# species:11|teraType:5 (the user's Chimchar reads 22918 raw = 390 masked),
+# hence speciesMask/moveMask/ppMask. Found headlessly, same method as
+# NATIVE_EMERALD_SEAGLASS (5 varied-timing captures; everything below stable
+# in all 5 unless noted):
+# - playerParty 0x02032C94 (the other copy drifts at gSaveBlock1Ptr+0x238);
+# playerPartyCount 0x02032715 NOT adjacent to it - found from the ROM:
+# the only address sharing literal pools with gPlayerParty (30 of them)
+# that reads 1 in every capture.
+# - gSaveBlock2Ptr (0x030057D4, "Lidor") sits BEFORE gSaveBlock1Ptr here.
+# encryptionKey at SaveBlock2+0x44 (an identical copy at +0x18C): tracks
+# the per-load key in every capture; money decrypts to 3000 with it.
+# - gMain: IWRAM pair counting exact frame deltas at +0x20/+0x24.
+# - bagPockets: 7 {ptr,cap} pockets. Order read off each item's own
+# gItemsInfo pocket field (name+0x2D, value-1 = array index): Items,
+# Medicine, (3 - unseen, folded into Items), Balls, TMs, Berries, Key -
+# matches the bag (Max Repel/Poke Ball x15/Rawst Berry/Dexnav...).
+# - mapHeader (mapsec 0x0C Lilycove = SaveBlock1 map 0.5, vanilla Hoenn
+# ids) and objectEvents (player at SaveBlock1 pos + 7).
+# Icons (ROM, same approach as Seaglass - rendered and checked by eye):
+# gSpeciesInfo 0x104-byte entries, name-relative +0x3A iconSprite, +0x5C
+# iconPalIndex low 3 bits (394/399 agree with Seaglass's); gItemsInfo
+# 0x54-byte entries, +0x34 LZ77 tiles, +0x38 RAW palette.
+# Battle (`tmt2_battle`: a scripted wild PIKACHU, its save stands in Lilycove; a scripted
+# double and a SHIFT too): its own block order - gBattleTypeFlags 0x020000A8 (4 single / 5
+# double), gBattlersCount 0x020000AC, gBattlerPartyIndexes 0x02000298, gBattlerPositions
+# 0x020002A8, gBattleMons 0x020005AC (expansion's 0x60 bytes, but PP at +0x26: Scratch's 35 ->
+# 34 there), the gBattleStruct pointer 0x020000B0 with monToSwitchIntoId at +0x8B (06 -> 01 ->
+# 06 through a SHIFT), gEnemyParty 0x02032A3C (600 bytes before the party).
+# gBattlerControllerFuncs 0x03004590: action / move / bag / party / target select
+# 0x080599FD / 0x08058A01 / 0x08057BF5 / 0x08057B49 / 0x08057641 (the last in the double).
+# gPartyMenu 0x0203242C, Emerald's list.
+#
+[config.tmt2]
+base = 'emerald'
+# gItemsInfo: 0x54-byte entries, inline names ("Poké Ball" 0x086B9A04), the description 8 bytes before.
+itemDescs = { base = 0x086B99B0, stride = 0x54, descOff = -8 }
+guideTables = 'GUIDE_TABLES_TMT2'
+playerParty = 0x02032C94
+playerPartyCount = 0x02032715
+gMain = 0x03004084
+saveBlock1Ptr = 0x030057D8
+saveBlock2Ptr = 0x030057D4
+encryptionKeyOff = 0x44
+objectEvents = 0x020016AC
+mapHeader = 0x02001BBC
+bagPockets = 0x02006C28
+bagPocketCount = 7
+bagPocketOrder = 'TMT2_BAG_POCKET_ORDER'
+speciesMask = 0x07FF
+moveMask = 0x07FF
+ppMask = 0x7F
+monIconTable = 0x08712AB0  # gSpeciesInfo[0].iconSprite
+monIconStride = 0x104
+monIconPaletteIndices = 0x08712AD2  # gSpeciesInfo[0].iconPalIndex
+monPalIdxStride = 0x104
+monPalIdxMask = 0x07
+monIconPaletteTable = 0x08DF976C
+itemIconTable = 0x086B99E4  # gItemsInfo[0].iconPic
+itemIconStride = 0x54
+itemPalCompressed = false
+battleTypeFlags = 0x020000A8
+battlersCount = 0x020000AC
+battlerPartyIndexes = 0x02000298
+battlerPositions = 0x020002A8
+battleMons = 0x020005AC
+battleMonLayout = 'TMT2_BATTLE_MON'
+battleStructPtr = 0x020000B0
+# gActionSelectionCursor / gMoveSelectionCursor, found by dump diffs (0 -> 1 -> 3 on RIGHT / DOWN) and checked
+# headless: a written 2 + A opens the party menu, a written move 1 + A spends its PP (TMT2_BATTLE_MON's pp +0x26).
+actionCursor = 0x02000414
+moveCursor = 0x02000418
+monToSwitchIntoOff = 0x8B
+enemyParty = 0x02032A3C
+battlerControllerFuncs = 0x03004590
+handleInputChooseAction = 0x080599FD
+handleInputChooseMove = 0x08058A01
+completeWhenChoseItem = 0x08057BF5
+waitForMonSelection = 0x08057B49
+handleInputChooseTarget = 0x08057641
+pokedex = 'POKEDEX_TMT2'

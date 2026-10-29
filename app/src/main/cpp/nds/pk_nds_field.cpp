@@ -51,6 +51,39 @@ static const PkNdsFieldGame HEARTGOLD_US = {
     0x08,         // BattleContext.command (5 at the command menus, 22 running a move's script: headless dumps)
 };
 
+// Black (USA / Europe, IRBO rev 0): no decomp, so from headless captures (nds_dump dumps of the field, a text box, the X
+// menu, the party screen and a Battle Subway battle, diffed; the heap's blocks carry their source file's name). The
+// GameSystem is procsys.c's proc work, its pointer static; its proc system's running proc names its overlay (21 the field
+// map, 91 the party list, 93 the battle); the battle's main module -> client 0 -> its adapter, whose command is 3 while
+// the player chooses (FIGHT / the moves) and 8 while the turn plays.
+static const PkNdsFieldGame BLACK_US = {
+    "Black (USA / Europe)",
+    0x02146248,   // the GameSystem
+    0,
+    0, 0, 0, 0,
+    0,
+    0, 0, 0,
+    0,
+    0,            // no field map hook: PC / FLY take the GameSystem's event check's place (pk_nds_call.cpp's Gen5Fns)
+    0x020AA1BC,   // the BGM stack's first song (u16; 0x1C an entry, the depth at bgmDepth)
+    0x0214E024,   // sSeqPlayer (NitroSDK's, 16 x 0x44: player 6 plays the field's song, 12 a battle's)
+    0,
+    3,            // pk_nds_call's Gen 5 jobs (BLACK there)
+    0, 0,
+    5,
+    0x08, 0x08, 0x04, 21, 93,
+    0x14, 0x18,
+    0x14, 0x10, 0x50, 0x0F,
+    3,
+    1,            // the field's message window: engine A's BG1 (192 tiles while one is up, none on the free field)
+    0x1C,         // GameData
+    0x114,        // its player record's zone (then fx32 x / y / z)
+    0x154,        // the move form (1 on the Bicycle, Y > Bicycle and back)
+    0x158,        // EVENTDATA_SYSTEM
+    0x38,         // its encounter table: the season's block of /a/1/2/6, rates first (Route 1: 08 08 01 03 01 32 01)
+    0x020AA1B0,   // the BGM stack's depth: 0 on the field, 1 in a battle
+};
+
 // WILD ENCOUNTERS OFF's hold: the MapHeaderData whose rates it zeroed, for which map, and their values before.
 static uint32_t heldData, heldMap, heldGrass, heldSurf;
 static int holding;
@@ -75,6 +108,7 @@ const PkNdsFieldGame* pk_nds_field_game(const char code[4], int revision)
 {
     if (memcmp(code, "CPUE", 4) == 0 && revision == 1) return &PLATINUM_US_REV1;
     if ((memcmp(code, "IPKE", 4) == 0 || memcmp(code, "IPGE", 4) == 0) && revision == 0) return &HEARTGOLD_US;
+    if (memcmp(code, "IRBO", 4) == 0 && revision == 0) return &BLACK_US;
     return 0;
 }
 
@@ -107,8 +141,115 @@ static void releaseWild(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), v
     holding = 0;
 }
 
+int pk_nds_battle_margins(const PkNdsFieldGame* g) { return g && g->gen != 5; }
+
+int pk_nds_battle_3d(const PkNdsFieldGame* g) { return g && g->gen == 5; }
+
+int pk_nds_battle_selecting(const PkNdsFieldGame* g) { return g && g->battleSelecting ? g->battleSelecting : PK_NDS_BATTLE_SELECTING; }
+
+// Gen 5: the GameSystem's running proc, or 0.
+static uint32_t gen5Proc(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), uint32_t gs)
+{
+    uint32_t ps = read32(gs + g->offProcSys);
+    if (!inMainRam(ps)) return 0;
+    uint32_t proc = read32(ps + g->offCurrentProc);
+    return inMainRam(proc) ? proc : 0;
+}
+
+static int gen5BattleCommand(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t))
+{
+    uint32_t gs = read32(g->fieldSystemPtr);
+    if (!inMainRam(gs)) return -1;
+    uint32_t proc = gen5Proc(g, read32, gs);
+    if (!proc || (int) read32(proc + g->offProcOverlay) != g->battleOverlay) return -1;
+    uint32_t main = read32(proc + g->offProcWork);
+    uint32_t client = inMainRam(main) ? read32(main + g->offClient) : 0;
+    uint32_t adapter = inMainRam(client) ? read32(client + g->offAdapter) : 0;
+    if (!inMainRam(adapter)) return -1;
+    uint32_t a = adapter + g->offAdapterCommand;
+    return (int) ((read32(a & ~3u) >> ((a & 3) * 8)) & 0xFF);
+}
+
+// Gen 5's WILD ENCOUNTERS hold: the zone's seven rates (the event data's encounter table, reloaded on every zone
+// change), zeroed while it's off and put back after. Two words: rates 0-3, then 4-6 under the table's flag byte.
+static uint32_t heldTable, heldZone5, heldRates[2];
+static int holding5;
+
+static void gen5Wild(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), void (*write32)(uint32_t, uint32_t),
+                     uint32_t gd, int wildOff, int* bits);
+
+// Gen 5's field bits: the scene from the running proc, the field map and the event; the form from the GameData.
+static int gen5FieldState(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), void (*write32)(uint32_t, uint32_t),
+                          int wildOff)
+{
+    int bits = PK_NDS_FIELD_KNOWN;
+    uint32_t gs = read32(g->fieldSystemPtr);
+    if (!inMainRam(gs)) return bits;   // the title screen, the intro
+    uint32_t proc = gen5Proc(g, read32, gs);
+    if (!proc) return bits;
+    int overlay = (int) read32(proc + g->offProcOverlay);
+    uint32_t fieldMap = read32(gs + g->offFieldMap);
+    uint32_t event = read32(gs + g->offEvent);
+    if (overlay == g->battleOverlay) return bits | PK_NDS_FIELD_BATTLE | PK_NDS_FIELD_LOCKED;
+    if (overlay != g->fieldOverlay || !inMainRam(fieldMap)) return bits | PK_NDS_FIELD_MENU | PK_NDS_FIELD_LOCKED;
+    bits |= PK_NDS_FIELD_SCREEN;
+    // A script, a text box, the X menu (drawn on the touch screen over the field), a warp: each runs as an event.
+    if (event) bits |= PK_NDS_FIELD_LOCKED | PK_NDS_FIELD_TEXT;
+    uint32_t gd = read32(gs + g->offGameData);
+    if (!inMainRam(gd)) return bits;
+    uint32_t form = read32(gd + g->offMoveForm);
+    bits |= PK_NDS_FIELD_AVATAR;
+    if (form == AVATAR_CYCLING) bits |= PK_NDS_FIELD_BIKE;
+    if (form == AVATAR_SURFING) bits |= PK_NDS_FIELD_SURF;
+    if (write32) gen5Wild(g, read32, write32, gd, wildOff, &bits);
+    return bits;
+}
+
+static void gen5Wild(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), void (*write32)(uint32_t, uint32_t),
+                     uint32_t gd, int wildOff, int* bits)
+{
+    uint32_t ev = read32(gd + g->offEventData);
+    if (!inMainRam(ev)) return;
+    uint32_t table = ev + g->offEncounterRates;
+    uint32_t zone = read32(gd + g->offZone) & 0xFFFF;
+    uint32_t w0 = read32(table), w1 = read32(table + 4);
+    if (holding5 && (table != heldTable || zone != heldZone5)) holding5 = 0;   // a new zone loaded its own table
+    if (wildOff) {
+        if (!holding5) {
+            heldTable = table;
+            heldZone5 = zone;
+            heldRates[0] = w0;
+            heldRates[1] = w1 & 0x00FFFFFFu;
+            holding5 = 1;
+        }
+        checked = 0;
+        if (w0) write32(table, 0);
+        if (w1 & 0x00FFFFFFu) write32(table + 4, w1 & 0xFF000000u);
+    } else {
+        if (holding5 && table == heldTable && zone == heldZone5 && !w0 && !(w1 & 0x00FFFFFFu)) {
+            write32(table, heldRates[0]);
+            write32(table + 4, (w1 & 0xFF000000u) | heldRates[1]);
+        }
+        holding5 = 0;
+        // A zone still at 0 where the cart has rates: a hold this process doesn't remember (a resume state taken while
+        // OFF) - the cart's go back ([zone, rates 0-3, rates 4-6], pk_nds_field_set_rates).
+        if (!checked || table != checkedData || zone != checkedMap) {
+            auto it = cartRates.find(zone);
+            if (it != cartRates.end() && !w0 && !(w1 & 0x00FFFFFFu) && (it->second.first || it->second.second)) {
+                write32(table, it->second.first);
+                write32(table + 4, (w1 & 0xFF000000u) | (it->second.second & 0x00FFFFFFu));
+            }
+            checked = 1;
+            checkedData = table;
+            checkedMap = zone;
+        }
+    }
+    if (holding5) *bits |= PK_NDS_FIELD_WILD_HELD;
+}
+
 int pk_nds_battle_command(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t))
 {
+    if (g && g->gen == 5) return gen5BattleCommand(g, read32);
     if (!g || !g->offBattleContext) return -1;
     uint32_t fs = read32(g->fieldSystemPtr);
     if (!inMainRam(fs)) return -1;
@@ -129,6 +270,7 @@ int pk_nds_field_state(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), vo
                        int wildOff)
 {
     if (!g) return 0;
+    if (g->gen == 5) return gen5FieldState(g, read32, write32, wildOff);
     int bits = PK_NDS_FIELD_KNOWN;
     uint32_t fs = read32(g->fieldSystemPtr);
     if (!inMainRam(fs)) return bits;   // title screen, the intro: no overworld at all
@@ -197,11 +339,13 @@ int pk_nds_field_state(const PkNdsFieldGame* g, uint32_t (*read32)(uint32_t), vo
     return bits;
 }
 
-int pk_nds_bg3_tiles(melonDS::NDS* nds)
+int pk_nds_bg3_tiles(melonDS::NDS* nds, int bg)
 {
     uint32_t disp = nds->GPU.GPU2D_A.DispCnt;
-    if ((disp & 7) > 1 || !(disp & (1 << 11))) return 0;   // BG3 off, or not a text BG in this mode
-    uint16_t cnt = nds->GPU.GPU2D_A.BGCnt[3];
+    if (!(disp & (1 << (8 + bg)))) return 0;   // the BG is off
+    if (bg == 3 && (disp & 7) > 1) return 0;   // not a text BG in this mode
+    if (bg == 2 && (disp & 7) > 3) return 0;
+    uint16_t cnt = nds->GPU.GPU2D_A.BGCnt[bg];
     uint32_t base = 0x06000000u + ((disp >> 27) & 7) * 0x10000 + ((cnt >> 8) & 0x1F) * 0x800;
     int n = 0;
     for (uint32_t i = 0; i < 32 * 24; i++)

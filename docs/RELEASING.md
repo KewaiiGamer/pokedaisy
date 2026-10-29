@@ -14,6 +14,7 @@ Two GitHub Actions workflows guard `main` and the releases:
 ```bash
 git checkout main && git pull
 make bump V=1.2.0          # versionName 1.2.0, versionCode + 1
+# + the version's WHAT'S NEW in app/.../companion/WhatsNew.kt (a few lines; WhatsNewTest fails without them)
 git commit -am "Version 1.2.0" && git push   # or through a PR, like any change
 make release               # tags v1.2.0 on main and pushes the tag
 ```
@@ -112,8 +113,10 @@ What it needs:
 - **ROMs only.** No save files: the saves and memory dumps the tests use are already
   committed as fixtures (`app/src/test/resources/fixtures/`). No decomp builds either:
   only the generator scripts and `ui-preview` use `$DECOMPS`, not the tests.
-- One folder with your ROMs, named the way the tests expect. It's the folder the
-  tests already read on your Mac by default: `~/Downloads/Game ROMs & Emulation/gba/`.
+- Your ROMs, named the way the tests expect. The tests read
+  `~/Downloads/Game ROMs & Emulation/gba/` on your Mac by default, and from beside it `gbc/`,
+  `nds/` and `Pokemon Multi Language/` (a folder per other-language game), so point
+  `POKEDAISY_ROM_DIR` at the `gba/` folder of that same layout.
   Any test whose ROM isn't there still skips rather than fails. Check which ones ran
   with `make test-roms ROM_DIR=<folder>` and the report at
   `app/build/reports/tests/testDebugUnitTest/index.html`.

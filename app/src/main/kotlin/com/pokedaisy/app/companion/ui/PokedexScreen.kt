@@ -110,10 +110,10 @@ class DexUiState(val list: LazyListState) {
 /**
  * The dex being shown, as national numbers in its own order - national, or the
  * regional dex (Hoenn's order differs: TREECKO is HOENN No.001), with the number
- * each entry is listed under there.
+ * each entry is listed under there, from [first] (Unova's starts at No.000: VICTINI).
  */
-class DexOrder(val nationals: List<Int>, private val regional: Boolean) {
-    private val position = if (regional) nationals.withIndex().associate { it.value to it.index + 1 } else emptyMap()
+class DexOrder(val nationals: List<Int>, private val regional: Boolean, private val first: Int = 1) {
+    private val position = if (regional) nationals.withIndex().associate { it.value to it.index + first } else emptyMap()
     private val members = if (regional) position.keys else nationals.toHashSet()
     fun number(national: Int): Int = if (regional) position[national] ?: national else national
     operator fun contains(national: Int) = national in members
@@ -131,7 +131,8 @@ fun rememberDexOrder(dex: PokedexState, national: Boolean): DexOrder {
             // Numbers with no species (a hack's unused slots) aren't listed.
             national -> DexOrder((1..t.nationalCount).filter { species == null || species.getOrElse(it) { 0 } != 0 }, regional = false)
             // Until a non-Kanto regional order has loaded: an empty list, not a wrong one.
-            else -> DexOrder(regional?.filter { it in 1..t.nationalCount } ?: emptyList(), regional = true)
+            else -> DexOrder(regional?.filter { it in 1..t.nationalCount } ?: emptyList(), regional = true,
+                first = if (t.gen4?.gen5 == true) 0 else 1)
         }
     }
 }

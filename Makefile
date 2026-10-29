@@ -18,7 +18,7 @@ export MON_ICONS
 .DEFAULT_GOAL := help
 
 .PHONY: help docs-shots docs-check submodules apk install run test clean shots preview menu-shots capture-image \
-        check stress test-roms version bump release-apk symbols release release-local
+        check gamedata stress test-roms version bump release-apk symbols release release-local
 
 # versionName / versionCode, read from app/build.gradle.kts.
 VERSION      := $(shell sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
@@ -45,6 +45,9 @@ install: ## Build + install on a connected Android device (adb)
 run: install ## Build + install + launch the library screen on the connected device
 	adb shell am start -n $(PKG)/.LibraryActivity
 
+gamedata: ## Regenerate the per-game code from gamedata/ (NativeConfigsGen.kt; see gamedata/README.md)
+	python3 scripts/gen_gamedata.py
+
 test: ## JVM unit tests (fixture decode tests, UI logic)
 	./gradlew :app:testDebugUnitTest
 
@@ -53,8 +56,10 @@ clean: ## gradle clean
 
 ##@ Checks (what CI runs)
 
-check: ## Everything a PR must pass: unit tests, translations, ui-preview stress + docs search, docs, debug build
+check: ## Everything a PR must pass: unit tests, translations, game data, ui-preview stress + docs search, docs, debug build
 	python3 scripts/check_translations.py
+	python3 scripts/gen_gamedata.py --check
+	$(MAKE) -C 3ds test-configs-gen
 	./gradlew :app:testDebugUnitTest :app:assembleDebug
 	./gradlew -p ui-preview stress
 	./gradlew -p ui-preview docsSearchCheck

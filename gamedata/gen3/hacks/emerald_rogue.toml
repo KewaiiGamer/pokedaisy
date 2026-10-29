@@ -1,0 +1,86 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Emerald Rogue v2.2.1-EX. Its source is public (Pokabbie/pokeemerald-rogue,
+# `expansion` branch = v2.2.1) - struct layouts below come from there, every
+# address from headless captures of the user's real save (scripts/
+# capture_fixture_headless.sh + varied boot timing; 1 Rockruff Lv10, 6 Potions,
+# 10 Poke Balls) and the ROM itself:
+# - playerParty 0x02036C7C, count at party-3: stable in every capture. The
+# other checksum-valid copy (0x02029xxx) is SaveBlock1.playerParty, which
+# moves on every load. struct Pokemon is 104 bytes (a RoguePartyMon tail;
+# the first 100 are vanilla's), species:11 bit-packed like expansion.
+# - gSaveBlock1Ptr / 2Ptr 0x03003614 / 0x03003618 (their targets drift).
+# SaveBlock1: pos +0, party +0x238, money +0x4A8, bag +0x578 (the header's
+# offset comments are stale - the party grew); SaveBlock2: encryptionKey
+# +0x4C (every empty bag slot reads key&0xFFFF), pokemonHubName +0xEE4.
+# - gBagPockets 0x02026524: 9 {ptr, count} views into ONE sorted 450-slot
+# SaveBlock1 array (Rogue's UpdateBagItemsPointers) - Items, Held,
+# Medicine (the 6 Potions), Stones, Balls, TM/HM, Berries, Pokeblock, Key.
+# - gMain 0x030014B4 (vblankCounter1/2 at +0x20/+0x24 advance exactly the
+# captured frame delta; struct Main is vanilla's, inBattle at +0x439).
+# - gMapHeader 0x020264B4 (the hub: mapsec 0, Rogue's MAPSEC_POKEMON_HUB),
+# gObjectEvents 0x02020A48 (currentCoords = SaveBlock1 pos + 7).
+# - Icons (ROM): gSpeciesInfo 0x98-byte entries ("Bulbasaur" at 0x0905BD04,
+# Rockruff exactly at 744), iconSprite at name+0x48, iconPalIndex at
+# name+0x5A (3 bits); gMonIconPaletteTable 0x0909713C; gItemIconTable
+# 0x08BA038C (vanilla {tiles, pal} LZ77 pairs); Rogue's own items (827+)
+# in gRogueItems 0x08B9DD54, 0x30-byte entries, icon pair at +0x28. All
+# rendered and checked by eye.
+# - Battle (live dumps from the Thor mid trainer battle, Rockruff vs Gulpin):
+# battle_main.c's EWRAM_DATA keep their declaration order - gBattleTypeFlags
+# 0x0201C2C0 (0x0C: trainer), gBattlersCount 0x0201C33C, gBattlerPartyIndexes
+# 0x0201C340, gBattlerPositions 0x0201C348, gBattleMons 0x0201C358;
+# gBattleStruct 0x0201C83C (then the link buffers, gBattleResources), whose
+# monToSwitchIntoId is at +0x3C; gEnemyParty 0x02036EEC (right after the
+# party). struct BattlePokemon is expansion's 0x60 bytes (EXPANSION_BATTLE_MON),
+# confirmed by compiling Rogue's own headers for ARM.
+# Touch battle input stays off (its controller addresses aren't mapped).
+#
+#
+[config.emerald_rogue]
+base = 'emerald'
+# gItems (0x28-byte records, description at +0xC), then Rogue's own items from 827 in
+# gRogueItems (0x30-byte records, description at +0x10).
+itemDescs = { base = 0x08B935AC, stride = 0x28, descOff = 0x0C, count = 827, next = { base = 0x08B9DD54, stride = 0x30, descOff = 0x10, first = 827, count = 201 } }
+playerParty = 0x02036C7C
+playerPartyCount = 0x02036C79
+monStride = 104
+hubNameOff = { ref = 'ROGUE_HUB_NAME_OFF' }
+battleTypeFlags = 0x0201C2C0
+battlersCount = 0x0201C33C
+battlerPartyIndexes = 0x0201C340
+battlerPositions = 0x0201C348
+battleMons = 0x0201C358
+battleMonLayout = 'EXPANSION_BATTLE_MON'
+battleStructPtr = 0x0201C83C
+monToSwitchIntoOff = 0x3C
+enemyParty = 0x02036EEC
+gMain = 0x030014B4
+saveBlock1Ptr = 0x03003614
+saveBlock2Ptr = 0x03003618
+encryptionKeyOff = 0x4C
+moneyOff = 0x4A8
+objectEvents = 0x02020A48
+mapHeader = 0x020264B4
+bagPockets = 0x02026524
+bagPocketCount = 9
+bagPocketOrder = 'ROGUE_BAG_POCKET_ORDER'
+speciesMask = 0x07FF
+monIconTable = 0x0905BCB4  # gSpeciesInfo[0].iconSprite (= 0x0905BD04 + 0x48 - 0x98)
+monIconStride = 0x98
+monIconPaletteIndices = 0x0905BCC6  # gSpeciesInfo[0].iconPalIndex (= 0x0905BD04 + 0x5A - 0x98)
+monPalIdxStride = 0x98
+monPalIdxMask = 0x07
+monIconPaletteTable = 0x0909713C
+itemIconTable = 0x08BA038C
+extraItemIconTable = 0x08B9DD7C  # gRogueItems[0].iconImage (= 0x08B9DD54 + 0x28)
+extraItemFirst = 827
+extraItemCount = 201
+extraItemStride = 0x30
+battlerControllerFuncs = 0
+handleInputChooseAction = 0
+handleInputChooseMove = 0
+completeWhenChoseItem = 0
+waitForMonSelection = 0
+handleInputChooseTarget = 0
+pokedex = 'POKEDEX_EMERALD_ROGUE'

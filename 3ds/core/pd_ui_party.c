@@ -7,19 +7,61 @@
 #include "pd_tables.h"
 #include "pd_ui_internal.h"
 
-// FireRedPartyPalette (PartyScreen.kt).
+// FireRedPartyPalette (PartyScreen.kt): a state's frame (outline, light inner edge,
+// upper fill, bottom shade; the HP band below the divider is the light edge's colour).
 struct slot_colors {
     uint32_t outline, light, fill, shade;
 };
 static const struct slot_colors SLOT_NORMAL = { 0x4A4A63, 0x84C6DE, 0x3994DE, 0x297BB5 };
 static const struct slot_colors SLOT_SELECTED = { 0xFF7331, 0xADEFFF, 0x7BD6EF, 0x4AADCE };
 static const struct slot_colors SLOT_FAINTED = { 0x4A4A63, 0xD6A521, 0xC66B10, 0xA54A00 };
+static const struct slot_colors SLOT_SELECTED_FAINTED = { 0xFF7331, 0xD6A521, 0xC66B10, 0xA54A00 };
 #define SLOT_TEXT 0xFFFFFF
 #define SLOT_TEXT_SHADOW 0x737373
 #define MALE 0x42CEFF
 #define MALE_SHADOW 0x006394
 #define FEMALE 0xFF9C94
 #define FEMALE_SHADOW 0x9C4239
+#define HP_FRAME 0x525252
+#define HP_INNER 0xFFFFFF
+#define HP_LETTER 0xFFD652
+#define HP_LETTER_SHADE 0xFFB542
+// How faintly an empty slot shows its box (PartyPalette.emptyAlpha).
+#define EMPTY_ALPHA 89 // 0.35 of 255
+
+struct hp_band {
+    uint32_t top, main;
+};
+static const struct hp_band HP_GREEN = { 0x5AD684, 0x73FFAD };
+static const struct hp_band HP_YELLOW = { 0xCEAD08, 0xFFE739 };
+static const struct hp_band HP_RED = { 0xC63900, 0xFF7331 };
+static const struct hp_band HP_NONE = { 0x525252, 0x737373 };
+
+// FireRed's closed party Poke Ball (PartyBall: partyfr/pokeball.png, 20x20).
+static const char* const BALL[20] = {
+    ".......KKKKKK.......", ".....KKKKKKKKKK.....", "....KKKRRRRRRKKK....", "...KKRRRRRRRRRRKK...",
+    "..KKRRRRRRRRRRRRKK..", ".KKRRRRRRRRRRRRRRKK.", ".KKRRRRRRRRRRRRRRKK.", "KKRRRRRRKKKKRRRRRRKK",
+    "KKHHHHHKKWWKKRRRRRKK", "KKKKKKKKWWWWKKKKKKKK", "KKKKKKKKWWWWKKKKKKKK", "KKWWWWWKKWWKKWWWWWKK",
+    "KKWWWWWWKKKKWWWWWWKK", ".KKWWWWWWWWWWWWWWKK.", ".KKWWWWWWWWWWWWWWKK.", "..KKWWWWWWWWWWWWKK..",
+    "...KKWWWWWWWWWWKK...", "....KKKWWWWWWKKK....", ".....KKKKKKKKKK.....", ".......KKKKKK.......",
+};
+// The "HP" label's letters (HpLetters): the top 3 rows in HP_LETTER, the rest in HP_LETTER_SHADE.
+static const char* const HP_LETTERS[5] = { "1001.1110", "1001.1001", "1111.1110", "1001.1000", "1001.1000" };
+// PixelIcons.male / female.
+static const char* const MALE_MARK[8] = { "00001111", "00000011", "00000101", "01111000",
+                                          "10001000", "10001000", "10001000", "01110000" };
+static const char* const FEMALE_MARK[8] = { "01110", "10001", "10001", "10001", "01110", "00100", "11111", "00100" };
+
+// A character bitmap, `u` canvas pixels a pixel: one colour per character, '.' / '0' clear.
+static void char_bitmap(struct pd_canvas* c, const char* const* rows, int n, int x, int y, int u,
+                        const char* keys, const uint32_t* colors) {
+    for (int r = 0; r < n; r++) {
+        for (int col = 0; rows[r][col]; col++) {
+            const char* k = strchr(keys, rows[r][col]);
+            if (k && rows[r][col] != '.' && rows[r][col] != '0') pd_fill(c, x + col * u, y + r * u, u, u, colors[k - keys]);
+        }
+    }
+}
 
 static const char* mon_display_name(const struct pd_mon* m, char* buf, size_t len) {
     if (m->species == PD_SPECIES_EGG) return "EGG";
@@ -27,50 +69,162 @@ static const char* mon_display_name(const struct pd_mon* m, char* buf, size_t le
     return pd_species_name(m->species, buf, len);
 }
 
-// The party menu's ♂ / ♀ after the name, in their own colours.
+// The summary's ♂ / ♀ after the name, in their own colours.
 static void gender_mark(struct pd_canvas* c, int x, int y, enum pd_gender g) {
     if (g == PD_GENDER_MALE) pd_text(c, x, y, "♂", MALE, MALE_SHADOW);
     if (g == PD_GENDER_FEMALE) pd_text(c, x, y, "♀", FEMALE, FEMALE_SHADOW);
 }
 
+// Where everything sits (PartyScreen.kt's SlotGeometry), in whole slot pixels `u`
+// (canvas pixels): FireRed's MAIN slot, its frame stretched to the cell, the Poke
+// Ball and icon overhanging 8 px left and 6 px up.
+struct slot_geometry {
+    int u, fx, fy, fw, fh, bottom, dividerY, barY, labelX, barX, barRight, textX;
+    int nameMid, levelMid, hpTextMid;
+};
+
+static struct slot_geometry geometry(int w, int h) {
+    struct slot_geometry g;
+    float scale = (float) w / 86 < (float) h / 57 ? (float) w / 86 : (float) h / 57;
+    g.u = scale < 1 ? 1 : (int) scale;
+    int u = g.u;
+    g.fx = 8 * u;
+    g.fy = 6 * u;
+    g.fw = (w - g.fx - 2 * u) / u * u;
+    g.fh = (h - g.fy - 2 * u) / u * u;
+    g.bottom = g.fy + g.fh;
+    g.dividerY = g.bottom - 19 * u;
+    g.barY = g.dividerY + u;
+    g.labelX = g.fx + 20 * u;
+    g.barX = g.labelX + 11 * u;
+    g.barRight = g.fx + g.fw - 4 * u;
+    g.textX = g.fx + 30 * u;
+    g.nameMid = g.fy + 3 * u + (int) ((g.dividerY - g.fy - 3 * u) * 0.3f);
+    g.levelMid = g.fy + 3 * u + (int) ((g.dividerY - g.fy - 3 * u) * 0.74f);
+    g.hpTextMid = g.barY + 10 * u;
+    return g;
+}
+
+static void slot_frame(struct pd_canvas* c, int x, int y, const struct slot_geometry* g, const struct slot_colors* col) {
+    int u = g->u;
+    pd_round_rect(c, x + g->fx, y + g->fy, g->fw, g->fh, 3 * u, col->outline);
+    pd_round_rect(c, x + g->fx + 2 * u, y + g->fy + 2 * u, g->fw - 4 * u, g->fh - 4 * u, u, col->light);
+    pd_fill(c, x + g->fx + 3 * u, y + g->fy + 3 * u, g->fw - 6 * u, g->dividerY - g->fy - 3 * u, col->fill);
+    pd_fill(c, x + g->fx + 2 * u, y + g->bottom - 3 * u, g->fw - 4 * u, u, col->shade);
+}
+
+static void hp_bar(struct pd_canvas* c, int x, int y, const struct slot_geometry* g, int hp, int maxHp) {
+    int u = g->u, by = y + g->barY;
+    // The "HP" label box, sharing its right edge with the bar's outline.
+    pd_round_rect(c, x + g->labelX, by, g->barX - g->labelX + u, 7 * u, u, HP_FRAME);
+    for (int r = 0; r < 5; r++) {
+        for (int col = 0; HP_LETTERS[r][col]; col++) {
+            if (HP_LETTERS[r][col] == '1')
+                pd_fill(c, x + g->labelX + (1 + col) * u, by + (1 + r) * u, u, u, r < 3 ? HP_LETTER : HP_LETTER_SHADE);
+        }
+    }
+    int w = g->barRight - g->barX;
+    pd_round_rect(c, x + g->barX, by, w, 7 * u, 2 * u, HP_FRAME);
+    pd_round_rect(c, x + g->barX + u, by + u, w - 2 * u, 5 * u, u, HP_INNER);
+    int inner = w - 4 * u;
+    if (hp > maxHp) hp = maxHp;
+    if (hp < 0) hp = 0;
+    int filled = maxHp > 0 ? inner / u * hp / maxHp * u : 0;
+    if (filled < u && hp > 0) filled = u;
+    const struct hp_band* col = maxHp <= 0 || hp * 2 > maxHp ? &HP_GREEN : hp * 5 > maxHp ? &HP_YELLOW : &HP_RED;
+    int bx = x + g->barX + 2 * u;
+    pd_fill(c, bx, by + 2 * u, inner, u, HP_NONE.top);
+    pd_fill(c, bx, by + 3 * u, inner, 2 * u, HP_NONE.main);
+    pd_fill(c, bx, by + 2 * u, filled, u, col->top);
+    pd_fill(c, bx, by + 3 * u, filled, 2 * u, col->main);
+}
+
+// The status chip (StatusChip): a darker rim around the status colour, FNT grey.
+static void status_chip(struct pd_canvas* c, int x, int y, const char* label) {
+    uint32_t color = !strcmp(label, "FNT") ? 0x6B6B6B : !strcmp(label, "SLP") ? 0x8A8A8A
+        : !strcmp(label, "PSN") ? 0xA259D9 : !strcmp(label, "BRN") ? 0xE0693E : !strcmp(label, "PAR") ? 0xD9C341
+        : !strcmp(label, "FRZ") ? 0x56C2E6 : !strcmp(label, "TOX") ? 0x7A3EA1 : 0x8890A0;
+    uint32_t rim = ((((color >> 16) & 0xFF) * 65 / 100) << 16) | ((((color >> 8) & 0xFF) * 65 / 100) << 8)
+        | ((color & 0xFF) * 65 / 100);
+    uint32_t shadow = ((((color >> 16) & 0xFF) / 2) << 16) | ((((color >> 8) & 0xFF) / 2) << 8) | ((color & 0xFF) / 2);
+    int w = pd_text_width(label) + 8;
+    pd_round_rect(c, x, y, w, 14, 2, rim);
+    pd_round_rect(c, x + 1, y + 1, w - 2, 12, 1, color);
+    pd_text(c, x + 4, y - 1, label, 0xFFFFFF, shadow);
+}
+
+// An empty slot: its box, faint over the backdrop (drawn whole, then blended in).
+static void empty_slot(struct pd_canvas* c, int x, int y, int w, int h, const struct slot_geometry* g) {
+    static uint32_t scratch[512 * 256];
+    if (w <= 0 || h <= 0 || w * h > (int) (sizeof(scratch) / sizeof(*scratch))) return;
+    struct pd_canvas t;
+    pd_canvas_init(&t, w, h, scratch);
+    memset(scratch, 0xFF, (size_t) w * h * sizeof(*scratch)); // 0xFFFFFFFF: nothing drawn
+    slot_frame(&t, 0, 0, g, &SLOT_NORMAL);
+    for (int yy = 0; yy < h; yy++) {
+        int sy = y + yy;
+        if (sy < c->cy0 || sy >= c->cy1) continue;
+        for (int xx = 0; xx < w; xx++) {
+            int sx = x + xx;
+            uint32_t v = scratch[yy * w + xx];
+            if (v == 0xFFFFFFFF || sx < c->cx0 || sx >= c->cx1) continue;
+            uint32_t* d = &c->px[sy * c->w + sx];
+            uint32_t out = 0;
+            for (int sh = 0; sh <= 16; sh += 8) {
+                uint32_t a = (v >> sh) & 0xFF, b = (*d >> sh) & 0xFF;
+                out |= ((a * EMPTY_ALPHA + b * (255 - EMPTY_ALPHA)) / 255) << sh;
+            }
+            *d = out;
+        }
+    }
+}
+
 static void party_slot(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, int x, int y, int w,
-                       int h, const struct pd_mon* m, int slot) {
-    char buf[40];
+                       int h, const struct pd_mon* m, int slot, bool selected) {
+    struct slot_geometry geo = geometry(w, h);
+    int u = geo.u;
     if (!m) {
-        // An empty slot: just its outline over the backdrop.
-        pd_round_rect(c, x, y, w, h, 5, SLOT_NORMAL.outline);
-        pd_round_rect(c, x + 1, y + 1, w - 2, h - 2, 4, PD_BACKDROP_B);
+        empty_slot(c, x, y, w, h, &geo);
         return;
     }
+    char buf[40];
     bool egg = m->species == PD_SPECIES_EGG;
     bool fainted = !egg && m->hp == 0;
-    const struct slot_colors* col = ui->pressedId == HIT_SLOT + slot ? &SLOT_SELECTED
-        : fainted ? &SLOT_FAINTED : &SLOT_NORMAL;
-    pd_round_rect(c, x, y, w, h, 5, col->outline);
-    pd_round_rect(c, x + 1, y + 1, w - 2, h - 2, 4, col->light);
-    pd_round_rect(c, x + 2, y + 2, w - 4, h - 4, 3, col->fill);
-    pd_fill(c, x + 3, y + h - 6, w - 6, 3, col->shade);
+    const struct slot_colors* col = fainted ? (selected ? &SLOT_SELECTED_FAINTED : &SLOT_FAINTED)
+        : selected ? &SLOT_SELECTED : &SLOT_NORMAL;
+    slot_frame(c, x, y, &geo, col);
+    if (!egg) hp_bar(c, x, y, &geo, m->hp, m->maxHp);
 
-    // The icon at the top left, like the game's party menu; the text beside it.
-    int tx = x + 8;
-    if (pd_draw_mon_icon(c, g, m->species, x + 2, y + 1, false)) tx = x + 2 + PD_ICON + 3;
-    const char* name = mon_display_name(m, buf, sizeof(buf));
+    // The Poke Ball, then the icon over it, resting 4 px up.
+    static const uint32_t BALL_COLORS[4] = { 0x4A4A63, 0xB54200, 0xC65200, 0xB5BDCE };
+    char_bitmap(c, BALL, 20, x + geo.fx - 6 * u, y + geo.fy - 4 * u, u, "KRHW", BALL_COLORS);
+    pd_draw_mon_icon_scaled(c, g, m->species, x + geo.fx - 8 * u, y + geo.fy - 4 * u, u, false);
+
+    int textW = geo.fx + geo.fw - 4 * u - geo.textX;
+    pd_text_fit(c, x + geo.textX, y + geo.nameMid - 8, textW, mon_display_name(m, buf, sizeof(buf)), SLOT_TEXT,
+                SLOT_TEXT_SHADOW);
     if (!egg) {
-        char lv[12];
-        snprintf(lv, sizeof(lv), "Lv%d", m->level);
-        int lvW = pd_text_width(lv);
-        pd_text_right(c, x + w - 8, y + 3, lv, SLOT_TEXT, SLOT_TEXT_SHADOW);
-        int nameW = pd_text_fit(c, tx, y + 3, x + w - 8 - lvW - 6 - 10 - tx, name, SLOT_TEXT, SLOT_TEXT_SHADOW);
-        gender_mark(c, tx + nameW + 3, y + 3, m->gender);
-        ui_status_badge(c, tx, y + 24, m->status);
+        const char* status = fainted ? "FNT" : pd_status_label(m->status);
+        if (*status) {
+            status_chip(c, x + geo.textX + 6 * u, y + geo.levelMid - 7, status);
+        } else {
+            char lv[12];
+            snprintf(lv, sizeof(lv), "Lv%d", m->level);
+            pd_text(c, x + geo.textX + 6 * u, y + geo.levelMid - 8, lv, SLOT_TEXT, SLOT_TEXT_SHADOW);
+        }
+        int gx = x + geo.fx + geo.fw - 14 * u, gy = y + geo.levelMid - 4 * u;
+        if (m->gender == PD_GENDER_MALE || m->gender == PD_GENDER_FEMALE) {
+            bool male = m->gender == PD_GENDER_MALE;
+            const uint32_t shadow[1] = { male ? MALE_SHADOW : FEMALE_SHADOW };
+            const uint32_t color[1] = { male ? MALE : FEMALE };
+            char_bitmap(c, male ? MALE_MARK : FEMALE_MARK, 8, gx + u, gy + u, u, "1", shadow);
+            char_bitmap(c, male ? MALE_MARK : FEMALE_MARK, 8, gx, gy, u, "1", color);
+        }
         char hp[16];
         snprintf(hp, sizeof(hp), "%d/%d", m->hp, m->maxHp);
-        pd_text_right(c, x + w - 8, y + 21, hp, SLOT_TEXT, SLOT_TEXT_SHADOW);
-        ui_hp_bar(c, x + 8, y + h - 18, w - 34, m->hp, m->maxHp);
-    } else {
-        pd_text_fit(c, tx, y + 3, x + w - 8 - tx, name, SLOT_TEXT, SLOT_TEXT_SHADOW);
+        pd_text_right(c, x + geo.barRight, y + geo.hpTextMid - 8, hp, SLOT_TEXT, SLOT_TEXT_SHADOW);
     }
-    ui_add_hit(ui, x, y, w, h, HIT_SLOT + slot);
+    ui_add_hit(ui, x + geo.fx, y + geo.fy, geo.fw, geo.fh, HIT_SLOT + slot);
 }
 
 static void summary(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct pd_mon* m) {
@@ -129,12 +283,20 @@ void ui_party_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g
         summary(ui, c, g, &s->party[ui->summarySlot]);
         return;
     }
-    int gap = 4;
-    int w = (c->w - 2 * MARGIN - gap) / 2;
-    int h = (c->h - CONTENT_Y - MARGIN - 2 * gap) / 3;
+    // PartyGrid: edge to edge (each slot carries its own Poke Ball overhang), two
+    // columns, three on a screen wider than 2:1. The selected look follows the
+    // pressed or D-pad slot, else the first, like the game's cursor.
+    int x0 = MARGIN, y0 = CONTENT_Y - 2, w = c->w - 2 * MARGIN, h = c->h - y0 - MARGIN;
+    int cols = w > 2 * h ? 3 : 2, rows = (PD_PARTY_SIZE + cols - 1) / cols;
+    int selected = 0;
     for (int i = 0; i < PD_PARTY_SIZE; i++) {
-        int x = MARGIN + (i % 2) * (w + gap);
-        int y = CONTENT_Y + (i / 2) * (h + gap);
-        party_slot(ui, c, g, x, y, w, h, i < s->partyCount ? &s->party[i] : NULL, i);
+        if (ui->focusId == HIT_SLOT + i || ui->pressedId == HIT_SLOT + i) selected = i;
+    }
+    for (int i = 0; i < PD_PARTY_SIZE; i++) {
+        int col = i % cols, row = i / cols;
+        int x = x0 + w * col / cols, y = y0 + h * row / rows;
+        int cw = x0 + w * (col + 1) / cols - x, ch = y0 + h * (row + 1) / rows - y;
+        const struct pd_mon* m = i < s->partyCount ? &s->party[i] : NULL;
+        party_slot(ui, c, g, x, y, cw, ch, m, i, m && i == selected);
     }
 }

@@ -1,0 +1,131 @@
+---
+// The companion with its tab bar, for the hero handhelds' screens: PARTY (with a summary), MAP and BAG,
+// played by tapping their tabs in [order]. [window]: drawn as the one-screen companion window (wider, L / R
+// keys at the tab bar's ends), which the device around it opens before the tabs play and closes after them
+// (HeroSingleDevice: `.open`, its X).
+import AppScreen from './AppScreen.astro';
+import PartyPanes from './PartyPanes.astro';
+import MapPane from './MapPane.astro';
+import BagPane from './BagPane.astro';
+
+interface Props { order?: string[]; window?: boolean }
+const { order = ['PARTY', 'MAP', 'BAG'], window = false } = Astro.props;
+---
+<div class="companion-demo" data-companion-demo data-order={order.join(',')}>
+  <AppScreen bare tinted tabs={['PARTY', 'MAP', 'BAG', 'GUIDE']} width={window ? 680 : 560} shoulders={window}
+    label="The companion: the party with a summary, the region map with the cursor on a town, and the bag with an item's description">
+    <PartyPanes />
+    <MapPane />
+    <BagPane />
+  </AppScreen>
+</div>
+
+<script>
+  import { demo } from '../lib/demo.js';
+
+  const FIRST: Record<string, string> = { PARTY: 'grid', MAP: 'map', BAG: 'bag' };
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-companion-demo]')) {
+    const order = root.dataset.order!.split(',');
+    const device = root.closest<HTMLElement>('[data-single-device]');
+    const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    const $$ = (sel: string) => [...root.querySelectorAll<HTMLElement>(sel)];
+
+    const tab = (name: string) => $$('[data-tab]').forEach((t) => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle('on', on);
+      t.classList.toggle('f-appTabOn', on);
+      t.classList.toggle('f-appTab', !on);
+    });
+    const show = (name: string) => $$('.pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === name));
+
+    // PARTY: the cursor walks the slots, opens the first one's summary, comes back.
+    const cursor = (i: number) => $$('[data-slot]').forEach((s, j) => s.classList.toggle('sel', i === j));
+    // MAP: the cursor goes to a place (data-place, ME = the player) and the label names it.
+    const mapTo = (id: string) => {
+      const place = $(`[data-place="${id}"]`);
+      const c = $('[data-map-cursor]');
+      c.style.left = place.style.left;
+      c.style.top = place.style.top;
+      $('[data-map-label]').textContent = place.dataset.name!;
+    };
+    // BAG: a row selected shows its picture and description.
+    const item = (i: number) => {
+      $$('[data-item]').forEach((r, j) => r.classList.toggle('sel', i === j));
+      $$('[data-pic]').forEach((r, j) => r.classList.toggle('on', i === j));
+      $$('[data-text]').forEach((r, j) => r.classList.toggle('on', i === j));
+    };
+
+    const scenes: Record<string, (d: any) => Promise<void>> = {
+      async PARTY(d) {
+        cursor(0);
+        await d.wait(900);
+        for (const i of [1, 2, 0]) {
+          cursor(i);
+          await d.wait(520);
+        }
+        await d.tap('[data-slot="0"]');
+        d.show('first');
+        await d.wait(2400);
+        await d.tap('[data-b="back0"]');
+        d.show('grid');
+        await d.wait(700);
+      },
+      async MAP(d) {
+        mapTo('ME');
+        await d.wait(1300);
+        for (const id of ['B', 'P', 'S']) {
+          await d.tap(`[data-place="${id}"]`);
+          mapTo(id);
+          await d.wait(1100);
+        }
+        await d.tap('[data-b="me"]');
+        mapTo('ME');
+        await d.wait(1300);
+      },
+      async BAG(d) {
+        item(0);
+        await d.wait(1300);
+        for (const i of [1, 2, 3]) {
+          item(i);
+          await d.wait(1000);
+        }
+        await d.tap('[data-b="use"]');
+        await d.wait(900);
+        item(0);
+        await d.wait(500);
+      },
+    };
+
+    // The first tab shows from the start (and is all a reduced-motion visitor sees).
+    tab(order[0]);
+    show(FIRST[order[0]]);
+
+    demo(root, async (d: any) => {
+      if (device) {
+        device.classList.add('open');
+        await d.wait(900);
+      }
+      for (const [i, name] of order.entries()) {
+        if (i > 0) await d.tap(`[data-tab="${name}"]`);
+        tab(name);
+        d.show(FIRST[name]);
+        await scenes[name](d);
+      }
+      if (device) {
+        // The X beside the window, pressed: the window closes and the game has the whole screen again.
+        const x = device.querySelector<HTMLElement>('[data-close]');
+        x?.classList.add('pressed');
+        await sleep(180);
+        x?.classList.remove('pressed');
+        device.classList.remove('open');
+        await d.wait(3200);
+        tab(order[0]);
+        show(FIRST[order[0]]);
+      } else {
+        await d.tap(`[data-tab="${order[0]}"]`);
+      }
+    });
+  }
+</script>

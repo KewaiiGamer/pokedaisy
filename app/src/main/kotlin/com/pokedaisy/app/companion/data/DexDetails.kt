@@ -174,6 +174,8 @@ object DexDetails {
     @Volatile private var movesFor: Pair<PokedexTables, GuideTables?>? = null
     @Volatile private var tmhmOk: Boolean? = null
     @Volatile private var spotsFor: GuideTables? = null
+    /** The save's wild swaps the index was built with ([GuideRandomizer]): a new seed rebuilds it. */
+    @Volatile private var spotsSeed: Long? = null
     @Volatile private var spots: Map<Int, List<CatchSpot>>? = null
 
     /** [PokedexSource.romChanged]: every cache here starts over on the next read. */
@@ -521,7 +523,7 @@ object DexDetails {
             t.levelUpLearnsets != 0L -> words(u32le(rd(t.levelUpLearnsets + species * 4L, 4), 0))
             g != null && g.learnsets != 0L -> {
                 if (species >= t.speciesCount) return null
-                val ptr = u32le(rd(g.learnsets + species * 4L, 4), 0)
+                val ptr = u32le(rd(g.learnsets + species.toLong() * g.learnsetStride, 4), 0)
                 if (!Gfx.inRom(ptr)) return emptyList()
                 if (g.learnsetCfru) { // {u16 move, u8 level}, ending at level 0xFF
                     val raw = rd(ptr, 3 * 100)
@@ -598,7 +600,7 @@ object DexDetails {
     // ---- AREA ------------------------------------------------------------------
 
     fun cachedCatchSpots(g: GuideTables, species: Int): List<CatchSpot>? =
-        if (spotsFor == g) spots?.let { it[species].orEmpty() } else null
+        if (spotsFor == g && spotsSeed == GuideRandomizer.wildSeed) spots?.let { it[species].orEmpty() } else null
 
     /** Where [species] is met in the wild, by section and method; empty = nowhere; null = no tables. */
     fun catchSpots(g: GuideTables?, species: Int): List<CatchSpot>? {
@@ -608,14 +610,16 @@ object DexDetails {
 
     /** species -> spots, built once per ROM from every wild header. */
     private fun index(g: GuideTables): Map<Int, List<CatchSpot>>? {
-        if (spotsFor == g) return spots
+        val seed = GuideRandomizer.wildSeed
+        if (spotsFor == g && spotsSeed == seed) return spots
         synchronized(this) {
-            if (spotsFor == g) return spots
+            if (spotsFor == g && spotsSeed == seed) return spots
             val built = runCatching { buildIndex(g) }
                 .onFailure { android.util.Log.w("pokedaisy", "wild index failed", it) }
                 .getOrNull()
             spots = built
             spotsFor = g
+            spotsSeed = seed
             return built
         }
     }

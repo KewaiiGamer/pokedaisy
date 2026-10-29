@@ -94,16 +94,6 @@ val HOENN_TO_NATIONAL = intArrayOf(
     385, 386,
 )
 
-val TRAINER_CARD_FIRERED = TrainerCardSave(
-    style = CardStyle.KANTO,
-    gameStatsOff = 0x1200, flagsOff = 0xEE0, varsOff = 0x1000,
-    badgeFlag = 0x820, pokedexFlag = 0x829,
-    nationalMagicOff = 0x18 + 3, nationalMagic = 0xB9, nationalVar = 0x404E, nationalVarValue = 0x6258, nationalFlag = 0x840,
-    dexFlags = FIRERED_DEX_FLAGS,
-    regionalDex = IntArray(151) { it + 1 },
-    stickerVar = 0x4049,
-)
-
 /**
  * Pokémon Unbound v2.1.1.1 (CFRU): FireRed's SaveBlock layout for everything the
  * card reads (name, ID, time, money, flags, game stats - checked on the
@@ -116,18 +106,6 @@ val TRAINER_CARD_UNBOUND = TRAINER_CARD_FIRERED.copy(
     nationalAlways = true,
     nationalCount = 905,
     stickerVar = -1,
-)
-
-val TRAINER_CARD_EMERALD = TrainerCardSave(
-    style = CardStyle.HOENN,
-    gameStatsOff = 0x159C, flagsOff = 0x1270, varsOff = 0x139C,
-    badgeFlag = 0x867, pokedexFlag = 0x861,
-    nationalMagicOff = 0x18 + 2, nationalMagic = 0xDA, nationalVar = 0x4046, nationalVarValue = 0x302, nationalFlag = 0x896,
-    dexFlags = EMERALD_DEX_FLAGS,
-    regionalDex = HOENN_TO_NATIONAL,
-    frontierSymbolFlag = 0x8C4,
-    museumWinnersOff = 0x2E90 + 8 * 32,
-    frontierBpOff = 0xEBA,
 )
 
 /** Glazed's regional dex (its "HOENN": Tunod), national numbers in its order (ROM 0x0831DFB8). */

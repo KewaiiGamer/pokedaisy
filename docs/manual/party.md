@@ -3,14 +3,14 @@ title: Party and summaries
 summary: Your team at a glance, each Pokémon's full summary, its exact IVs and EVs, and which new moves are worth learning.
 section: companion
 order: 2
-keywords: [team, pokemon, summary, ivs, evs, nature, hidden power, stats, moves, exp, experience, learn, tm, forget, move advice, weakness, resistance, held item, holding, item]
+keywords: [team, pokemon, summary, ivs, evs, nature, hidden power, stats, moves, exp, experience, learn, tm, forget, move advice, weakness, resistance, held item, holding, item, shiny, shiny icon, colours]
 ---
 
 The `PARTY` tab is your team, live. Glance down and you know who's hurt, who's poisoned and who's about to level up, without pausing to open the game's menu.
 
 ## Your party
 
-Each Pokémon gets a slot with its icon, name, level and HP bar, plus its status if it has one (poisoned, asleep and so on). A fainted Pokémon's slot changes colour the way the game shows it. The name is its nickname, as your game's own party screen shows it, on the Game Boy Advance games (the Game Boy and DS games show the kind of Pokémon for now). In SoulGold, whose party screen shows shiny Pokémon in their shiny colours, so does the icon here.
+Each Pokémon gets a slot with its icon, name, level and HP bar, plus its status if it has one (poisoned, asleep and so on). A fainted Pokémon's slot changes colour the way the game shows it. The name is its nickname, as your game's own party screen shows it, on the Game Boy and Game Boy Advance games (the DS games show the kind of Pokémon for now). In SoulGold, whose party screen shows shiny Pokémon in their shiny colours, so does the icon here. In the original FireRed, LeafGreen, Ruby, Sapphire and Emerald (every language), and in the hacks [SHINY ODDS](controls.md#shiny-odds) lists, a shiny Pokémon's icon shows in its shiny colours too, here, in its summary and on the HUD, even though the games' own party screens don't: the colours are the shiny ones the game uses in battle, read from your ROM. Its summary marks it too: a gold sparkle after its name and a gold frame around its icon.
 
 A Pokémon holding an item gets a small tag in its slot's top right corner with the item's icon and name, so you can see who holds what without opening each summary. The game's own little held-item marker sits by its icon too.
 

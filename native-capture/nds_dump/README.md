@@ -16,6 +16,20 @@ It boots with melonDS's FreeBIOS and generated firmware (no BIOS or firmware fil
 **writes every save the game makes back to it**: always give it a copy, never the player's save. `--jit` runs the app's
 JIT settings (no fast memory); without it, the interpreter.
 
+### The GPU renderer (DS RESOLUTION)
+
+Built with `-DNDS_DUMP_GL=ON`, it also runs the app's GPU path (`nds/pk_nds_gl.cpp`: melonDS's OpenGL ES renderer, EXPAND's
+one-picture list, our compositor) through ANGLE: point `ANGLE_DIR` at a folder holding `libEGL.dylib` and `libGLESv2.dylib`
+(Chromium's, e.g. copied from an app that bundles them: their install names are `./lib*.dylib`, so run with
+`DYLD_LIBRARY_PATH` set to that folder) and `GLES_INCLUDE` at copies of the NDK sysroot's `EGL`, `GLES2`, `GLES3` and
+`KHR` header folders. ANGLE on Metal gives ES 3.0 with OES_draw_buffers_indexed, which is all the port needs.
+
+```bash
+cmake -S native-capture/nds_dump -B build-gl -DNDS_DUMP_GL=ON -DANGLE_DIR=<angle> -DGLES_INCLUDE=<headers>
+cmake --build build-gl -j
+DYLD_LIBRARY_PATH=<angle> build-gl/nds_dump ROM.nds SAVE.sav --jit < script.txt
+```
+
 ## Script commands
 
 One per line from stdin; `#` starts a comment. Numbers take `0x` hex. Keys are `A B SELECT START RIGHT LEFT UP DOWN R L
@@ -34,10 +48,11 @@ X Y`, joined with commas (`A,UP`), or `NONE`.
 | `savestate FILE` / `loadstate FILE` | A melonDS state. |
 | `savefile FILE` | The cart's save memory as it is now. |
 | `peek8/16/32 ADDR`, `poke8/16/32 ADDR V` | The ARM9's bus. |
-| `fieldinfo` | The field read (`pk_nds_field_state`) and the pointers behind it. |
+| `fieldinfo` | The field read (`pk_nds_field_state`) and the pointers behind it (Black: the GameSystem's proc, its overlay, field map and event, engine A's BG tiles, the battle adapter's command). |
 | `trace N` | N frames, each one's field bits, master brightness, DISPCNT and BG3's tiles. |
 | `battlemenu N` | The battle controller's command (`pk_nds_battle_command`) each frame for N frames, as it changes. |
 | `wide MX [MY]` | EXPAND with MX DS pixels left and right, MY above and below (0 = off). |
+| `look DX DY` | From here on the window moves DX, DY DS pixels a frame before each frame, as the look-around moves it (`look 0 0` leaves it where it is); `ffmode` records that window. |
 | `wideshot FILE`, `wideshots PREFIX EVERY COUNT` | The last wide frame(s) as PNG. |
 | `widecheck [N]` | N frames, each checked where the slices overlap the game's own frame (must be 0 differing). |
 | `widecount` | Polygons in each slice this frame. |
@@ -49,10 +64,13 @@ X Y`, joined with commas (`A,UP`), or `NONE`.
 | `ffguard 1/0` | `pk_nds_run_frame`'s guard on (default) / off: a frame whose 3D the one before skipped isn't drawn. Off shows the flash it prevents. |
 | `musicon N` | STEADY's copy begun now and N of its frames run after each game frame, as the app runs it (0 stops it). |
 | `bench N` | N frames flat out, then ms a frame. |
+| `gpu N` | (`NDS_DUMP_GL` builds) DS RESOLUTION at N: the GPU renderer, or `gpu 1` back to the software one. `shot` then writes its 1x copies (a drawn frame late), `ffmode` the composed window. |
+| `gpushot FILE` | (`NDS_DUMP_GL` builds) The GPU path's last window at its scale: the screen, or with `wide` on EXPAND's whole view. |
 | `call FN [A0..A3]` | The game's function FN (Thumb: odd) from the field's main loop next frame; prints r0. |
-| `action N [A0..A3]` | One of `pk_nds_call`'s jobs (1 = PC, 2 = FLY's checks, 3 = FLY) and its results. |
+| `action N [A0..A3]` | One of `pk_nds_call`'s jobs (1 = PC, 2 = FLY's checks, 3 = FLY; Black's FLY takes the party slot and the zone) and its results. |
 | `script FILE` / `scriptgo FILE` | A field script (the game's bytecode) run as the PC job runs its own; `scriptgo` returns once it has started. |
 | `itcm32 ADDR V` | A word into the hook's spare ITCM (an argument a call points at). |
+| `watch LO HI [r\|w\|rw] [N]`, `watch off` | The game's own reads / writes of main RAM in [LO, HI) (at most N, default 20), each with the ARM9's PC, LR, r0-r5 and SP; `WATCH_STACK=N` in the environment adds N stack words (the callers' return addresses). The interpreter only: run without `--jit`. How Black's PC and FLY were traced. |
 | `wildoff 1/0`, `battles` | WILD ENCOUNTERS OFF / back on, and the battles started since. |
 | `music SECONDS FILE.wav` | STEADY's copy (`pk_nds_music`) begun from the game as it is, run alone; its audio, its cost a frame and the longest stall (`MUSIC_DEBUG=1` prints the ARM7 / IPC state). |
 | `livewav SECONDS FILE.wav` | The game's own audio over that many frames. |
@@ -60,6 +78,6 @@ X Y`, joined with commas (`A,UP`), or `NONE`.
 
 ## Fixtures
 
-`app/src/test/resources/fixtures/platinum`, `platinum_battle` and `heartgold` were made with it; each `README.txt` says
+`app/src/test/resources/fixtures/platinum`, `platinum_battle`, `heartgold` and the `black*` ones were made with it; each `README.txt` says
 from which ROM, save and boot sequence. Their `mainram.bin` keeps only the ranges the readers use (zeros elsewhere), so
 the files stay small in git.

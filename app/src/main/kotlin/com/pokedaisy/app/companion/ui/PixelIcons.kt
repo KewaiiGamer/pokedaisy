@@ -195,6 +195,17 @@ object PixelIcons {
         ".11...11.",
     )
 
+    /** A four-point sparkle: a shiny Pokémon (the battle screen's and INFO's SHINY marks). The pixel font's cap height. */
+    val sparkle = listOf(
+        "...1...",
+        "...1...",
+        "..111..",
+        "1111111",
+        "..111..",
+        "...1...",
+        "...1...",
+    )
+
     /** A clock face at ten past: the library's RECENT view. [star]'s size. */
     val clock = listOf(
         "..11111..",
@@ -362,6 +373,80 @@ object PixelIcons {
         "...KKKKKKKK.....",
         "KKKKKKKKKKKKKK..",
         "................",
+    )
+
+    /** Ko-fi's mark, a mug with a heart, for [PixelArt]: K outline, W mug, R heart (the website's own drawing). */
+    val kofi = listOf(
+        ".KKKKKKKKKKK..",
+        ".KWWWWWWWWWKKK",
+        ".KWWRRWRRWWK.K",
+        ".KWRRRRRRRWK.K",
+        ".KWRRRRRRRWK.K",
+        ".KWWRRRRRWWKKK",
+        ".KWWWRRRWWWK..",
+        ".KWWWWRWWWWK..",
+        "..KWWWWWWWK...",
+        "...KKKKKKK....",
+    )
+
+    /** Patreon's mark, its bar and circle, for [PixelArt]: K outline, D bar, P circle, H its shine (the website's). */
+    val patreon = listOf(
+        "KKK...KKKK..",
+        "KDK..KPPPPK.",
+        "KDK.KPPHPPPK",
+        "KDK.KPPPPPPK",
+        "KDK.KPPPPPPK",
+        "KDK.KPPPPPPK",
+        "KDK..KPPPPK.",
+        "KDK...KKKK..",
+        "KDK.........",
+        "KKK.........",
+    )
+
+    /** A heart: thanks (the support window's). The pixel font's cap height. */
+    val heart = listOf(
+        ".11.11.",
+        "1111111",
+        "1111111",
+        "1111111",
+        ".11111.",
+        "..111..",
+        "...1...",
+    )
+
+    /** A tick: FIXES in WHAT'S NEW. [heart]'s size. */
+    val tick = listOf(
+        "......1",
+        ".....11",
+        "1...11.",
+        "11.11..",
+        "1111...",
+        ".11....",
+        "..1....",
+    )
+
+    /** A tiny daisy, for [PixelArt]: P petals, C its heart. WHAT'S NEW's bullet. */
+    val daisy = listOf(
+        "..P..",
+        ".PPP.",
+        "PPCPP",
+        ".PPP.",
+        "..P..",
+    )
+
+    /** Discord's mark: its controller face ('1' = the face, the eyes cut out). */
+    val discord = listOf(
+        "0011100000011100",
+        "0111111111111110",
+        "1111111111111111",
+        "1111111111111111",
+        "1111001111001111",
+        "1111001111001111",
+        "1111001111001111",
+        "1111111111111111",
+        "1111111111111111",
+        "0111100000011110",
+        "0011000000001100",
     )
 
     /** GitHub's mark: a disc with the cat cut out of it ('1' = the disc). */
@@ -640,7 +725,26 @@ fun GoldTrophy(modifier: Modifier = Modifier) =
 @Composable
 fun CoffeeCup(modifier: Modifier = Modifier) = PixelArt(
     PixelIcons.coffee,
-    mapOf('K' to Color(0xFF202020), 'B' to Color(0xFF784020), 'C' to Color(0xFFFFDD00), 'S' to Color(0xFF909090)),
+    mapOf('K' to markInk(), 'B' to Color(0xFF784020), 'C' to Color(0xFFFFDD00), 'S' to Color(0xFF909090)),
+    modifier.fillMaxSize(),
+)
+
+/** The sites' marks' outline: their near-black, light in DARK MODE (it vanished on a dark window). */
+private fun markInk() = if (OptionColors.dark) Color(0xFFD8DCE4) else Color(0xFF202020)
+
+/** [PixelIcons.kofi] in Ko-fi's white and red. */
+@Composable
+fun KofiMug(modifier: Modifier = Modifier) = PixelArt(
+    PixelIcons.kofi,
+    mapOf('K' to markInk(), 'W' to Color.White, 'R' to Color(0xFFFF5E5B)),
+    modifier.fillMaxSize(),
+)
+
+/** [PixelIcons.patreon] in Patreon's navy and coral. */
+@Composable
+fun PatreonMark(modifier: Modifier = Modifier) = PixelArt(
+    PixelIcons.patreon,
+    mapOf('K' to markInk(), 'D' to if (OptionColors.dark) Color(0xFF9FB6C8) else Color(0xFF052D49), 'P' to Color(0xFFFF424D), 'H' to Color(0xFFFFA0A4)),
     modifier.fillMaxSize(),
 )
 
@@ -648,6 +752,11 @@ fun CoffeeCup(modifier: Modifier = Modifier) = PixelArt(
 @Composable
 fun GitHubMark(modifier: Modifier = Modifier) =
     PixelIcon(PixelIcons.github, if (OptionColors.dark) Color(0xFFD8DCE4) else Color(0xFF202020), modifier.fillMaxSize())
+
+/** [PixelIcons.discord] in Discord's blurple, beside its row and link. */
+@Composable
+fun DiscordMark(modifier: Modifier = Modifier) =
+    PixelIcon(PixelIcons.discord, if (OptionColors.dark) Color(0xFF8C95FF) else Color(0xFF5865F2), modifier.fillMaxSize())
 
 /** The Poké Ball rocking like a capture shake (tip left, tip right, rest) -
  * the app's "working on it" animation. Turns in 10° steps, pivoting at its base. */

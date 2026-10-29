@@ -1,0 +1,81 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Elite Redux 2.65.4.1b (32 MB, BPEE, sha1 2f3e17e5…; 2.65.3b below): its own pokeemerald rebuild (gcc, from
+# Inclement Emerald), nothing at a retail address. Mapped headless from a save off its Discord ("v2.65 Beta2.1", Mia,
+# six Lv20s), which loads in both builds: every RAM global from dumps (the field, a scripted wild battle's menus, its
+# party menu) and checked against the game's own screens - the party menu, LUCINEON's summary, the bag, the title's
+# POKéDEX 29. Its party mon is a packed plaintext 0x4C bytes ([ELITE_REDUX_PARTY_MON]), its battle mon 0x68
+# ([ELITE_REDUX_BATTLE_MON]); the bag one "owned" bit per item ([ItemFlagsBag]); money plain at SaveBlock1 + 0x400 (the
+# game zeroes the encryption key on every load); its battle menu has no BAG and other cursor values
+# (BattleInputController.MenuCells.ELITE_REDUX). Tables from its ROM: gen_elite_redux_tables.py. A scripted trainer battle
+# (`elite_redux_trainer*`: ROXANNE) checked the FOE TEAM (gEnemyParty, the same packed mons), the foe out / next
+# (gBattlerPartyIndexes, monToSwitchIntoId +0x5E) and FOE DETAILS; HandleInputChooseTarget was read live in a forced double
+# battle (a single battle never opens the target screen in this game). The two builds share the
+# save layout, IWRAM and the battle globals up to gBattlerPartyIndexes; the rest of EWRAM sits 8 higher in 2.65.4.1b.
+[config.elite_redux_v2_65_4_1b]
+playerParty = 0x02039910
+playerPartyCount = 0x0203990D
+enemyParty = 0x02039AD8
+monStride = 0x4C
+partyMonLayout = 'ELITE_REDUX_PARTY_MON'
+battleMons = 0x0201C514
+battleMonLayout = 'ELITE_REDUX_BATTLE_MON'
+battlerPositions = 0x0201C490
+battlersCount = 0x0201C484
+battleTypeFlags = 0x0201C3F4
+battlerPartyIndexes = 0x0201C488
+battleStructPtr = 0x0201CB10
+monToSwitchIntoOff = 0x5E
+actionCursor = 0x0201CB20
+moveCursor = 0x0201CB24
+battlerControllerFuncs = 0x03002080
+handleInputChooseAction = 0x0805BE8D
+handleInputChooseMove = 0x0805CA01
+handleInputChooseTarget = 0x0805C305
+waitForMonSelection = 0x0805E415
+partyMenu = 0x0203960C
+gMain = 0x03003420
+saveBlock1Ptr = 0x0300340C
+saveBlock2Ptr = 0x03003410
+objectEvents = 0x02021DC4
+mapHeader = 0x020277C0
+bagPockets = 0
+bagPocketCount = 0
+encryptionKeyOff = -1
+moneyOff = 0x400
+itemFlagsBag = { kotlin = 'ItemFlagsBag(0x40AL, 440, itemPocketsEliteRedux)' }
+monIconTable = 0x08E31FA0
+monIconPaletteIndices = 0x08E37A50
+monIconPaletteTable = 0x08E38848
+itemIconTable = 0x08AF1FF0
+itemDescs = { base = 0x08AC6B24, stride = 40, descOff = 0x10, idOff = 4, count = 440 }
+eggSpecies = 2901
+pokedex = 'POKEDEX_ELITE_REDUX_V2_65_4_1B'
+guideTables = 'GUIDE_TABLES_ELITE_REDUX_V2_65_4_1B'
+
+# Pokémon Elite Redux 2.65.3b (sha1 5b38a681…): 2.65.4.1b's layout, its EWRAM past the battle globals 8 lower, every ROM
+# table and handler at its own address (the same save and screens checked).
+[config.elite_redux_v2_65_3b]
+base = 'elite_redux_v2_65_4_1b'
+playerParty = 0x02039908
+playerPartyCount = 0x02039905
+enemyParty = 0x02039AD0
+battleMons = 0x0201C50C
+battleStructPtr = 0x0201CB08
+actionCursor = 0x0201CB18
+moveCursor = 0x0201CB1C
+handleInputChooseAction = 0x0805C2D5
+handleInputChooseMove = 0x0805CE89
+handleInputChooseTarget = 0x0805C751
+waitForMonSelection = 0x0805E7E1
+partyMenu = 0x02039604
+objectEvents = 0x02021DBC
+mapHeader = 0x020277B8
+itemFlagsBag = { kotlin = 'ItemFlagsBag(0x40AL, 440, itemPocketsEliteRedux265_3)' }
+monIconTable = 0x08E1FB28
+monIconPaletteIndices = 0x08E255D8
+monIconPaletteTable = 0x08E263D0
+itemIconTable = 0x08AE4B0C
+itemDescs = { base = 0x08AB9640, stride = 40, descOff = 0x10, idOff = 4, count = 440 }
+pokedex = 'POKEDEX_ELITE_REDUX_V2_65_3B'
+guideTables = 'GUIDE_TABLES_ELITE_REDUX_V2_65_3B'

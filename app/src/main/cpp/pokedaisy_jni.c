@@ -7,6 +7,7 @@
 
 #include <jni.h>
 #include <android/log.h>
+#include <android/native_window_jni.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,7 @@
 #include <mgba/internal/gb/io.h>
 #include <mgba/internal/sm83/sm83.h>
 
+#include "pk_call.h"
 #include "pk_cheats.h"
 #include "pk_coop.h"
 #include "pk_coop_after.h"
@@ -48,18 +50,26 @@ enum {
 };
 
 #define PK_SAMPLE_RATE 48000
+/** The GB core's master volume (mGBA's full is 0x100): see pk_gb_config. */
+#define PK_GB_VOLUME 0x80
 
 // Game Boy / Color ROMs run on mGBA's GB core too (M_CORE_GB). Red/Blue/Yellow
 // are SGB-enhanced, so the core would frame them in a 256x224 Super Game Boy
-// border: turn borders off, which keeps every GB game at its 160x144 screen.
+// border: turn borders off, which keeps every GB game at its 160x144 screen. And half volume (below).
 static void pk_gb_config(struct mCore* core) {
     if (core->platform(core) != mPLATFORM_GB) {
         return;
     }
-    // Just this one option: mCoreLoadForeignConfig maps the whole config, and with
+    // Option by option: mCoreLoadForeignConfig maps the whole config, and with
     // no "volume" key in it the GB core's master volume went to 0 (Yellow was silent).
     mCoreConfigSetIntValue(&core->config, "sgb.borders", 0);
     core->reloadConfigOption(core, "sgb.borders", &core->config);
+    // Half of mGBA's full volume: at 0x100 its GB mixer scales the channels by 12 into an int16, which four loud
+    // channels overflow - Crystal and Yellow wrapped and clipped in every loud passage (the "crushed" sound players
+    // reported). Recorded headless at both volumes (mgba_dump's `volume` + `wav`): at 0x80 the loudest peak is ~28,700
+    // of 32,767 and the music is about as loud as FireRed's.
+    mCoreConfigSetIntValue(&core->config, "volume", PK_GB_VOLUME);
+    core->reloadConfigOption(core, "volume", &core->config);
 }
 
 static int pk_is_gba(const struct mCore* core) {
@@ -93,6 +103,11 @@ static struct {
     unsigned vw, vh;
     struct VFile* saveVf;
     bool saveReadOnly;                  // nothing we load can reach the file
+    // A GBA game's ROM file, mapped read-only for the companion's ROM reads (pk_read_rom_file): mGBA's own mapping
+    // can be swapped for a copy mid-game. Set and dropped under pk_coreLock's write lock, with the core.
+    struct VFile* romFileVf;
+    const uint8_t* romFile;
+    size_t romFileSize;
     int16_t audio[PK_AUDIO_SCRATCH_SAMPLES * 2];
     int audioAvail;                     // interleaved shorts ready in audio[]
     // REWIND (pk_rewind.c): a state every PK_REWIND_INTERVAL frames while rewindEntries > 0;
@@ -164,25 +179,28 @@ static void pkTeardown(void) {
     pk_nds_deinit();
     pkRewindOff();
     if (g.core) {
-        // The Game Boy core closes the save VFile itself (GBUnloadROM: sramRealVf->close); the
-        // GBA core leaves it to us. Closing it again here was a double close: fdsan's abort in
-        // _vfdClose, or a free of freed memory (Crashlytics, 1.2.1's Game Boy games).
-        bool coreClosesSave = !pk_is_gba(g.core);
         pk_coop_uninstall(g.core);      // co-op's patches / block / RAM first (while the core is still up)
         pk_coop_lock_uninstall(g.core);  // coop-lock (plan 5 Task 5)
         pk_cheats_clear(g.core);        // and forgets the ROM bytes it kept
         pk_cheats_unpatch(g.core);      // the game options' (REUSABLE TMS) too
         pk_cheats_unblock(g.core);      // and PLAYER LOOK's blocks
-        g.core->deinit(g.core);         // unloads ROM, flushes save VFile
+        g.core->deinit(g.core);         // unloads ROM, flushes and closes the save VFile
         g.core = NULL;
-        if (coreClosesSave) {
-            g.saveVf = NULL;
-        }
-    }
-    if (g.saveVf) {
-        g.saveVf->close(g.saveVf);
+        // Both cores close the save VFile they were given themselves (GBUnloadROM: sramRealVf;
+        // GBAUnloadROM: savedata.realVf), so closing it again here was a double close. With a
+        // bare VFileFD the GBA's second close usually just failed (close() on a dead fd, EBADF,
+        // and no free); a reused fd made it fdsan's abort in _vfdClose (1.2.1's Game Boy games).
+        // pk_save_vf's close frees whatever happens, so in 1.3.1 a GBA game's close was a double
+        // free: SIGABRT in pkSvClose (Crashlytics, 1.3.1 on the Thor).
         g.saveVf = NULL;
     }
+    if (g.romFileVf) {
+        if (g.romFile) g.romFileVf->unmap(g.romFileVf, (void*) g.romFile, g.romFileSize);
+        g.romFileVf->close(g.romFileVf);
+    }
+    g.romFileVf = NULL;
+    g.romFile = NULL;
+    g.romFileSize = 0;
     pk_coop_reset();                // never a stale "installed" for the next game
     pk_coop_lock_reset();           // coop-lock (plan 5 Task 5)
     g.saveReadOnly = false;
@@ -191,6 +209,7 @@ static void pkTeardown(void) {
     g.vw = g.vh = 0;
     g.audioAvail = 0;
     pk_wide_configure(0);
+    pk_wide_extras_reset();   // FOLLOWER and DAY AND NIGHT: the closed game's lead walked on in the next one
     g.wideCrc = 0;
     g.wideW = 0;
     free(g.wide);
@@ -230,48 +249,6 @@ static void pkRenderTeardown(void) {
     rg.audioAvail = 0;
 }
 
-// Where the game's main loop waits for VBlank, as a stack depth: the System-mode stack pointer most frames end with
-// (the game in its wait - a spin on gMain.intrCheck in FireRed, VBlankIntrWait in Emerald - with nothing of its own
-// in progress). pk_call_safe calls the game's functions only at that depth. Counted per loaded game.
-#define PK_REST_SLOTS 8
-static uint32_t pkRestSp[PK_REST_SLOTS];
-static uint32_t pkRestCount[PK_REST_SLOTS];
-
-static uint32_t pk_sys_sp(struct ARMCore* cpu) {
-    return cpu->privilegeMode == MODE_SYSTEM || cpu->privilegeMode == MODE_USER
-        ? (uint32_t) cpu->gprs[ARM_SP] : (uint32_t) cpu->bankedRegisters[BANK_NONE][0];
-}
-
-static void pk_rest_reset(void) {
-    memset(pkRestSp, 0, sizeof(pkRestSp));
-    memset(pkRestCount, 0, sizeof(pkRestCount));
-}
-
-static void pk_rest_note(struct mCore* core) {
-    struct ARMCore* cpu = (struct ARMCore*) core->cpu;
-    if (cpu->privilegeMode == MODE_IRQ) {
-        return;
-    }
-    uint32_t sp = pk_sys_sp(cpu);
-    int low = 0;
-    for (int i = 0; i < PK_REST_SLOTS; i++) {
-        if (pkRestSp[i] == sp) {
-            if (pkRestCount[i] < 100000) pkRestCount[i]++;
-            return;
-        }
-        if (pkRestCount[i] < pkRestCount[low]) low = i;
-    }
-    pkRestSp[low] = sp;
-    pkRestCount[low] = 1;
-}
-
-/** The main loop's waiting depth, or 0 until enough frames have ended (about a second's worth). */
-static uint32_t pk_rest_sp(void) {
-    int best = 0;
-    for (int i = 1; i < PK_REST_SLOTS; i++) if (pkRestCount[i] > pkRestCount[best]) best = i;
-    return pkRestCount[best] >= 30 ? pkRestSp[best] : 0;
-}
-
 JNIEXPORT jboolean JNICALL
 Java_com_pokedaisy_app_MgbaCore_pkInit(JNIEnv* env, jobject thiz,
                                                   jstring jRomPath, jstring jSavePath) {
@@ -293,6 +270,7 @@ Java_com_pokedaisy_app_MgbaCore_pkInit(JNIEnv* env, jobject thiz,
         return ok ? JNI_TRUE : JNI_FALSE;
     }
     struct VFile* rom = VFileOpen(romPath, O_RDONLY);
+    struct VFile* romFileVf = rom ? VFileOpen(romPath, O_RDONLY) : NULL;   // pk_read_rom_file's own handle
     (*env)->ReleaseStringUTFChars(env, jRomPath, romPath);
     if (!rom) {
         LOGE("cannot open ROM");
@@ -303,11 +281,13 @@ Java_com_pokedaisy_app_MgbaCore_pkInit(JNIEnv* env, jobject thiz,
     if (!core) {
         LOGE("mCoreFindVF: unrecognized ROM");
         rom->close(rom);
+        if (romFileVf) romFileVf->close(romFileVf);
         return JNI_FALSE;
     }
     if (!core->init(core)) {
         LOGE("core->init failed");
         rom->close(rom);
+        if (romFileVf) romFileVf->close(romFileVf);
         core->deinit(core);
         return JNI_FALSE;
     }
@@ -326,6 +306,7 @@ Java_com_pokedaisy_app_MgbaCore_pkInit(JNIEnv* env, jobject thiz,
     if (!core->loadROM(core, rom)) {
         LOGE("core->loadROM failed");
         rom->close(rom);
+        if (romFileVf) romFileVf->close(romFileVf);
         core->deinit(core);
         free(video);
         return JNI_FALSE;
@@ -361,8 +342,24 @@ Java_com_pokedaisy_app_MgbaCore_pkInit(JNIEnv* env, jobject thiz,
     pkHealRtc(core);
     pk_rest_reset();   // a new game: its own main loop depth
 
+    const uint8_t* romFile = NULL;
+    size_t romFileSize = 0;
+    if (romFileVf && pk_is_gba(core)) {
+        ssize_t size = romFileVf->size(romFileVf);
+        romFileSize = size > 0 ? ((size_t) size < SIZE_CART0 ? (size_t) size : SIZE_CART0) : 0;
+        romFile = romFileSize ? romFileVf->map(romFileVf, romFileSize, MAP_READ) : NULL;
+    }
+    if (!romFile && romFileVf) {
+        romFileVf->close(romFileVf);
+        romFileVf = NULL;
+        romFileSize = 0;
+    }
+
     pthread_rwlock_wrlock(&pk_coreLock);
     g.core = core;
+    g.romFileVf = romFileVf;
+    g.romFile = romFile;
+    g.romFileSize = romFileSize;
     g.video = video;
     g.vw = w;
     g.vh = h;
@@ -478,8 +475,9 @@ Java_com_pokedaisy_app_MgbaCore_pkRunFrame(JNIEnv* env, jobject thiz) {
         // Not drawn (fast-forward's unseen frames, or one whose 3D the frame before skipped): nothing new to show.
         if (g.wide && g.wideCrc && g.viewW > 0 && g.viewH > 0 && (g.wideSkipNext || !pk_nds_frame_drawn())) {
             g.wideSkipped = true;
-        } else if (g.wide && g.wideCrc && g.viewW > 0 && g.viewH > 0 &&
+        } else if (pk_nds_scale() <= 1 && g.wide && g.wideCrc && g.viewW > 0 && g.viewH > 0 &&
                    pk_nds_wide_draw(g.wide, g.viewX, g.viewY, g.viewW, g.viewH)) {
+            // (the GPU path puts its window out itself: pk_nds_presented)
             g.wideW = g.viewW;
             g.wideH = g.viewH;
         } else {
@@ -832,106 +830,6 @@ Java_com_pokedaisy_app_MgbaCore_pkRenderReadAudio(JNIEnv* env, jobject thiz, jsh
     return n;
 }
 
-// Calls Thumb function `fn` with r0-r3 = `args` and returns once it has, leaving
-// the CPU exactly as it was (registers, pipeline, halt). A frame can end
-// anywhere - mid-way through the game's own code - and a bare PC hijack
-// clobbered its live registers (Unbound then reset its sound engine). So:
-// run instruction by instruction with IRQs masked until the call returns to
-// PK_CALL_SENTINEL (an address in the ROM header, never executed), then put
-// everything back. Tested headless with native-capture/mgba_dump's `call`.
-#define PK_CALL_SENTINEL 0x080000C0u
-// Whether the game's own code can be called right now (pk_call): parked on a `b .` (the render core), or the game
-// waiting for VBlank with nothing of its own in progress - not in an interrupt, its System stack back at the main
-// loop's depth (pk_rest_sp). A frame often ends part-way through the game's code instead (its VBlank handler running,
-// a lag frame's logic), and a call there lands in the middle of the game's own read-modify-writes: FadeScreen while
-// VBlank's handler was part-way through updating the palette fade, the handler then wrote its stale copy back, and the
-// FLY warp that followed never finished loading (2026-10-20: a black screen, then a reset, on the Thor; reproduced
-// with mgba_dump's `stepinto 3` + FLY's calls). The caller waits for a frame that ends well. Before the depth is
-// known (the game's first second) a call goes ahead, as it always did.
-static int pk_call_safe(struct mCore* core) {
-    struct ARMCore* cpu = (struct ARMCore*) core->cpu;
-    uint32_t pc = (uint32_t) cpu->gprs[ARM_PC];
-    if (cpu->executionMode == MODE_THUMB && core->rawRead16(core, pc - WORD_SIZE_THUMB * 2, -1) == 0xE7FE) {
-        return 1;   // b . - parked
-    }
-    if (cpu->privilegeMode == MODE_IRQ) {
-        return 0;
-    }
-    uint32_t rest = pk_rest_sp();
-    return !rest || pk_sys_sp(cpu) == rest;
-}
-
-static __thread uint32_t pk_call_r0; // what this thread's last pk_call returned in r0 (the render core calls on another thread)
-static __thread long pk_call_cap = 2000000; // the step cap of one pk_call (the co-op save raises it: pk_coop_after.c)
-static int pk_call(struct mCore* core, uint32_t fn, const uint32_t args[4]) {
-    if (!pk_is_gba(core)) {
-        return 0;   // an ARM-only trick: the GB core's CPU is an SM83
-    }
-    if (!pk_call_safe(core)) {
-        return 0;
-    }
-    struct ARMCore* cpu = (struct ARMCore*) core->cpu;
-    struct ARMRegisterFile saved = cpu->regs;
-    uint32_t prefetch0 = cpu->prefetch[0], prefetch1 = cpu->prefetch[1];
-    // The memory region the CPU fetches from, and the idle-loop detector that region switches feed: the call
-    // moves both to the ROM. A frame often ends just inside the interrupt handler (IWRAM, or the BIOS), and
-    // with only the registers put back the CPU went on fetching that address from the ROM - garbage: the game
-    // froze or reset (a TAKE on the Thor, reproduced with mgba_dump's `stepinto 3` + `call`).
-    struct ARMMemory mem = cpu->memory;
-    struct GBA* gba = (struct GBA*) core->board;
-    int region = gba->memory.activeRegion;
-    uint32_t biosPrefetch = gba->memory.biosPrefetch;
-    uint32_t idleLoop = gba->idleLoop, lastJump = gba->lastJump;
-    bool haltPending = gba->haltPending;
-    int idleStep = gba->idleDetectionStep, idleFailures = gba->idleDetectionFailures;
-    int32_t cached[16];
-    memcpy(cached, gba->cachedRegisters, sizeof(cached));
-    enum ExecutionMode exec = cpu->executionMode;
-    int halted = cpu->halted;
-    enum PrivilegeMode priv = cpu->privilegeMode;
-    cpu->halted = 0;
-    cpu->cpsr.i = 1;
-    // On the main stack, in System mode: inside an interrupt the IRQ stack is 160 bytes with the main one right
-    // under it (and the BIOS's SVC stack is smaller still), while below the main stack's SP nothing is in use.
-    if (priv != MODE_SYSTEM && priv != MODE_USER) {
-        ARMSetPrivilegeMode(cpu, MODE_SYSTEM);
-        cpu->cpsr.priv = MODE_SYSTEM;
-    }
-    for (int i = 0; i < 4; i++) {
-        cpu->gprs[i] = (int32_t) args[i];
-    }
-    cpu->gprs[ARM_LR] = (int32_t) (PK_CALL_SENTINEL | 1);
-    cpu->gprs[ARM_PC] = (int32_t) (fn & ~1u);
-    _ARMSetMode(cpu, MODE_THUMB);
-    ThumbWritePC(cpu);
-    int ok = 0;
-    for (long i = 0; i < pk_call_cap; i++) {
-        if (cpu->executionMode == MODE_THUMB && (uint32_t) cpu->gprs[ARM_PC] - WORD_SIZE_THUMB == PK_CALL_SENTINEL) {
-            ok = 1;
-            break;
-        }
-        core->step(core);
-    }
-    pk_call_r0 = (uint32_t) cpu->gprs[0];
-    cpu->regs = saved; // the banked registers too: the mode's own SP / LR are back as they were
-    cpu->privilegeMode = priv;
-    cpu->executionMode = exec == MODE_ARM ? MODE_THUMB : MODE_ARM; // so _ARMSetMode applies
-    _ARMSetMode(cpu, exec);
-    cpu->prefetch[0] = prefetch0;
-    cpu->prefetch[1] = prefetch1;
-    cpu->memory = mem;
-    gba->memory.activeRegion = region;
-    gba->memory.biosPrefetch = biosPrefetch;
-    gba->idleLoop = idleLoop;
-    gba->lastJump = lastJump;
-    gba->haltPending = haltPending;
-    gba->idleDetectionStep = idleStep;
-    gba->idleDetectionFailures = idleFailures;
-    memcpy(gba->cachedRegisters, cached, sizeof(cached));
-    cpu->halted = halted;
-    return ok;
-}
-
 // Whether a pkCall on the player's core can run now (pk_call_safe): the field-item jobs wait a frame when it can't.
 JNIEXPORT jboolean JNICALL
 Java_com_pokedaisy_app_MgbaCore_pkCallSafe(JNIEnv* env, jobject thiz) {
@@ -946,10 +844,11 @@ Java_com_pokedaisy_app_MgbaCore_pkCallSafe(JNIEnv* env, jobject thiz) {
 JNIEXPORT jlong JNICALL
 Java_com_pokedaisy_app_MgbaCore_pkCall(JNIEnv* env, jobject thiz, jlong fn, jint a0, jint a1, jint a2, jint a3) {
     const uint32_t args[4] = {(uint32_t) a0, (uint32_t) a1, (uint32_t) a2, (uint32_t) a3};
-    if (!g.core || !pk_call(g.core, (uint32_t) fn, args)) {
+    uint32_t r0;
+    if (!g.core || !pk_call(g.core, (uint32_t) fn, args, &r0)) {
         return -1;
     }
-    return (jlong) pk_call_r0;
+    return (jlong) r0;
 }
 
 // coop-lock (plan 5 Task 5): what pk_coop_lock_jni.c needs of the player's core (pk_core_access.h)
@@ -958,7 +857,8 @@ void pk_core_wrlock(void) { pthread_rwlock_wrlock(&pk_coreLock); }
 void pk_core_unlock(void) { pthread_rwlock_unlock(&pk_coreLock); }
 int pk_core_is_gba(const struct mCore* core) { return pk_is_gba(core); }
 uint32_t pk_core_call(struct mCore* core, uint32_t fn, const uint32_t args[4]) {   // a pk_coop_call_fn
-    return pk_call(core, fn, args) ? pk_call_r0 : 0xFFFFFFFFu;
+    uint32_t r0 = 0;
+    return pk_call(core, fn, args, &r0) ? r0 : 0xFFFFFFFFu;
 }
 
 // Calls the ROM's own m4aSongNumStart(songId, alt) at `addr` (FfMusicRenderer
@@ -970,7 +870,7 @@ Java_com_pokedaisy_app_MgbaCore_pkRenderForceSong(JNIEnv* env, jobject thiz, jlo
         return JNI_FALSE;
     }
     const uint32_t args[4] = {(uint32_t) songId, (uint32_t) alt, 0, 0};
-    return pk_call(rg.core, (uint32_t) addr, args) ? JNI_TRUE : JNI_FALSE;
+    return pk_call(rg.core, (uint32_t) addr, args, NULL) ? JNI_TRUE : JNI_FALSE;
 }
 
 // Parks the render core's main loop on `spin` (a Thumb `b .`) so the booted
@@ -1244,6 +1144,24 @@ static bool pk_gb_read_banked(struct mCore* core, uint32_t addr, uint8_t* dst, i
     return true;
 }
 
+// A GBA cart range read from our own mapping of the ROM file instead of over the bus. mGBA reads the ROM through a
+// mapping of the file until something first writes to it (a cheat, a game option's patch, a game's AGBPrint on a
+// 32 MB ROM...), then swaps in a copy and unmaps the file (_pristineCow) - without our lock when it happens mid-frame,
+// so an IO thread's ROM read in flight faulted on the unmapped page (GBALoad32 from pkReadBytes, Crashlytics 1.3.1 on
+// the Thor and the Odin). This mapping only goes in pkTeardown, under the write lock. It holds the file's bytes, which
+// is what these reads want anyway (pk_cheats_overlay). False for anything else: past the file's end, not the cart.
+static bool pk_read_rom_file(uint32_t addr, uint8_t* dst, int len) {
+    if (!g.romFile || addr < BASE_CART0 || addr + (uint32_t) len > BASE_CART_SRAM || addr + (uint32_t) len < addr) {
+        return false;
+    }
+    uint32_t off = addr & (SIZE_CART0 - 1);
+    if ((size_t) off + (size_t) len > g.romFileSize) {
+        return false;
+    }
+    memcpy(dst, g.romFile + off, (size_t) len);
+    return true;
+}
+
 // pkReadBytes / pkReadInto: [len] bytes at [addr] into [dst], under the core lock; false with no core up.
 static bool pk_read_any(uint32_t addr, uint8_t* dst, int len) {
     pthread_rwlock_rdlock(&pk_coreLock);
@@ -1252,6 +1170,8 @@ static bool pk_read_any(uint32_t addr, uint8_t* dst, int len) {
         pk_nds_read(addr, dst, len);
     } else if (ok && pk_gb_read_banked(g.core, addr, dst, len)) {
         // a Color cart's WRAM bank, read by bank
+    } else if (ok && pk_read_rom_file(addr, dst, len)) {
+        // the ROM, from the file
     } else if (ok) {
         pk_read_range(g.core, addr, dst, len);
         // The ROM as the file has it, under any cheat's hook or ROM patch: the
@@ -1375,8 +1295,8 @@ Java_com_pokedaisy_app_MgbaCore_pkRomCode(JNIEnv* env, jobject thiz) {
         return (*env)->NewStringUTF(env, "");   // no GBA header (0xAC would be GB ROM bytes)
     }
     char code[5] = {0};
-    for (int i = 0; i < 4; i++) {
-        code[i] = (char) g.core->busRead8(g.core, 0x080000ACu + i);
+    if (!pk_read_any(0x080000ACu, (uint8_t*) code, 4)) {
+        return NULL;
     }
     return (*env)->NewStringUTF(env, code);
 }
@@ -1546,7 +1466,8 @@ Java_com_pokedaisy_app_MgbaCore_pkRomUnblock(JNIEnv* env, jobject thiz) {
 
 // pk_coop's pk_coop_call_fn over the file's pk_call: r0, or 0xFFFFFFFF when the call couldn't run or never returned.
 static uint32_t pk_coop_call(struct mCore* core, uint32_t fn, const uint32_t args[4]) {
-    return pk_call(core, fn, args) ? pk_call_r0 : 0xFFFFFFFFu;
+    uint32_t r0 = 0;
+    return pk_call(core, fn, args, &r0) ? r0 : 0xFFFFFFFFu;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -1905,7 +1826,7 @@ Java_com_pokedaisy_app_MgbaCore_pkCoopPartnerFree(JNIEnv* env, jobject thiz) {
 // coop-after (plan 4 Task 8): the battle's results written through the game's own functions (pk_coop_after.c); each takes
 // the core lock shared (they call the game like pkCall does) and answers 1 / 0 / -1 as pk_coop_after.h says.
 static void pk_coop_cap(long steps) {   // the step cap of pk_call: the game's save takes ~16M steps (0 = the default again)
-    pk_call_cap = steps > 0 ? steps : 2000000;
+    pk_call_set_cap(steps);
 }
 
 #define COOP_AFTER_GUARD(expr)                                                  \
@@ -2017,6 +1938,45 @@ Java_com_pokedaisy_app_MgbaCore_pkNdsWildRates(JNIEnv* env, jobject thiz, jintAr
 JNIEXPORT void JNICALL
 Java_com_pokedaisy_app_MgbaCore_pkNdsSetDraw(JNIEnv* env, jobject thiz, jboolean draw, jboolean drawNext) {
     if (pk_nds_active()) pk_nds_set_draw(draw == JNI_TRUE, drawNext == JNI_TRUE);
+}
+
+// DS RESOLUTION (nds/pk_nds_gl.h): 1 = the software renderer, 2-8 the GPU's. Taken before the next frame. Emu thread.
+JNIEXPORT void JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkNdsSetScale(JNIEnv* env, jobject thiz, jint scale) {
+    if (pk_nds_active()) pk_nds_set_scale(scale);
+}
+
+// The scale in effect (1: software), and whether the GPU path can run here (-1 not tried yet, 0 no, 1 yes).
+JNIEXPORT jint JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkNdsScale(JNIEnv* env, jobject thiz) {
+    return pk_nds_active() ? pk_nds_scale() : 1;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkNdsGpuSupported(JNIEnv* env, jobject thiz) {
+    return pk_nds_gpu_supported();
+}
+
+// The game screen's SurfaceTexture's Surface for the GPU path's frames (null: none). Any thread.
+JNIEXPORT void JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkNdsGlSetWindow(JNIEnv* env, jobject thiz, jobject surface) {
+    pk_nds_set_window(surface ? ANativeWindow_fromSurface(env, surface) : NULL);
+}
+
+// Whether the last frame went out through the GPU path (the view then takes it from the SurfaceTexture). Emu thread.
+JNIEXPORT jboolean JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkNdsGlPresented(JNIEnv* env, jobject thiz) {
+    return pk_nds_active() && pk_nds_presented() ? JNI_TRUE : JNI_FALSE;
+}
+
+// The GPU path's frame presented at [timestamp] (SurfaceTexture.getTimestamp): x, y, w, h in DS pixels, texels wide,
+// high into out (6 ints). False when it's not known. Any thread.
+JNIEXPORT jboolean JNICALL
+Java_com_pokedaisy_app_MgbaCore_pkNdsGlFrameInfo(JNIEnv* env, jobject thiz, jlong timestamp, jintArray out) {
+    int32_t v[6];
+    if (!out || (*env)->GetArrayLength(env, out) < 6 || !pk_nds_gpu_frame_info((int64_t) timestamp, v)) return JNI_FALSE;
+    (*env)->SetIntArrayRegion(env, out, 0, 6, (const jint*) v);
+    return JNI_TRUE;
 }
 
 // STEADY FF music for a DS game (nds/pk_nds_music.h): the song id the game plays (-1 = not mapped), a copy of the game

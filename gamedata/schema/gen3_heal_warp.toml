@@ -1,0 +1,45 @@
+# HealWarp's fields (Fly.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | int_set | long_set | int_map |
+# ref (a Kotlin val's name, or a record in gamedata/gen3/records/).
+
+version = 1
+kotlin_class = 'HealWarp'
+kotlin_file = 'Fly.kt'
+
+[field.toHealLocation]
+kotlin = 'Long'
+type = 'long'
+
+[field.toMapWarp]
+kotlin = 'Long'
+type = 'long'
+
+[field.returnToField]
+kotlin = 'Long'
+type = 'long'
+
+# gSaveBlock2Ptr; playerGender at +8. With [saveBlock2Static], gSaveBlock2 itself (Ruby / Sapphire's).
+[field.saveBlock2Ptr]
+kotlin = 'Long'
+type = 'long'
+
+[field.special]
+kotlin = 'Map<Int, Int>'
+type = 'int_map'
+
+[field.genderMapsec]
+kotlin = 'Int'
+type = 'int'
+
+[field.maleHeal]
+kotlin = 'Int'
+type = 'int'
+
+[field.femaleHeal]
+kotlin = 'Int'
+type = 'int'
+
+[field.saveBlock2Static]
+kotlin = 'Boolean'
+type = 'bool'
+default = false

@@ -40,6 +40,15 @@ enum pd_screen_mode {
     PD_SCREEN_MODES,
 };
 
+// How the game fills a host's screen, where the host can draw past the game's
+// edges (pd_host_info.hasExpand; the Linux host: the app's ASPECT > EXPAND).
+enum pd_aspect {
+    PD_ASPECT_ORIGINAL, // the game's own picture, centred
+    PD_ASPECT_EXPAND,   // the overworld rebuilt to the screen's edges, same scale
+    PD_ASPECT_ZOOM_OUT, // EXPAND one whole scale smaller: more of the map
+    PD_ASPECTS,
+};
+
 #define PD_FF_MIN 2
 #define PD_FF_MAX 4
 
@@ -48,7 +57,22 @@ struct pd_settings {
     int screenMode; // enum pd_screen_mode
     int ffSpeed;    // PD_FF_MIN..PD_FF_MAX
     int guideNotice; // a bit per game kind whose GUIDE notice was accepted
+    int aspect;      // enum pd_aspect (hosts with hasExpand only)
+    bool autoZoom;   // AUTO ZOOM IN: ZOOM OUT steps back in off the plain overworld
+    bool wildOff;    // WILD ENCOUNTERS off (hosts that can: the Linux host's quick menu)
+    int tabBar;      // TAB BAR: a bit per enum pd_tab on the bar (PARTY .. DEX, CARD); the rest open from MORE
+    bool hud;        // HUD over the overworld (hosts with hasHud) ...
+    int hudHidden;   // ... less these parts: a bit per enum pd_hud_part
 };
+
+// TAB BAR: at most this many tabs beside the gear (the app's MAX_BAR_TABS).
+#define PD_MAX_BAR_TABS 5
+#define PD_TAB_BAR_DEFAULT (1 << PD_TAB_PARTY | 1 << PD_TAB_BAG | 1 << PD_TAB_MAP | 1 << PD_TAB_GUIDE | 1 << PD_TAB_DEX)
+
+// The HUD's parts (the app's FieldHudPart less its buttons: with no touch screen BAG, PC and WILD are the
+// QUICK MENU's, and a tap on a party icon or the minimap has nothing to open).
+enum pd_hud_part { PD_HUD_PARTY, PD_HUD_MAP, PD_HUD_BALLS, PD_HUD_REPEL, PD_HUD_PARTS };
+const char* pd_hud_part_name(int part);
 
 enum pd_action {
     PD_ACTION_NONE,
@@ -66,6 +90,10 @@ struct pd_host_info {
     char values[PD_UI_HOST_LINES][40];
     int count;
     bool ffOn;
+    bool hideScreenMode; // Optional: host owns display scaling. Zero keeps the 3DS row.
+    bool hasExpand;      // Optional: the host can EXPAND (ASPECT / AUTO ZOOM IN rows) ...
+    bool expandGame;     // ... and does for this game (else ASPECT reads N/A)
+    bool hasHud;         // Optional: the host draws the HUD over the game (its SETTINGS row)
     bool hasState;      // a save state exists for LOAD STATE
     char stateWhen[24]; // when it was made, shown beside LOAD STATE
 };
@@ -86,6 +114,10 @@ enum pd_overlay {
     PD_OVERLAY_CONFIRM_LEAVE,
     PD_OVERLAY_PLACES,       // the MAP's list of places
     PD_OVERLAY_GUIDE_NOTICE, // the GUIDE's "AI-written, may be wrong" notice
+    PD_OVERLAY_PICK_ASPECT,
+    PD_OVERLAY_TAB_BAR, // SETTINGS > TAB BAR: each tab ON / OFF
+    PD_OVERLAY_HUD,     // SETTINGS > HUD: the HUD and its parts ON / OFF
+    PD_OVERLAY_MORE,    // the tabs off the bar
 };
 
 struct pd_ui {
@@ -101,8 +133,8 @@ struct pd_ui {
     int foeSelected, foeShown;
     int lastFoeActive, lastFoeNext;
     int summarySlot; // party slot whose summary is open, -1 = none
-    int bagPocket;   // index into the game's own pocket order
-    int bagSelected; // item index in that pocket, -1 = none
+    int bagPocket;   // the open pocket tab: 0 ALL, then each pocket with items, in the game's order
+    int bagSelected; // the item's row in that tab, -1 = none
     int bagScroll;   // pixels
 
     // POKéDEX: the list's scroll, the open entry (national number, 0 = the
@@ -124,12 +156,16 @@ struct pd_ui {
     unsigned cardColonMs;
 
     enum pd_overlay overlay;
+    bool moreOpened; // the open tab came from MORE (BACK doesn't send the CARD to SETTINGS then)
+    int settingsScroll; // SETTINGS' list, in canvas pixels
     struct pd_settings* settings;
     enum pd_action action;
 
     bool touching, dragging, touchScroll;
     int touchX0, touchY0, touchLastY;
     int pressedId; // what the stylus went down on (-1 = nothing)
+    int focusId;   // the hit a host's D-pad focus is on, drawn as that part's own cursor (-1 = none)
+    int startId;   // set by each draw: where a D-pad starts on this screen (-1 = its first item)
     struct pd_hit hits[PD_UI_MAX_HITS];
     int hitCount;
 };
@@ -152,5 +188,6 @@ enum pd_action pd_ui_take_action(struct pd_ui* ui);
 bool pd_ui_tick(struct pd_ui* ui, unsigned ms);
 
 const char* pd_screen_mode_name(int mode);
+const char* pd_aspect_name(int aspect);
 
 #endif

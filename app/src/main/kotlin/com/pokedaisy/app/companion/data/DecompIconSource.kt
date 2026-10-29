@@ -64,7 +64,7 @@ object DecompIconSource {
 
     /** [species]' icon in its shiny palette (SoulGold keeps one per species, beside the normal one); null where the
      * tables have no per-species palettes. */
-    fun getShiny(species: Int): Bitmap? = if (tables.monIconPalettes == 0L) null
+    fun getShiny(species: Int): Bitmap? = if (tables.monIconPalettes == 0L && tables.battlePalettes == 0L) null
         else cached(monCache, SHINY_KEY + species, tables.monPresent) { decodeMonIcon(tables, species, shiny = true, rd = ::rd) }
     fun peekShiny(species: Int): Bitmap? = if (tables.monPresent) monCache[SHINY_KEY + species] else null
 
@@ -146,10 +146,50 @@ internal fun decodeMonIcon(t: IconTables, species: Int, shiny: Boolean = false, 
         android.util.Log.w("pokedaisy", "DecompIcon mon $species: palPtr %08x not in ROM (idx=$palIdx)".format(palDataPtr)); return null
     }
     val tiles = rd(tilesPtr, MON_TILE_BYTES)
-    val pal = rd(palDataPtr, PAL_BYTES)
+    var pal = rd(palDataPtr, PAL_BYTES)
+    if (shiny && t.monIconPalettes == 0L) pal = shinyIconPalette(t, species, pal, rd) ?: return null
     // 32x64 = 4x8 tiles; UI crops to the first 32x32 frame.
     return Gfx.decode4bpp(tiles, 0, pal, 0, 4, 8)
 }
+
+/**
+ * A shared-palette icon (FireRed / Emerald: six icon palettes, none shiny) in [species]' shiny colours: each icon colour
+ * swapped for the shiny battle palette's colour where its nearest normal battle colour sits. The game never shows shiny
+ * icons; these follow the shiny Pokémon's own colours, from the ROM. Null without the tables (or a tag that doesn't match).
+ */
+internal fun shinyIconPalette(t: IconTables, species: Int, iconPal: ByteArray, rd: (Long, Int) -> ByteArray): ByteArray? {
+    if (t.battlePalettes == 0L) return null
+    fun battlePal(table: Long, tag: Int): IntArray? {
+        val entry = rd(table + species * 8L, 8)
+        if (u16le(entry, 4) != tag) return null
+        val ptr = Gfx.u32(entry, 0)
+        if (!Gfx.inRom(ptr)) return null
+        // 16 colours LZ77-packed (header + flags + up to 32 literal bytes; read a margin).
+        val raw = runCatching { Gfx.lz77(rd(ptr, 128)) }.getOrNull() ?: return null
+        if (raw.size < PAL_BYTES) return null
+        return IntArray(16) { u16le(raw, it * 2) }
+    }
+    val normal = battlePal(t.battlePalettes, species) ?: return null
+    val shiny = battlePal(t.battlePalettes + SHINY_PALETTE_TABLE_OFFSET, species + SHINY_PALETTE_TAG) ?: return null
+    fun dist(a: Int, b: Int): Int {
+        val r = (a and 31) - (b and 31); val g = (a shr 5 and 31) - (b shr 5 and 31); val bl = (a shr 10 and 31) - (b shr 10 and 31)
+        return r * r + g * g + bl * bl
+    }
+    val out = iconPal.copyOf()
+    // Colour 0 is transparent in both.
+    for (i in 1 until 16) {
+        val c = u16le(iconPal, i * 2)
+        val k = (1 until 16).minBy { dist(c, normal[it]) }
+        out[i * 2] = (shiny[k] and 0xFF).toByte()
+        out[i * 2 + 1] = (shiny[k] shr 8 and 0xFF).toByte()
+    }
+    return out
+}
+
+/** gMonShinyPaletteTable's place after gMonPaletteTable: 440 entries of 8 bytes (pokefirered rev 1 and pokeemerald's maps),
+ * checked per entry by its tag, the species + [SHINY_PALETTE_TAG]. */
+private const val SHINY_PALETTE_TABLE_OFFSET = 0xDC0L
+private const val SHINY_PALETTE_TAG = 500
 
 private const val MON_TILE_BYTES = 1024
 /** [DecompIconSource]'s cache key offset for shiny icons (species ids stay under it; items are 1_000_000+). */

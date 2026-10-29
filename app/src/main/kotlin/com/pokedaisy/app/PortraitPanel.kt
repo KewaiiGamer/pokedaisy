@@ -47,6 +47,18 @@ class PortraitPanel(
         private set
     private var ratio = prefs.portraitCompanionRatio
 
+    /** A DS game: its touch screen fills the companion's place ([DsTouchPane]), with a height of its own
+     * ([Prefs.portraitDsRatio]). */
+    var ds = false
+        set(v) {
+            if (field == v) return
+            field = v
+            ratio = storedRatio()
+            apply()
+        }
+
+    private fun storedRatio() = if (ds) prefs.portraitDsRatio else prefs.portraitCompanionRatio
+
     /** ASPECT > WIDE: the game fills everything above the companion ([GameStageLayout.expand]). */
     var expand = false
         set(v) {
@@ -88,7 +100,7 @@ class PortraitPanel(
         if (on == enabled) return
         enabled = on
         if (on) {
-            ratio = prefs.portraitCompanionRatio
+            ratio = storedRatio()
             underGame = prefs.portraitCompanionUnderGame
             val at = root.indexOfChild(touchControls) + 1
             panel = CompanionColors.track(ComposeView(context)).apply {
@@ -124,7 +136,7 @@ class PortraitPanel(
     /** Picks up SETTINGS' COMPANION (along the bottom / under the game) and the size from [prefs]. */
     fun refresh() {
         if (!enabled) return
-        ratio = prefs.portraitCompanionRatio
+        ratio = storedRatio()
         underGame = prefs.portraitCompanionUnderGame
         apply()
     }
@@ -173,7 +185,7 @@ class PortraitPanel(
     }
 
     private fun save() {
-        prefs.portraitCompanionRatio = ratio
+        if (ds) prefs.portraitDsRatio = ratio else prefs.portraitCompanionRatio = ratio
         apply()
     }
 

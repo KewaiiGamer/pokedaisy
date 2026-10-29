@@ -2,7 +2,7 @@ package com.pokedaisy.app.companion.data
 
 /**
  * SoulGold's guide (v1.1.4, v1.2 and v1.2b share every id and flag). Johto's badges are flags
- * 0x993.. (CLAIR's 0x99A is handed over later, in the DRAGON'S DEN). CHUCK, JASMINE and PRYCE can be
+ * 0x993.. (CLAIR's 0x99A is handed over later, in the DRAGON'S DEN, so her gym's 0x4F7 marks her beaten). CHUCK, JASMINE and PRYCE can be
  * fought in any order and each brings a stronger team the more of the other two are beaten (their
  * gym scripts check 0x4F4 / 0x4F5 / 0x4F6). The League counts up VAR 0x4082 (WILL sets 2 .. KAREN 5,
  * LANCE 6); the Hall of Fame sets 0xA19, after which the Elite Four use rematch teams. Kanto's gyms
@@ -15,6 +15,7 @@ private const val FLAG_SYS_GAME_CLEAR = 0x990
 private const val FLAG_DEFEATED_CIANWOOD_GYM = 0x4F4
 private const val FLAG_DEFEATED_OLIVINE_GYM = 0x4F5
 private const val FLAG_DEFEATED_MAHOGANY_GYM = 0x4F6
+private const val FLAG_DEFEATED_BLACKTHORN_GYM = 0x4F7
 private const val FLAG_DEFEATED_PEWTER_GYM = 0x26D // Brock, Misty, Surge, Erika, Sabrina, Janine, Blaine, Blue
 private const val FLAG_DEFEATED_MT_SILVER = 0x4F8
 private const val FLAG_HALL_OF_FAME = 0xA19
@@ -52,7 +53,10 @@ private val BOSSES_SOULGOLD = listOf(
     middle(4, "LEADER CHUCK", "CIANWOOD CITY GYM", CHUCK),
     middle(5, "LEADER JASMINE", "OLIVINE CITY GYM", JASMINE),
     middle(6, "LEADER PRYCE", "MAHOGANY TOWN GYM", PRYCE),
-    johto(7, "LEADER CLAIR", "BLACKTHORN CITY GYM", 541),
+    Boss(
+        "LEADER CLAIR", "BLACKTHORN CITY GYM", FLAG_DEFEATED_BLACKTHORN_GYM, variants = nh(541),
+        doneIf = { it.flag(FLAG_DEFEATED_BLACKTHORN_GYM) || it.flag(FLAG_BADGE01_GET + 7) },
+    ) { 541 },
     elite(2, "ELITE FOUR WILL", 736),
     elite(3, "ELITE FOUR KOGA", 383),
     elite(4, "ELITE FOUR BRUNO", 379),

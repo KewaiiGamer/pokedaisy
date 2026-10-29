@@ -1,0 +1,79 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Emerald Imperium v1.3.1 - BPEE, 32 MB, pokeemerald-expansion 1.10.0 (its
+# header's RHHEXP block), gcc, no source. From headless captures of the user's save
+# (`imperium`: Charmander Lv5 on Route 101; `imperium_battle`: a wild Shinx), every
+# address also a literal-pool word in the ROM:
+# - gPlayerParty 0x020375F8 (the other copy is SaveBlock1+0x238), gPlayerPartyCount
+# 0x020375F5 (poking 2 / 6 showed that many in the party menu); vanilla's 100-byte
+# struct with 1.10's packing: species / moves 11 bits, PP 7, experience 21 (masked).
+# - gSaveBlock1Ptr / 2Ptr 0x03006218 / 0x0300621C; the encryption key at SB2+0x44 (a
+# copy at +0x18C) decrypts the Potion to 1 and money (SB1+0x490) to 3000. gMain
+# 0x03004218 (+0x20 / +0x24 count frames, inBattle at the usual +0x439).
+# - gMapHeader 0x0200A68C (a byte mapsec: 0x10 Route 101 - Hoenn's ids, plus 0xD5-0xD9
+# of its own), gObjectEvents 0x0200A6C4 (player first, pos + 7).
+# - gBagPockets 0x0200AC44: 6 pockets (the 7th is NULL), ordered by each item's own
+# gItemsInfo pocket field and the bag's tabs: Items, Mega Stones, Poké Balls, TMs & HMs,
+# Berries, Key Items.
+# - Battle (Lazarus / Seaglass's order): gBattleTypeFlags 0x020002C0, gBattlersCount
+# 0x02000344, gBattlerPartyIndexes 0x02000348 (1 after a SHIFT), gBattlerPositions
+# 0x02000350, gBattleMons 0x02000360 (EXPANSION_BATTLE_MON exactly), gBattleStruct
+# 0x02000830 (monToSwitchIntoId at +0x3C went 06 -> 01 during the SHIFT), gEnemyParty
+# 0x02037850. gBattlerControllerFuncs 0x03004F5C: action / move / bag / party menus
+# 0x0805648D / 0x08056EA1 / 0x08058CE9 / 0x08058C19; HandleInputChooseTarget 0x0805683D
+# by code (right after the action handler, the move handler's pool points at it).
+# gPartyMenu 0x020370E0, a 2-column grid like Lazarus's.
+# - Icons: gSpeciesInfo 0x104-byte entries (iconSprite +0x68, iconPalIndex +0x8A), its own
+# gMonIconPaletteTable; gItemsInfo 0x50-byte entries, icon + LZ77 palette at +0x48 / +0x4C.
+# The egg is species 1536. Tables: gen_expansion_tables.py imperium.
+#
+[config.imperium]
+base = 'emerald'
+# gItemsInfo: 0x50-byte entries, inline names, the description pointer 8 bytes before.
+itemDescs = { base = 0x086C7A78, stride = 0x50, descOff = -8 }
+playerParty = 0x020375F8
+playerPartyCount = 0x020375F5
+gMain = 0x03004218
+saveBlock1Ptr = 0x03006218
+saveBlock2Ptr = 0x0300621C
+encryptionKeyOff = 0x44
+moneyOff = 0x490
+objectEvents = 0x0200A6C4
+mapHeader = 0x0200A68C
+bagPockets = 0x0200AC44
+bagPocketCount = 6
+bagPocketOrder = 'IMPERIUM_BAG_POCKET_ORDER'
+speciesMask = 0x07FF
+moveMask = 0x07FF
+ppMask = 0x7F
+battleTypeFlags = 0x020002C0
+battlersCount = 0x02000344
+battlerPartyIndexes = 0x02000348
+battlerPositions = 0x02000350
+battleMons = 0x02000360
+battleMonLayout = 'EXPANSION_BATTLE_MON'
+battleStructPtr = 0x02000830
+# gActionSelectionCursor / gMoveSelectionCursor, +0x10 / +0x14 past the gBattleStruct pointer. Checked
+# headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = 0x02000840
+moveCursor = 0x02000844
+monToSwitchIntoOff = 0x3C
+enemyParty = 0x02037850
+battlerControllerFuncs = 0x03004F5C
+handleInputChooseAction = 0x0805648D
+handleInputChooseMove = 0x08056EA1
+completeWhenChoseItem = 0x08058CE9
+waitForMonSelection = 0x08058C19
+handleInputChooseTarget = 0x0805683D
+eggSpecies = 1536
+monIconTable = 0x08D5DA40  # gSpeciesInfo[0].iconSprite
+monIconStride = 0x104
+monIconPaletteIndices = 0x08D5DA62  # gSpeciesInfo[0].iconPalIndex
+monPalIdxStride = 0x104
+monPalIdxMask = 0x07
+monIconPaletteTable = 0x08DC0350
+itemIconTable = 0x086C7AAC  # gItemsInfo[0].iconPic
+itemIconStride = 0x50
+pokedex = 'POKEDEX_IMPERIUM'
+trainerCard = 'TRAINER_CARD_IMPERIUM'
+guideTables = 'GUIDE_TABLES_IMPERIUM'

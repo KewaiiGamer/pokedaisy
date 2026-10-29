@@ -132,6 +132,8 @@ fun BattleControlsScreen(
                 PartyBallRow(party, ball = 34.dp)
                 Spacer(Modifier.weight(1f))
                 if (foeParty.isNotEmpty()) PartyBallRow(foeParty, ball = 22.dp, mirrored = true)
+                // A wild battle has no foe balls there: a shiny foe's plate takes the spot.
+                else if (foe?.shiny == true) ShinyPlate()
             }
             if (!picking) Spacer(Modifier.height(6.dp))
             // INFO / SUGGESTIONS centred above FIGHT, in every state but the
@@ -259,6 +261,20 @@ private fun ProcessingBall() {
  * party-health strip in the corner of the in-game battle menu. [mirrored]
  * (the foe's, top-right) runs right to left, so the empty slots sit inwards. Drawn rather than a bitmap asset: cheap, and scales cleanly at the
  * small size this reads at. */
+/** The battle screen's SHINY: amber letters between two sparkles on pale gold, the row's height, a gold frame. */
+@Composable
+private fun ShinyPlate() {
+    Row(
+        Modifier.fillMaxHeight().clip(PixelRoundedShape(4.dp)).background(ShinyGold).padding(2.dp)
+            .clip(PixelRoundedShape(3.dp)).background(ShinyPale).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PixelIcon(PixelIcons.sparkle, ShinyGold, Modifier.size(14.dp))
+        Text(tr("SHINY"), color = ShinyAmber, fontSize = 22.sp, fontFamily = pixelFontFamily(), maxLines = 1, softWrap = false)
+        PixelIcon(PixelIcons.sparkle, ShinyGold, Modifier.size(14.dp))
+    }
+}
+
 @Composable
 private fun PartyBallRow(party: List<MonView>, ball: Dp, modifier: Modifier = Modifier, mirrored: Boolean = false) {
     // Six slots, like the game: a ball per member, grey discs for the empty ones.

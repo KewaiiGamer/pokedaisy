@@ -33,7 +33,7 @@ If none of them has a save yet, the game's first save goes into the saves folder
 
 ### Change the saves folder
 
-Open Settings > `FOLDERS`. Under `GAME SAVES (.SAV / .SRM)` you'll see the current folder and the saves in it:
+Open Settings > `FOLDERS` > `GAME SAVES`. You'll see the current folder and the saves in it:
 
 - `CHANGE FOLDER` picks another folder.
 - `USE DEFAULT` goes back to PokeDaisy's own folder, `Android/data/com.pokedaisy.app/files/saves/`.
@@ -41,11 +41,11 @@ Open Settings > `FOLDERS`. Under `GAME SAVES (.SAV / .SRM)` you'll see the curre
 
 Changing the folder doesn't move any saves. Copy them over yourself if you want them in the new place.
 
-![The top-screen Settings list scrolled down to its LIBRARY group, with RESUME GAMES set to ON and the FOLDERS row under it](shots/settings-folders.png "FOLDERS and RESUME GAMES, in Settings' LIBRARY group")
+![The FOLDERS page: a row each for ROMS FOLDERS, GAME SAVES, ALSO LOOK IN and SAVE STATES](shots/settings-folders.png "FOLDERS: a page for each kind of folder")
 
 ### Share saves with RetroArch
 
-To keep playing the same saves in RetroArch and PokeDaisy, add RetroArch's save folders under `ALSO LOOK IN` in Settings > `FOLDERS` with `ADD FOLDER`. RetroArch often keeps one folder per core, so add each one you use, for example `RetroArch/saves/mGBA` and `RetroArch/saves/gpSP`.
+To keep playing the same saves in RetroArch and PokeDaisy, add RetroArch's save folders in Settings > `FOLDERS` > `ALSO LOOK IN` with `ADD FOLDER`. RetroArch often keeps one folder per core, so add each one you use, for example `RetroArch/saves/mGBA` and `RetroArch/saves/gpSP`.
 
 A save found in one of those folders is played and written right there, so RetroArch keeps seeing your latest progress. `REMOVE` takes a folder off the list.
 
@@ -125,7 +125,7 @@ You can save and load without opening the tab:
 
 Change them under `HOTKEYS` in Settings. See [Controls](controls.md).
 
-Save states are kept per game in `Android/data/com.pokedaisy.app/files/states/`, listed under `SAVE STATES` in Settings > `FOLDERS`. The library's `INFO` for a game shows how many slots it uses.
+Save states are kept per game in `Android/data/com.pokedaisy.app/files/states/`, listed in Settings > `FOLDERS` > `SAVE STATES`. The library's `INFO` for a game shows how many slots it uses.
 
 ## Rewind
 

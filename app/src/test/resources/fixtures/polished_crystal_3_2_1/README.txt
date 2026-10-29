@@ -1,5 +1,5 @@
 captured: 2026-10-16 (headless mgba_dump, by hand; files as the polished_crystal fixture's)
-rom: polishedcrystal-3.2.1.gbc (~/Downloads/Game ROMs & Emulation/gbc/, the official release build, sha1 79ebf998...)
+rom: Pokemon Polished Crystal (v3.2.1).gbc (~/Downloads/Game ROMs & Emulation/gbc/, the official release build, sha1 79ebf998...)
 save: ~/Documents/RetroArch/saves/mGBA/polishedcrystal-3.2.1.sav - byte for byte the polished_crystal fixture's save (made in
   3.2.3), copied under this build's name: it loads as it is (sSaveVersion = 10, no upgrade screen), party, bag, money and
   map as in 3.2.3 - the dump's party / bag / money / player / map bytes equal the polished_crystal fixture's.

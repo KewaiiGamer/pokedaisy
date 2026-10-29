@@ -13,7 +13,7 @@ import java.io.File
  * its font. The art lands in app/build/gen2-art-polished to look at.
  */
 class PolishedCrystalArtTest {
-    private val rom = File(File(RETAIL_ROM_DIR).parentFile, "gbc/polishedcrystal-3.2.3.gbc")
+    private val rom = File(File(RETAIL_ROM_DIR).parentFile, "gbc/Pokemon Polished Crystal (v3.2.3).gbc")
 
     private fun rom(): ByteArray {
         assumeTrue("Polished Crystal 3.2.3 not on this machine", rom.isFile)
@@ -109,7 +109,7 @@ class PolishedCrystalArtTest {
         } finally {
             Gen1Dex.rom = null
         }
-        val faithful = File(File(RETAIL_ROM_DIR).parentFile.parentFile, "polishedcrystal-faithful-3.2.3.gbc")
+        val faithful = File(File(RETAIL_ROM_DIR).parentFile, "gbc/Pokemon Polished Crystal (v3.2.3) (Faithful).gbc")
         assumeTrue("faithful 3.2.3 not on this machine", faithful.isFile)
         Gen1Dex.rom = faithful.readBytes()
         try {

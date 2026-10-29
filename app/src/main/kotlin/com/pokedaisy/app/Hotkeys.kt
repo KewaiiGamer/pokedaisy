@@ -14,7 +14,9 @@ import java.util.Properties
  * names joined with `+` (e.g. `BUTTON_SELECT+BUTTON_R1`). A chord fires once,
  * on the press of its last key, while every key in it is held. A key is hidden
  * from the game only while it's completing/holding a chord — so `SELECT` alone
- * still works in-game, but `SELECT+R1` is captured.
+ * still works in-game, but `SELECT+R1` is captured. SELECT / START in a chord are
+ * held back from the game until let go ([gameKey]), so holding SELECT
+ * for SELECT+START doesn't press SELECT in the game first.
  *
  * Rebind from the in-app Settings screen or edit the file directly.
  */
@@ -32,7 +34,9 @@ class Hotkeys private constructor(
         // No default keys (not in DEFAULTS): the player binds them.
         RESTART_GAME(tk("RESTART GAME")), CLOSE_APP(tk("CLOSE APP")),
         // Pressed: the QUICK MENU opens or closes (companion.ui.QuickMenu); L3 by default.
-        QUICK_MENU(tk("QUICK MENU"));
+        QUICK_MENU(tk("QUICK MENU")),
+        // No default keys: opens the companion over the game on one screen, where COMPANION BUTTON can hide its tab.
+        COMPANION(tk("COMPANION"));
 
         val prop get() = name.lowercase()
 
@@ -40,6 +44,7 @@ class Hotkeys private constructor(
         val badge: String? get() = when (this) {
             RESTART_GAME, CLOSE_APP -> NewFeatures.badge(NewFeatures.GAME_HOTKEYS)
             QUICK_MENU -> NewFeatures.badge(NewFeatures.QUICK_MENU)
+            COMPANION -> NewFeatures.badge(NewFeatures.COMPANION_HOTKEY)
             else -> null
         }
         val label get() = name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
@@ -66,10 +71,69 @@ class Hotkeys private constructor(
             if (keyCode !in chord) continue
             val satisfied = held.containsAll(chord)
             val key = action to chord
-            if (satisfied && activeChords.add(key)) out.add(Event(action, true))
-            else if (!satisfied && activeChords.remove(key)) out.add(Event(action, false))
+            if (satisfied && activeChords.add(key)) {
+                out.add(Event(action, true))
+                // A held-back key that fired a chord was the hotkey's: the game never gets it.
+                for (k in chord) if (k in heldBack) heldBack[k] = true
+            } else if (!satisfied && activeChords.remove(key)) out.add(Event(action, false))
         }
+        toTap.remove(keyCode)
+        if (!down) heldBack.remove(keyCode)?.let { spent -> if (!spent) toTap.add(keyCode) }
         return out
+    }
+
+    /** Keys held back from the game while they're held ([gameKey]) -> whether a chord took them since. */
+    private val heldBack = HashMap<Int, Boolean>()
+    /** Held-back keys let go with no chord: the game is owed their press ([takeTap]). */
+    private val toTap = HashSet<Int>()
+
+    /** [keyCode] is in a chord with other keys (SELECT of SELECT+START), so holding it may be the start of one. */
+    private fun inChord(keyCode: Int): Boolean = chords.values.any { list -> list.any { it.size > 1 && keyCode in it } }
+
+    /** True once: [keyCode] was held back and let go without firing a chord, so the game should get it as a tap. */
+    private fun takeTap(keyCode: Int): Boolean = toTap.remove(keyCode)
+
+    /** Another game button went down (a key, or the stick / D-pad): the held-back keys no chord took, which the
+     *  caller now presses in the game, held; their release then reaches it as usual. */
+    fun letThrough(): List<Int> {
+        val keys = heldBack.filterValues { !it }.keys.toList()
+        keys.forEach(heldBack::remove)
+        return keys
+    }
+
+    /** What [gameKey] needs of the game's buttons ([GbaInput]; ui-preview compiles this file without it). */
+    interface GameKeys {
+        /** The game button [keyCode] presses, null = none ([GbaInput.buttonFor]). */
+        fun buttonFor(keyCode: Int): Int?
+        /** The player holds a game button. */
+        val holdsButtons: Boolean
+        fun onKey(keyCode: Int, down: Boolean): Boolean
+        /** [keyCode]'s button pressed for a few frames ([GbaInput.tap]). */
+        fun tap(keyCode: Int)
+    }
+
+    /**
+     * A key on its way to the game ([input]), the hotkeys first ([handle] gets their events): true when the game mustn't
+     * see it. That's a key completing a chord, or SELECT / START of a chord, held back until let go (holding SELECT for
+     * SELECT + START used to press SELECT in the game first): no chord by then, the game gets it as a tap
+     * ([GameKeys.tap]). Pressed while other game buttons are held, or with one pressed meanwhile, it goes through at once
+     * ([letThrough]), so the games' own A + B + SELECT + START still works.
+     */
+    fun gameKey(keyCode: Int, down: Boolean, input: GameKeys, handle: (Event) -> Unit): Boolean {
+        if (down && keyCode in heldBack) return true   // its repeats
+        for (e in onKey(keyCode, down)) handle(e)
+        if (!down) {
+            if (takeTap(keyCode)) { input.tap(keyCode); return true }
+            return consumes(keyCode)
+        }
+        if (consumes(keyCode)) return true
+        val button = input.buttonFor(keyCode) ?: return false
+        if (button and (MgbaCore.Key.START or MgbaCore.Key.SELECT) != 0 && inChord(keyCode) && !input.holdsButtons) {
+            heldBack[keyCode] = false
+            return true
+        }
+        for (k in letThrough()) input.onKey(k, true)
+        return false
     }
 
     /** True if this key should be withheld from the game right now (it's part of

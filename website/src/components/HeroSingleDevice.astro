@@ -1,68 +1,70 @@
 ---
-// A one-screen handheld in pixels, laid out like the Retroid Pocket 6: one wide 16:9 screen with the
-// left stick over the d-pad on one side, ABXY over the right stick on the other. The screen is
-// HeroScene's overworld, and the companion's side panel (SidePanel.kt: the PARTY tab on the app's teal)
-// slides in over its right half while the device has `.open` (index.astro sets it when it's shown).
+// The Retroid Pocket 5 in pixels, in its light grey "16-bit" shell with purple face buttons, drawn to its own
+// proportions on a grid of handheld units (--u, 200 across: handheldFit.js): the 5.5" 16:9 screen under glass
+// in the middle, the d-pad over the left stick, ABXY over the right one, the small keys under them, the
+// shoulder buttons over the top edge. The game fills the screen (HeroScene); the companion opens over it
+// as the app's window (SidePanel.kt's SidePanelHost: 88% of the screen's height, ~1.39:1 on 16:9, the
+// game dimmed under it, the X beside its top right corner) while the device has `.open` - CompanionDemo
+// opens it, plays its tabs and closes it with the X.
 import Pixel from './Pixel.astro';
-import PartyDemo from './PartyDemo.astro';
+import CompanionDemo from './CompanionDemo.astro';
 import HeroScene from './HeroScene.astro';
 
 interface Props { still?: boolean }
 const { still = false } = Astro.props;
+const at = (x: number, y: number, w?: number, h?: number) => `--x:${x};--y:${y}` + (w ? `;--w:${w};--h:${h}` : '');
 ---
-<div class:list={['device', 'single', still && 'still open']} data-single-device>
-  <div class="slab f-thorShell">
-    <div class="side">
-      <span class="ctl stick"><Pixel name="thorStick" scale={1.5} /></span>
-      <span class="ctl"><Pixel name="thorDpad" scale={1.5} /></span>
-    </div>
-    <div class="bezel f-bezel">
-      <div class="topscreen">
-        <HeroScene lines={['Your party slides in beside the game.', 'So do the map, the bag and your dex.', 'Close it, and the whole screen is the game again.']} />
-        <div class="panel">
-          <span class="handle" aria-hidden="true"></span>
-          <div class="panel-app"><PartyDemo compact /></div>
-        </div>
+<div class="hh-box">
+  <div class:list={['handheld', 'rp5', still && 'still open']} data-handheld data-units="200" data-single-device>
+    <i class="hh-part rp5-shoulder" style={at(18, -2, 34, 5)}></i>
+    <i class="hh-part rp5-shoulder" style={at(148, -2, 34, 5)}></i>
+    <span class="hh-shell f-rp5Shell"></span>
+    <div class="hh-part glass f-rp5Glass" style={at(35, 3, 130, 74)}></div>
+    <div class="hh-part topscreen" style={at(40, 6, 120, 68)}>
+      <HeroScene lines={['Press a button and the companion opens.', 'It floats over the game, which keeps running.', 'Close it, and the whole screen is the game again.']} />
+      <div class="cwin-dim"></div>
+      <div class="hh-part cwin" style={at(18, 4, 84, 60)}>
+        <div class="cwin-app"><CompanionDemo window order={['BAG', 'MAP']} /></div>
+        <span class="cwin-frame f-winFrame"></span>
       </div>
+      <span class="hh-part cwin-x f-appBtn" style={at(104, 4, 6, 6)} data-close><Pixel name="winClose" scale={1} /></span>
     </div>
-    <div class="side">
-      <span class="ctl"><Pixel name="thorAbxy" scale={1.5} /></span>
-      <span class="ctl stick"><Pixel name="thorStick" scale={1.5} /></span>
-    </div>
+    <span class="hh-part" style={at(6, 11)}><Pixel name="rp5Dpad" scale={1} /></span>
+    <span class="hh-part" style={at(10, 43)}><Pixel name="rp5Stick" scale={1} /></span>
+    <span class="hh-part" style={at(166, 9)}><Pixel name="rp5Abxy" scale={1} /></span>
+    <span class="hh-part" style={at(170, 43)}><Pixel name="rp5Stick" scale={1} /></span>
+    <i class="hh-part rp5-key round f-rp5Key" style={at(9, 67, 5, 5)}></i>
+    <i class="hh-part rp5-key f-rp5Key" style={at(22, 68, 8, 3)}></i>
+    <i class="hh-part rp5-key f-rp5Key" style={at(170, 68, 8, 3)}></i>
+    <i class="hh-part rp5-key round f-rp5Key" style={at(186, 67, 5, 5)}></i>
   </div>
 </div>
 
 <style is:global>
-  .device.single { max-width: 640px; }
-  .device.single .slab { display: grid; grid-template-columns: 1fr minmax(0, 76%) 1fr; gap: calc(var(--px) * 2); align-items: center; padding: calc(var(--px) * 4) calc(var(--px) * 2); }
-  .device.single .side { display: grid; justify-items: center; gap: calc(var(--px) * 4); }
-  .device.single .ctl { display: block; width: 86%; }
-  .device.single .ctl .pixel { width: 100%; height: auto; aspect-ratio: 1; }
-  .device.single .stick { animation: glow 2.4s steps(2) infinite; }
-  /* The game keeps the left half for its text box while the panel is over the right. */
-  .device.single .textbox { right: 53%; }
+  .rp5 { --units: 200; --cpx: calc(var(--u) * 84 / 340); width: calc(var(--u) * 200); height: calc(var(--u) * 80); filter: drop-shadow(calc(var(--u) * 2) calc(var(--u) * 3) 0 rgba(29, 27, 38, 0.22)); }
+  /* The shoulder buttons, peeking over the top edge behind the shell. */
+  .rp5 .rp5-shoulder { background: #8e8c9c; box-shadow: 0 0 0 var(--u) #1d1b26, inset 0 var(--u) 0 #c4c2cf;
+    clip-path: polygon(calc(var(--u) * -1) calc(var(--u) * 1), calc(var(--u) * 2) calc(var(--u) * -1), calc(100% - var(--u) * 2) calc(var(--u) * -1), calc(100% + var(--u)) calc(var(--u) * 1), calc(100% + var(--u)) 100%, calc(var(--u) * -1) 100%); }
+  .rp5 .rp5-key.round { border-radius: 0; }
 
-  .device.single .panel {
-    position: absolute; top: 0; right: 0; bottom: 0; width: 50%; z-index: 2;
-    display: flex; align-items: center;
-    background: repeating-linear-gradient(180deg, #e2f1ee 0 2px, #d6ebe7 2px 4px);
-    box-shadow: calc(var(--px) * -1) 0 0 #0c0c10, calc(var(--px) * -2) 0 0 rgba(12, 12, 16, 0.25);
-    transform: translateX(calc(100% + var(--px) * 3)); transition: transform 0.45s steps(6);
-  }
-  .device.single.open .panel { transform: none; }
-  .device.single .panel-app { width: 100%; }
-  .device.single .panel-app .appwrap { max-width: none; }
-  /* The side panel's lock tab on its edge (SidePanelHandle). */
-  .device.single .handle {
-    position: absolute; left: calc(var(--px) * -5); top: 50%; width: calc(var(--px) * 5); height: calc(var(--px) * 14); margin-top: calc(var(--px) * -7);
-    background: #d6ebe7; box-shadow: 0 0 0 var(--px) #0c0c10;
-    clip-path: polygon(calc(var(--px) * 2) 0, 100% 0, 100% 100%, calc(var(--px) * 2) 100%, 0 calc(100% - var(--px) * 2), 0 calc(var(--px) * 2));
-  }
-  .device.single .handle::after {
-    content: ''; position: absolute; left: calc(var(--px) * 2); top: calc(var(--px) * 4); width: var(--px); bottom: calc(var(--px) * 4);
-    background: repeating-linear-gradient(180deg, #6a8a84 0 var(--px), transparent var(--px) calc(var(--px) * 2));
-  }
-  .device.single.still .panel { transition: none; }
-  /* Too narrow for a text box beside the panel: the hero's own box says it. */
-  @media (max-width: 560px) { .device.single .textbox { display: none; } }
+  /* The companion window: the game dims under it, it and its X pop in, and go again when the X is pressed. */
+  .rp5 .cwin-dim { position: absolute; inset: 0; z-index: 3; background: rgba(0, 0, 0, 0.55); opacity: 0; transition: opacity 0.24s steps(3); pointer-events: none; }
+  .rp5 .cwin, .rp5 .cwin-x { z-index: 4; opacity: 0; transform: translateY(calc(var(--u) * 3)) scale(0.94); transition: opacity 0.24s steps(3), transform 0.24s steps(3); }
+  .rp5.open .cwin-dim { opacity: 1; }
+  .rp5.open .cwin, .rp5.open .cwin-x { opacity: 1; transform: none; }
+  .rp5.open .textbox { visibility: hidden; }
+  /* The window's frame and corners at the companion's own scale: 680 canvas pixels across, two to its pixel. */
+  .rp5 .cwin { filter: drop-shadow(0 calc(var(--cpx) * 3) 0 rgba(0, 0, 0, 0.35)); }
+  .rp5 .cwin-app { position: absolute; inset: 0; clip-path: inset(0 round calc(var(--cpx) * 4)); }
+  .rp5 .cwin-frame { position: absolute; inset: 0; --px: var(--cpx); }
+  .rp5 .cwin-x { display: grid; place-items: center; --px: var(--cpx); filter: drop-shadow(0 calc(var(--cpx) * 2) 0 rgba(0, 0, 0, 0.25)); }
+  .rp5 .cwin-x .pixel { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
+  .rp5 .cwin-x.pressed { transform: translateY(var(--cpx)); filter: brightness(0.9); }
+  /* Too narrow for the game's text box: the hero's own box says it. */
+  @media (max-width: 560px) { .rp5 .textbox { display: none; } }
 </style>
+
+<script>
+  import { fitHandhelds } from '../lib/handheldFit.js';
+  fitHandhelds();
+</script>

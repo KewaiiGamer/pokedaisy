@@ -207,6 +207,32 @@ internal object TabIcons {
         mapOf('k' to OUTLINE, 'y' to Color(0xFFF8C830), 'h' to Color(0xFFFFF0A0), 'o' to Color(0xFFD89820), 'd' to Color(0xFF905830)),
     )
 
+    /** A grey gravestone with a cross on grass: the NUZLOCKE tab (and a fainted Pokémon's mark). */
+    val grave = TabIcon(
+        listOf(
+            "................",
+            ".....kkkkkk.....",
+            "...kkwwsssskk...",
+            "..kwwssddsssdk..",
+            "..kwsssddsssdk..",
+            "..kwsddddddsdk..",
+            "..kwsddddddsdk..",
+            "..kwsssddsssdk..",
+            "..kwsssddsssdk..",
+            "..kwsssddsssdk..",
+            "..kwssssssssdk..",
+            "..kwssssssssdk..",
+            ".gkkkkkkkkkkkkg.",
+            "gggGggggggGggggg",
+            "ggggggGgggggggGg",
+            "GGGGGGGGGGGGGGGG",
+        ),
+        mapOf(
+            'k' to OUTLINE, 'w' to Color(0xFFE0E0E8), 's' to Color(0xFFA8A8B8), 'd' to Color(0xFF686878),
+            'g' to Color(0xFF58B848), 'G' to Color(0xFF388830),
+        ),
+    )
+
     /** A tab id's icon; null for a tab without one (BATTLE and SETTINGS never sit on the MORE grid). */
     fun forTab(id: String): TabIcon? = when (id) {
         "PARTY" -> party
@@ -214,6 +240,7 @@ internal object TabIcons {
         "MAP" -> map
         "ITEMS" -> bag
         "GUIDE" -> guide
+        "NUZLOCKE" -> grave
         "CARD" -> card
         "STATES" -> states
         "ACHIEVEMENTS" -> achievements

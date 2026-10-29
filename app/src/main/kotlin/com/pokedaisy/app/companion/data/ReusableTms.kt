@@ -20,7 +20,8 @@ import java.nio.channels.FileChannel
  * as many as the engine has ([expectedSites], by the header's game code) - so retail in every language and revision,
  * and the hacks that kept that code (Emerald Legacy's agbcc rebuild, Kaizo, Orange Islands, FireRed Rocket Edition,
  * Ultra Violet, Celia), all get it, and a hack that changed some of them (Ash Gray, Ghost Grey) gets none: it would
- * still use TMs up on the other paths. Radical Red's, Unbound's and SoulGold's TMs never run out by themselves ([BUILT_IN]).
+ * still use TMs up on the other paths. Radical Red's, Unbound's and SoulGold's TMs never run out by themselves ([BUILT_IN]), nor
+ * do Gen 5's (Black).
  *
  * Patched through [com.pokedaisy.app.MgbaCore.pkRomPatch]: only where the ROM holds the whole site, the file's bytes
  * kept for the Poller's hash and RetroAchievements' (pk_cheats.c).
@@ -44,7 +45,7 @@ object ReusableTms {
     /** Games whose own TMs never run out, so the row says so instead of offering it: Radical Red, Unbound and SoulGold
      * checked headless (a TM taught on their saves stayed in the bag: SoulGold v1.1.4 and v1.2's third build), Prism and
      * Polished Crystal (a bit per TM). */
-    val BUILT_IN = setOf(GameKind.RADICAL_RED, GameKind.UNBOUND, GameKind.SOULGOLD, GameKind.PRISM, GameKind.POLISHED_CRYSTAL)
+    val BUILT_IN = setOf(GameKind.RADICAL_RED, GameKind.UNBOUND, GameKind.SOULGOLD, GameKind.PRISM, GameKind.POLISHED_CRYSTAL, GameKind.BLACK)
 
     /** How many sites the engine behind [code] (the header's game code) has: the FireRed engine (FireRed, LeafGreen,
      * Ultra Violet's PUVV) three, Emerald / Ruby / Sapphire one; 0 = not a Gen 3 code we know. */

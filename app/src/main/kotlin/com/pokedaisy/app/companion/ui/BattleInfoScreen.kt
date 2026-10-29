@@ -356,10 +356,9 @@ internal fun BattlerCard(
         // At least the icon's width; wider when the side's word is (GEGNER, ENEMIGO).
         Column(Modifier.widthIn(min = u * icon)) {
             if (side != null) SideLabel(side, nameLine, small)
-            Box(
-                Modifier.size(u * icon).clip(PixelRoundedShape(u * 4)).background(OptionColors.listFill),
-                contentAlignment = Alignment.Center,
-            ) { SpeciesIcon(mon.iconAsset, size = u * (icon - 4)) }
+            Box(Modifier.monIconBox(u * icon, u, mon.shiny, OptionColors.listFill), contentAlignment = Alignment.Center) {
+                SpeciesIcon(mon.iconAsset, size = u * (icon - 4))
+            }
         }
         Spacer(Modifier.width(u * 5))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(u * 2)) {
@@ -368,6 +367,7 @@ internal fun BattlerCard(
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     GbaText(mon.name, OptionColors.label, OptionColors.labelShadow, if (compact) small else m, modifier = Modifier.weight(1f, fill = false))
                     GenderMark(mon.genderSymbol, if (compact) small else m, Modifier.padding(start = u * 2))
+                    if (mon.shiny) ShinySparkle(if (compact) small else m, Modifier.padding(start = u * 3))
                     if (compact) {
                         Spacer(Modifier.width(u * 4))
                         Stat(tr("Lv"), "${mon.level}", small)
@@ -518,6 +518,25 @@ private fun threatColor(pct: Int): Color = when {
 }
 
 internal val VerdictGrey = Color(0xFF8C8C94)
+
+/** A shiny Pokémon's gold sparkle, after its name (INFO's cards, the summary): drawn at [m]'s font pixel, so it's the
+ * size of the letters beside it on any screen. */
+@Composable
+internal fun ShinySparkle(m: GbaTextMetrics, modifier: Modifier = Modifier) {
+    val cell = with(androidx.compose.ui.platform.LocalDensity.current) { m.fontPixel.toDp() }
+    ShadowedPixelIcon(PixelIcons.sparkle, ShinyGold, OptionColors.labelShadow, m, modifier = modifier, cell = cell)
+}
+
+/** A Pokémon icon's [size] square box: [fill], or for a [shiny] one a gold frame on pale gold (INFO's cards, the summary). */
+internal fun Modifier.monIconBox(size: androidx.compose.ui.unit.Dp, u: androidx.compose.ui.unit.Dp, shiny: Boolean, fill: Color): Modifier =
+    if (shiny) size(size).clip(PixelRoundedShape(u * 4)).background(ShinyGold).padding(u * 2).clip(PixelRoundedShape(u * 3)).background(ShinyPale)
+    else size(size).clip(PixelRoundedShape(u * 4)).background(fill)
+
+/** A shiny Pokémon's colours (the battle screen's SHINY plate, INFO's sparkle and icon frame): pale gold, gold and amber,
+ * apart from SUGGESTIONS' saturated gold. */
+internal val ShinyPale = Color(0xFFFFF2B0)
+internal val ShinyGold = Color(0xFFE8A800)
+internal val ShinyAmber = Color(0xFF8A5400)
 /** Battle INFO's STATS button. */
 internal val StatsPurple = Color(0xFF9070D0)
 internal val StatsPurpleDark = Color(0xFF5C4490)
@@ -601,8 +620,21 @@ internal fun ThreatPill(mon: MonView, threats: List<MonView>) {
     if (hits.isEmpty()) return
     val worst = hits.maxBy { it.pct }
     when {
-        worst.pct > 100 -> VerdictPill("${com.pokedaisy.app.companion.data.typeLabel(worst.type)} ${worst.label}", verdictColor(50))
-        worst.pct < 100 -> VerdictPill(tr("RESISTS"), verdictColor(200))
+        worst.pct > 100 -> FittingVerdictPill("${com.pokedaisy.app.companion.data.typeLabel(worst.type)} ${worst.label}", worst.label, verdictColor(50))
+        worst.pct < 100 -> FittingVerdictPill(tr("RESISTS"), worst.label, verdictColor(200))
+    }
+}
+
+/** A [VerdictPill] of [text], or of [short] where [text] doesn't fit the room left to it (a DS game's companion over its
+ * button bar: two types and the level left too little, and RESISTS was cut to RESIS). */
+@Composable
+private fun FittingVerdictPill(text: String, short: String, color: Color) {
+    // Both composed, the one that fits placed (a plain Layout: the card's rows ask for intrinsic sizes).
+    androidx.compose.ui.layout.Layout({ VerdictPill(text, color); VerdictPill(short, color) }) { (fullM, shortM), c ->
+        val loose = c.copy(minWidth = 0, maxWidth = androidx.compose.ui.unit.Constraints.Infinity)
+        val full = fullM.measure(loose)
+        val p = if (full.width <= c.maxWidth) full else shortM.measure(c.copy(minWidth = 0))
+        layout(p.width, p.height) { p.place(0, 0) }
     }
 }
 

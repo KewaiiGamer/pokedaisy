@@ -1,0 +1,12 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon FireRed Rocket Edition (16 MB, BPRE rev 0, sha1 033d0537…): FireRed 1.0 edited in place, no
+# source. Every literal pool the config points through still names rev 0's address but for the moves
+# (gMoveNames 0x08901800 / gBattleMoves 0x08900000: 132 added), gTypeNames / gTypeEffectiveness (a FAIRY
+# type, 23) and its ability names (0x08950000) - and retail FireRed's save loads in it (it keeps the
+# SaveBlocks): the headless capture (`rocket_edition`) decodes with rev 0's addresses. GameKind.FIRERED
+# with ActiveTables' fireRedHack (RocketEditionGen.kt, gen_firered_hack_tables.py); FireRed's region map.
+[config.rocket_edition]
+base = 'ultra_violet'
+pokedex = 'POKEDEX_ROCKET_EDITION'
+guideTables = 'GUIDE_TABLES_ROCKET_EDITION'

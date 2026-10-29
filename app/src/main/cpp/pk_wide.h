@@ -196,6 +196,9 @@ void pk_follower_show(struct mCore* core, int on);
 /** FOLLOWER: its state as text (mgba_dump's followinfo). */
 void pk_follower_info(char* out, int n);
 
+/** A game closed: FOLLOWER (its sprite, shown or not) and DAY AND NIGHT's tint go back to none, so the next game starts
+ * without the last one's (they live here, not in the core, and the next game's engine starts from none). */
+void pk_wide_extras_reset(void);
 /** Co-op presence: pk_partner_self's values. FX / FY = the player's object-event coords x 16 plus the step's progress
  * in pixels; FACING the game's DIR_* (1 S, 2 N, 3 W, 4 E); MODE 0 walk / 1 run / 2 Mach / 3 Acro / 4 surf (PresenceMode);
  * STEP + 1 each tile stepped onto. */

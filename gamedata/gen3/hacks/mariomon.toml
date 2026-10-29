@@ -1,0 +1,158 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Super Mariomon (Too Many Productions; BPEE, 32 MB, no source): every release is an old
+# pokeemerald-expansion (struct BaseStats 0x24 bytes, no RHHEXP header) built with agbcc - its
+# code is retail Emerald's word for word wherever the expansion left it, so every RAM global
+# below is the word the same code loads (retail's literal pools matched in each ROM, then in the
+# next release), each one checked in headless captures of the user's save (`mariomon*`: BOB-OMB
+# Lv6 30/30 in WORLD 1-1, ₽3100, 2 MUSHROOMS / 10 PLUMBER CAPS / HAMMER, ESCAPE ROPE, EXP. SHARE;
+# a scripted wild GOOMBA Lv5 through ScriptContext_SetupScript, a SHIFT to a second BOB-OMB):
+# - gPlayerParty 0x02025158 (vanilla 100-byte struct, species unpacked: BOB-OMB is 912) with
+# gPlayerPartyCount 3 bytes before; the other copy is SaveBlock1+0x238 (it moves every load).
+# - gSaveBlock1Ptr / 2Ptr 0x03004BCC / 0x03004BD0: SaveBlock1 pos +0, money +0x490, SaveBlock2
+# encryptionKey +0xAC - all vanilla's (money decrypts to 3100, the TRAINER card's figure).
+# - gMain 0x03002C40 (vblankCounter1 / 2 count the frames; inBattle at the usual +0x439).
+# - gMapHeader 0x02038D9C (mapsec 0x65 WORLD 1-1, Emerald's ids renamed), gObjectEvents
+# 0x02038DD4 (the player first, coords = pos + 7).
+# - gBagPockets 0x0203B8BC: v1.5 has 6 pockets - Items (120), a new Medicine pocket (55, at the
+# end of SaveBlock1: the 2 MUSHROOMS), Poké Balls, TMs & HMs, Berries, Key Items - each
+# item's own pocket byte (gItems +0x19) says the same; v1.3 and before keep Emerald's 5.
+# - Battle (battle_main.c's EWRAM_DATA in Emerald's order, shifted): gBattleTypeFlags
+# 0x02024B5C (4: wild), gBattlersCount 0x02024BD8, gBattlerPartyIndexes 0x02024BDA (1 after
+# the SHIFT), gBattlerPositions 0x02024BE2, gBattleMons 0x02024BF0 (expansion's 0x60-byte
+# BattlePokemon exactly: Tackle's 35 PP at +0x25, Blaze at +0x20, a third type byte +0x24),
+# the gBattleStruct pointer 0x020250BC (monToSwitchIntoId at +0x5C in v1.5, +0x3C before:
+# 06 -> 01 -> 06 through the SHIFT, battlerPartyOrders after it), gEnemyParty 0x02025860.
+# - gBattlerControllerFuncs 0x03004B90: battler 0 read in each menu - action / move / bag /
+# party handlers below; HandleInputChooseTarget by code (the move handler's pool points at
+# the action handler's next function first). gPartyMenu 0x0203E9B0 (slotId +9: 1 after
+# picking the second slot), Emerald's list.
+# - Icons: vanilla-shaped tables from the GF header (gMonIconTable, palette indices, the six
+# palettes; the egg is species 1402 / 1401), gItemIconTable {LZ77 tiles, LZ77 palette} x 825.
+# - v1.3 / v1.2.2 / v1.2.1 share one RAM layout of their own (most EWRAM 0x100-0xA00 lower:
+# same literal-pool route, the same checks) and v1.2.1 / v1.2.2 the same code addresses. Their
+# save is v1.5's minus the Medicine pocket (SaveBlock1 0x3E28 bytes, not 0x3F08): the
+# fixtures boot the v1.5.1 save cut to that size, which they load as their own.
+# Tables: scripts/gen_mariomon_tables.py (two sets: v1.5.x and v1.2.1-v1.3).
+#
+[config.mariomon_v1_5_1]
+base = 'emerald'
+# gItems: 0x28-byte struct Item (name[14], price +0xE, description +0x14), ITEMS_COUNT 824.
+itemDescs = { base = 0x0880C8DC, stride = 0x28, descOff = 0x14, count = 824 }
+playerParty = 0x02025158
+playerPartyCount = 0x02025155
+gMain = 0x03002C40
+saveBlock1Ptr = 0x03004BCC
+saveBlock2Ptr = 0x03004BD0
+objectEvents = 0x02038DD4
+mapHeader = 0x02038D9C
+bagPockets = 0x0203B8BC
+bagPocketCount = 6
+bagPocketOrder = 'MARIOMON_BAG_POCKET_ORDER'
+battleTypeFlags = 0x02024B5C
+battlersCount = 0x02024BD8
+battlerPartyIndexes = 0x02024BDA
+battlerPositions = 0x02024BE2
+battleMons = 0x02024BF0
+battleMonLayout = 'EXPANSION_BATTLE_MON'
+battleStructPtr = 0x020250BC
+# gActionSelectionCursor / gMoveSelectionCursor, +0x10 / +0x14 past the gBattleStruct pointer (v1.5.1 / v1.5.2). Checked
+# headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = 0x020250CC
+moveCursor = 0x020250D0
+monToSwitchIntoOff = 0x5C
+enemyParty = 0x02025860
+battlerControllerFuncs = 0x03004B90
+handleInputChooseAction = 0x0807C259
+handleInputChooseMove = 0x0807CD81
+completeWhenChoseItem = 0x0807E9A5
+waitForMonSelection = 0x0807E8ED
+handleInputChooseTarget = 0x0807C60D
+partyMenu = 0x0203E9B0
+eggSpecies = { ref = 'MARIOMON_EGG' }
+monIconTable = 0x087FC70C
+monIconPaletteIndices = 0x087FF2E4
+monIconPaletteTable = 0x087FFC4C
+itemIconTable = 0x088C9420
+pokedex = 'POKEDEX_MARIOMON_V1_5_1'
+guideTables = 'GUIDE_TABLES_MARIOMON_V1_5_1'
+
+# v1.5.2-Anniversary: v1.5.1's RAM; its code and data sit a little later (+0xC4 for the battle
+# handlers, +0x490..+0x4B4 for the tables).
+[config.mariomon_v1_5_2]
+base = 'mariomon_v1_5_1'
+itemDescs = { base = 0x0880CD90, stride = 0x28, descOff = 0x14, count = 824 }
+handleInputChooseAction = 0x0807C31D
+handleInputChooseMove = 0x0807CE45
+completeWhenChoseItem = 0x0807EA69
+waitForMonSelection = 0x0807E9B1
+handleInputChooseTarget = 0x0807C6D1
+monIconTable = 0x087FCBC0
+monIconPaletteIndices = 0x087FF798
+monIconPaletteTable = 0x08800100
+itemIconTable = 0x088C98C8
+pokedex = 'POKEDEX_MARIOMON_V1_5_2'
+guideTables = 'GUIDE_TABLES_MARIOMON_V1_5_2'
+
+# v1.3: the older RAM layout (no Medicine pocket: Emerald's 5 pockets, ITEMS_COUNT 821).
+[config.mariomon_v1_3]
+base = 'mariomon_v1_5_1'
+eggSpecies = { kotlin = 'MARIOMON_EGG - 1' }
+itemDescs = { base = 0x087EE1C8, stride = 0x28, descOff = 0x14, count = 821 }
+playerParty = 0x02025038
+playerPartyCount = 0x02025035
+objectEvents = 0x020383F0
+mapHeader = 0x020383B8
+bagPockets = 0x0203AEC0
+bagPocketCount = 5
+bagPocketOrder = 'EMERALD_BAG_POCKET_ORDER'
+battleTypeFlags = 0x02024A5C
+battlersCount = 0x02024AD8
+battlerPartyIndexes = 0x02024ADA
+battlerPositions = 0x02024AE2
+battleMons = 0x02024AF0
+battleStructPtr = 0x02024F9C
+# gActionSelectionCursor / gMoveSelectionCursor, +0x10 / +0x14 past the gBattleStruct pointer (v1.3 / v1.2.2 / v1.2.1). Checked
+# headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = 0x02024FAC
+moveCursor = 0x02024FB0
+monToSwitchIntoOff = 0x3C
+enemyParty = 0x020254E8
+handleInputChooseAction = 0x0807AA19
+handleInputChooseMove = 0x0807B541
+completeWhenChoseItem = 0x0807D165
+waitForMonSelection = 0x0807D0AD
+handleInputChooseTarget = 0x0807ADCD
+partyMenu = 0x0203DFB0
+monIconTable = 0x087DE064
+monIconPaletteIndices = 0x087E0C34
+monIconPaletteTable = 0x087E159C
+itemIconTable = 0x088A85A0
+pokedex = 'POKEDEX_MARIOMON_V1_3'
+guideTables = 'GUIDE_TABLES_MARIOMON_V1_3'
+
+# v1.2.2 and v1.2.1: v1.3's RAM; the battle handlers 0x9C later than v1.3's, the same in both.
+[config.mariomon_v1_2_2]
+base = 'mariomon_v1_3'
+itemDescs = { base = 0x087EE1E4, stride = 0x28, descOff = 0x14, count = 821 }
+handleInputChooseAction = 0x0807AAB5
+handleInputChooseMove = 0x0807B5DD
+completeWhenChoseItem = 0x0807D201
+waitForMonSelection = 0x0807D149
+handleInputChooseTarget = 0x0807AE69
+monIconTable = 0x087DE080
+monIconPaletteIndices = 0x087E0C50
+monIconPaletteTable = 0x087E15B8
+itemIconTable = 0x088A8598
+pokedex = 'POKEDEX_MARIOMON_V1_2_2'
+guideTables = 'GUIDE_TABLES_MARIOMON_V1_2_2'
+
+[config.mariomon_v1_2_1]
+base = 'mariomon_v1_2_2'
+itemDescs = { base = 0x087EE200, stride = 0x28, descOff = 0x14, count = 821 }
+monIconTable = 0x087DE09C
+monIconPaletteIndices = 0x087E0C6C
+monIconPaletteTable = 0x087E15D4
+itemIconTable = 0x088A85B8
+pokedex = 'POKEDEX_MARIOMON_V1_2_1'
+guideTables = 'GUIDE_TABLES_MARIOMON_V1_2_1'

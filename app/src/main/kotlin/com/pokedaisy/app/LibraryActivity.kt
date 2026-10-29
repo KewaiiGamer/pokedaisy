@@ -311,6 +311,13 @@ class LibraryActivity : ComponentActivity() {
         ssIntro = ScreenScraperClient.enabled && !prefs.screenScraperAsked && prefs.screenScraperAccount == null
         // EXPAND's introduction, once: to everyone not already on it (first-time setup goes first).
         expandIntro = !prefs.expandIntroSeen && prefs.gameAspect != com.pokedaisy.app.companion.GameAspect.WIDE
+        // WHAT'S NEW, once after an update to a version with notes. A fresh install has nothing to tell: its version
+        // counts as seen, so the next update's notes are the first.
+        val updated = runCatching {
+            packageManager.getPackageInfo(packageName, 0).let { it.firstInstallTime != it.lastUpdateTime }
+        }.getOrDefault(false)
+        com.pokedaisy.app.companion.WhatsNew.due(BuildConfig.VERSION_NAME, prefs.whatsNewSeen, updated)?.let { whatsNew = it }
+        if (!updated) prefs.whatsNewSeen = BuildConfig.VERSION_NAME
 
         setContent {
             AppTheme { com.pokedaisy.app.companion.ui.CompactTextOnSmallWindows {
@@ -359,6 +366,10 @@ class LibraryActivity : ComponentActivity() {
         com.pokedaisy.app.companion.i18n.L10n.apply(prefs.appLanguage, null)
         unsupportedRoms = RomFolder.unsupported(this)
         partialRoms = RomFolder.partial(this)
+        // The support window, once its play time has come (back from a game, usually); never on WHAT'S NEW's visit.
+        if (!supportAsk && whatsNew == null) {
+            supportAsk = com.pokedaisy.app.companion.SupportAsk.due(prefs.playMillis, prefs.supportAskAt, prefs.supportAskDone)
+        }
         if (prefs.setupRequested) {
             prefs.setupRequested = false
             startSetup()
@@ -376,6 +387,10 @@ class LibraryActivity : ComponentActivity() {
                 SetupState.Step.SAVES -> pickSavesFolder.launch(null)
                 else -> {}
             }
+        }
+        if (awaitingFolderAccess) {
+            awaitingFolderAccess = false
+            if (StorageAccess.hasAllFilesAccess(this)) pickRomsFolder.launch(null)
         }
         rescanRomsFolder()
         identifyGames()
@@ -465,7 +480,7 @@ class LibraryActivity : ComponentActivity() {
                     HeaderIcon(if (gridView) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView, tr("Toggle view"), m) {
                         gridView = !gridView
                     }
-                    HeaderIcon(Icons.Filled.Add, tr("Import ROM"), m) { importRom.launch(arrayOf("*/*")) }
+                    HeaderIcon(Icons.Filled.Add, tr("Add games"), m) { addMenu = true }
                     HeaderIcon(Icons.Filled.Refresh, tr("Refresh"), m) { refreshLibrary() }
                     // The manual (Settings > HELP), on its own.
                     HeaderIcon(Icons.AutoMirrored.Filled.HelpOutline, tr("Help"), m) {
@@ -503,7 +518,7 @@ class LibraryActivity : ComponentActivity() {
                     OptionListWindow(m, Modifier.fillMaxWidth().padding(horizontal = SCREEN_MARGIN)) {
                         GbaText(
                             tr(
-                                "No ROMs yet. Tap + to import a .gba (or a .zip / .7z), link your ROMs folder in SETTINGS > FOLDERS, or drop files into {0}",
+                                "No ROMs yet. Tap + to add a ROM file (a .gba, .zip or .7z) or your ROMs folders, or drop files into {0}",
                                 "Android/data/$packageName/files/roms/",
                             ),
                             OptionColors.label, OptionColors.labelShadow, small, maxLines = Int.MAX_VALUE,
@@ -536,10 +551,49 @@ class LibraryActivity : ComponentActivity() {
         }
     }
 
+    /** The header's +: one ROM file, a ROMs folder (several can be linked), or the folders linked so far. */
+    private enum class AddChoice(val label: String) {
+        FILE(tk("ADD A ROM FILE")), FOLDER(tk("ADD A ROMS FOLDER")), MANAGE(tk("MANAGE ROMS FOLDERS")),
+    }
+
+    /** The + menu is up (internal for ui-preview). */
+    internal var addMenu by mutableStateOf(false)
+
+    private fun pickAdd(choice: AddChoice) {
+        addMenu = false
+        when (choice) {
+            AddChoice.FILE -> importRom.launch(arrayOf("*/*"))
+            AddChoice.FOLDER -> chooseRomsFolder()
+            AddChoice.MANAGE -> startActivity(
+                Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_SCREEN, SettingsActivity.SCREEN_ROMS_FOLDERS),
+            )
+        }
+    }
+
+    /** ADD A ROMS FOLDER: folders are opened by raw path, so All files access comes first (onResume picks up from there). */
+    private fun chooseRomsFolder() {
+        if (!StorageAccess.hasAllFilesAccess(this)) {
+            awaitingFolderAccess = true
+            StorageAccess.requestAllFilesAccess(this)
+            return
+        }
+        pickRomsFolder.launch(null)
+    }
+
+    /** ADD A ROMS FOLDER is waiting on Android's All files access page. */
+    private var awaitingFolderAccess = false
+
     /** Every window that opens over the library (the classic view or the launcher's main screen). */
     @Composable
     private fun LibraryDialogs(m: GbaTextMetrics, small: GbaTextMetrics) {
         Box(Modifier.fillMaxSize()) {
+            if (addMenu) {
+                OptionSelector(
+                    tr("ADD GAMES"), AddChoice.entries.toList(), AddChoice.FILE, { tr(it.label) }, m,
+                    onPick = ::pickAdd,
+                    onDismiss = { addMenu = false },
+                )
+            }
             if (pickingSort) {
                 OptionSelector(
                     tr("SORT BY"), LibrarySort.entries.toList(), sort, { tr(it.label) }, m,
@@ -617,8 +671,19 @@ class LibraryActivity : ComponentActivity() {
 
             UpdateDialog(updates, m, small)
 
+            // After any update offer, before the other one-time windows: this update's news.
+            whatsNew?.takeIf { whatsNewShown }?.let { notes ->
+                // Shown = seen, whatever the answer: only once per version.
+                LaunchedEffect(notes) { prefs.whatsNewSeen = notes.version }
+                com.pokedaisy.app.companion.ui.WhatsNewWindow(
+                    notes, m, small,
+                    onReleasePage = { openUrl("${AppUpdater.RELEASES_PAGE}/tag/v${notes.version}") },
+                    onClose = { whatsNew = null },
+                )
+            }
+
             // After any update offer, never over setup (this screen isn't composed then).
-            if (crashAsk && updates.release == null) {
+            if (crashAsk && updates.release == null && !whatsNewShown && !supportShown) {
                 // Shown = asked, whatever the answer (or none, if the app goes away): only once.
                 LaunchedEffect(Unit) { prefs.crashReportsAsked = true }
                 OptionConfirm(
@@ -634,8 +699,19 @@ class LibraryActivity : ComponentActivity() {
                 )
             }
 
+            // The support window, alone: never with an update offer, WHAT'S NEW or setup. A site or NO THANKS ends it;
+            // REMIND ME LATER (or BACK, a tap outside) asks again after 5 more hours of play.
+            if (supportShown) {
+                com.pokedaisy.app.companion.ui.SupportWindow(
+                    m, small,
+                    onSite = { site -> prefs.supportAskDone = true; supportAsk = false; openUrl(site.url) },
+                    onLater = { prefs.supportAskAt = com.pokedaisy.app.companion.SupportAsk.remindAt(prefs.playMillis); supportAsk = false },
+                    onNoThanks = { prefs.supportAskDone = true; supportAsk = false },
+                )
+            }
+
             // After the crash-reports question, one at a time.
-            if (expandIntro && setup == null && !crashAsk && updates.release == null) {
+            if (expandIntro && setup == null && !crashAsk && updates.release == null && !whatsNewShown && !supportShown) {
                 com.pokedaisy.app.companion.ui.ExpandIntro(
                     m, small,
                     onTurnOn = {
@@ -744,7 +820,7 @@ class LibraryActivity : ComponentActivity() {
     private fun launcherHeader(): List<HeaderButton> = listOf(
         HeaderButton(Icons.AutoMirrored.Filled.Sort, tr("Sort")) { pickingSort = true },
         HeaderButton(if (gridView) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView, tr("Toggle view")) { gridView = !gridView },
-        HeaderButton(Icons.Filled.Add, tr("Import ROM")) { importRom.launch(arrayOf("*/*")) },
+        HeaderButton(Icons.Filled.Add, tr("Add games")) { addMenu = true },
         HeaderButton(Icons.Filled.Refresh, tr("Refresh")) { refreshLibrary() },
         HeaderButton(Icons.AutoMirrored.Filled.HelpOutline, tr("Help")) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_SCREEN, SettingsActivity.SCREEN_HELP))
@@ -1226,7 +1302,7 @@ class LibraryActivity : ComponentActivity() {
         }
     }
 
-    /** Imported ROMs plus the linked folder's supported ones (from its last scan). */
+    /** Imported ROMs plus the linked folders' supported ones (from their last scan). */
     /** The library, alphabetical. Every ROM it lists for the first time is dated ([RomAdded]): NEW
      * unless setup is running or a newly linked folder's first scan brought it in. Any thread. */
     private fun listRoms(): List<File> = RomFolder.libraryRoms(this, prefs).also { roms ->
@@ -1247,6 +1323,7 @@ class LibraryActivity : ComponentActivity() {
         // Opened on the bottom screen, the game still goes to the top one (Screens.mainDisplayLaunch).
         val onMain = Screens.mainDisplayLaunch(this)
         val intent = Intent(this, PokeDaisyActivity::class.java).putExtra(EXTRA_ROM, rom.absolutePath)
+            .putExtra(EXTRA_LAUNCHED_FROM, CrashReports.LAUNCHED_FROM_LIBRARY)
         if (onMain != null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent, onMain)
     }
@@ -1294,6 +1371,10 @@ class LibraryActivity : ComponentActivity() {
     private var coverSaving by mutableStateOf(false)
     /** EXPAND's one-time introduction is up ([com.pokedaisy.app.companion.ui.ExpandIntro]). */
     private var expandIntro by mutableStateOf(false)
+    /** This update's WHAT'S NEW, until it's closed (internal for the ui-preview harness). */
+    internal var whatsNew by mutableStateOf<com.pokedaisy.app.companion.WhatsNew.Notes?>(null)
+    /** The support window is up ([com.pokedaisy.app.companion.SupportAsk]; internal for ui-preview). */
+    internal var supportAsk by mutableStateOf(false)
     private var coverError by mutableStateOf<String?>(null)
 
     /** Downloads the picked icon over [rom]'s cover (only swapped once it has
@@ -1563,9 +1644,9 @@ class LibraryActivity : ComponentActivity() {
 
     /** Every window over the main screen (pass keys to them, not the launcher). */
     private val libraryDialogOpen
-        get() = pickingSort || renaming != null || deleting != null || gameInfo != null || coverPickerFor != null ||
+        get() = pickingSort || addMenu || renaming != null || deleting != null || gameInfo != null || coverPickerFor != null ||
             pendingImport != null || saveLoad != null || backupPick != null || updates.release != null || crashAsk ||
-            (expandIntro && !crashAsk) || ssIntroShown
+            (expandIntro && !crashAsk) || ssIntroShown || whatsNewShown || supportShown
 
     /** BACK for the library's windows (OptionOverlay & co.): the newest open one closes. */
     private val libraryBack = com.pokedaisy.app.companion.ui.CompanionBack()
@@ -1816,7 +1897,7 @@ class LibraryActivity : ComponentActivity() {
                     OptionListWindow(m, Modifier.fillMaxWidth().padding(horizontal = SCREEN_MARGIN)) {
                         GbaText(
                             if (library.isNotEmpty()) emptyViewText(launcher.view) else tr(
-                                "No ROMs yet. Tap + to import a .gba (or a .zip / .7z), link your ROMs folder in SETTINGS > FOLDERS, or drop files into {0}",
+                                "No ROMs yet. Tap + to add a ROM file (a .gba, .zip or .7z) or your ROMs folders, or drop files into {0}",
                                 "Android/data/$packageName/files/roms/",
                             ),
                             OptionColors.label, OptionColors.labelShadow, small, maxLines = Int.MAX_VALUE,
@@ -1937,7 +2018,11 @@ class LibraryActivity : ComponentActivity() {
 
     /** The update's one-time "set up ScreenScraper?" window: wanted (set in onCreate), then shown once nothing else is up. */
     internal var ssIntro by mutableStateOf(false)
-    private val ssIntroShown get() = ssIntro && setup == null && !crashAsk && updates.release == null && !expandIntro
+    private val ssIntroShown get() = ssIntro && setup == null && !crashAsk && updates.release == null && !expandIntro && !whatsNewShown && !supportShown
+    /** WHAT'S NEW is up: after any update offer, never over setup. */
+    private val whatsNewShown get() = whatsNew != null && setup == null && updates.release == null
+    /** The support window is up: after any update offer and WHAT'S NEW, never over setup. */
+    private val supportShown get() = supportAsk && setup == null && updates.release == null && !whatsNewShown
 
     /** The popup's sign-in (internal for ui-preview). */
     internal val ssLogin by lazy { ScreenScraperLogin.of(prefs) }
@@ -1961,8 +2046,8 @@ class LibraryActivity : ComponentActivity() {
     private fun startSetup() {
         setup = SetupState().apply {
             hasAccess = StorageAccess.hasAllFilesAccess(this@LibraryActivity)
-            romsFolder = prefs.romsFolder
-            if (romsFolder != null) found = RomFolder.found(this@LibraryActivity, prefs).map(::romLabel)
+            romsFolders = prefs.romsFolders
+            if (romsFolders.isNotEmpty()) found = RomFolder.found(this@LibraryActivity, prefs).map(::romLabel)
             savesDir = prefs.savesDirOverride
             apiKey = prefs.steamGridDbApiKey.orEmpty()
             raKey = prefs.raWebApiKey.orEmpty()
@@ -1981,6 +2066,7 @@ class LibraryActivity : ComponentActivity() {
         SetupScreen(
             s, m, small,
             onChooseRoms = { chooseFolder(s, SetupState.Step.ROMS) },
+            onRemoveRoms = { path -> unlinkRomsFolder(path) },
             onChooseSaves = { chooseFolder(s, SetupState.Step.SAVES) },
             onUseSaves = { path -> useSavesFolder(path) },
             onOpenPage = { url -> runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
@@ -2091,16 +2177,35 @@ class LibraryActivity : ComponentActivity() {
         revision++
     }
 
+    /** A picked ROMs folder joins the linked ones (setup's ROMS step, the +'s ADD A ROMS FOLDER) and is scanned. */
     private fun linkRomsFolder(path: String) {
-        if (path != prefs.romsFolder) {
-            prefs.romsFolder = path
-            RomFolder.clearCache(this)
-            linkingFolder = true
-        }
+        val folders = prefs.romsFolders
         val s = setup
-        s?.romsFolder = path
+        RomFolder.coveredBy(folders, path)?.let { already ->
+            Toast.makeText(this, if (already == File(path).absolutePath) tr("That folder is already linked") else tr("Already linked through {0}", already), Toast.LENGTH_LONG).show()
+            return
+        }
+        prefs.romsFolders = RomFolder.withFolder(folders, path)
+        linkingFolder = true
+        s?.romsFolders = prefs.romsFolders
         s?.found = null
+        // The +: say what it found once the scan is done.
+        if (s == null) {
+            reportScan = true
+            showRefreshToast(tr("Looking for games…"))
+        }
         rescanRomsFolder(s)
+    }
+
+    /** Setup's REMOVE on a linked folder: its games leave the library, the files stay where they are. */
+    private fun unlinkRomsFolder(path: String) {
+        prefs.romsFolders = prefs.romsFolders - path
+        RomFolder.forget(this, path)
+        setup?.let { s ->
+            s.romsFolders = prefs.romsFolders
+            s.found = RomFolder.found(this, prefs).map(::romLabel)
+        }
+        bump()
     }
 
     private fun useSavesFolder(path: String?) {
@@ -2114,13 +2219,13 @@ class LibraryActivity : ComponentActivity() {
     private var reportScan = false
     private var refreshToast: Toast? = null
 
-    /** The header's Refresh: rescans the linked folder and catches up on covers,
+    /** The header's Refresh: rescans the linked folders and catches up on covers,
      * with a toast now ("Refreshing…") and one when the scan is done saying what
      * the library has. */
     private fun refreshLibrary() {
         bump()
         backfillCovers()
-        if (prefs.romsFolder == null) {
+        if (prefs.romsFolders.isEmpty()) {
             showRefreshToast(tr("Library refreshed: {0}", gamesLabel(listRoms().size)))
             return
         }
@@ -2138,21 +2243,22 @@ class LibraryActivity : ComponentActivity() {
     private fun gamesLabel(n: Int) = if (n == 1) tr("1 game") else tr("{0} games", n)
 
     private fun refreshResult(r: RomFolder.ScanResult): String {
-        if (!r.readable) return tr("Couldn't read your ROMs folder - check All files access in SETTINGS > FOLDERS")
+        if (r.unreadable.size == prefs.romsFolders.size) return tr("Couldn't read your ROMs folder - check All files access in SETTINGS > FOLDERS")
         val parts = mutableListOf(gamesLabel(listRoms().size))
         if (r.added.isNotEmpty()) parts += tr("{0} new", r.added.size)
         val skipped = r.files - r.supported
         if (skipped > 0) parts += tr("{0} not supported", skipped)
+        if (r.unreadable.isNotEmpty()) parts += tr("{0} folder(s) couldn't be read", r.unreadable.size)
         return tr("Library refreshed: {0}", parts.joinToString(", "))
     }
 
-    /** Looks for new or changed ROMs in the linked folder, off the UI thread; [s]
+    /** Looks for new or changed ROMs in the linked folders, off the UI thread; [s]
      * shows the progress (setup's ROMS step). New games get their covers. */
     private fun rescanRomsFolder(s: SetupState? = null) {
         // Setup's own scan always runs (RomFolder.scan queues it behind a running one).
         // A Refresh during another scan (the one onResume starts) gets that one's result.
         if (scanningFolder && s == null) return
-        if (prefs.romsFolder == null) {
+        if (prefs.romsFolders.isEmpty()) {
             // Nothing linked: just the imported ROMs' NOT SUPPORTED verdicts.
             Thread({
                 RomFolder.checkImported(this)
@@ -2170,7 +2276,7 @@ class LibraryActivity : ComponentActivity() {
             }
             RomFolder.checkImported(this)
             GameTitles.identify(this, listRoms())
-            // The linked folder's ROMs are dated now (as the library being set up, not NEW).
+            // The linked folders' ROMs are dated now (as the library being set up, not NEW).
             if (result.readable) linkingFolder = false
             val found = RomFolder.found(this, prefs).map(::romLabel)
             runOnUiThread {
@@ -2202,6 +2308,8 @@ class LibraryActivity : ComponentActivity() {
         /** The options popup's subtle 1u frame. */
         private val MenuBorder get() = if (OptionColors.dark) Color(0xFF4A5262) else Color(0xFFA8A8B0)
         const val EXTRA_ROM = "rom"
+        /** Who opened the game, for crash reports ([CrashReports.gameStarted]): the library, or the app that sent it. */
+        const val EXTRA_LAUNCHED_FROM = "launchedFrom"
         /** The grid view's narrowest tile (GridCells.Adaptive's minimum). */
         private val GRID_TILE_MIN = 150.dp
         /** Keys the launcher's menu swallows (the launcher's own), so they don't act behind it. */

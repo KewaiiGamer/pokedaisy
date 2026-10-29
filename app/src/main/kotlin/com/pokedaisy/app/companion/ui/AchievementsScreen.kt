@@ -251,7 +251,7 @@ fun AchievementsScreen(
             else -> AchievementList(
                 state.achievements, game, filter, { picking = true }, m, small, Modifier.weight(1f),
                 onLeaderboards = if (state.leaderboards.isNotEmpty()) ({ showBoards = true }) else null,
-                paused = state.cheatsPaused,
+                paused = when { state.cheatsPaused -> tk("PAUSED: CHEATS ON"); state.shinyOddsPaused -> tk("PAUSED: SHINY ODDS"); else -> null },
                 listState = listState,
                 marked = marked,
             )
@@ -277,8 +277,8 @@ private fun AchievementList(
     modifier: Modifier,
     /** Switches to the leaderboards; null = the game has none. */
     onLeaderboards: (() -> Unit)?,
-    /** A cheat is on, so nothing unlocks (RetroAchievements.setCheatsActive). */
-    paused: Boolean = false,
+    /** Why nothing unlocks now (a cheat on, SHINY ODDS raised: RetroAchievements), or null. */
+    paused: String? = null,
     listState: LazyListState = rememberLazyListState(),
     /** The achievement a popup opened: scrolled to and drawn as the cursor row. */
     marked: AchievementFocus? = null,
@@ -297,7 +297,7 @@ private fun AchievementList(
             modifier = Modifier.fillMaxWidth(),
         ) {
             BackdropText(game.title.orEmpty(), m, Modifier.weight(1f).padding(start = m.u * 4))
-            if (paused) OptionBadge(tk("PAUSED: CHEATS ON"), m)
+            paused?.let { OptionBadge(it, m) }
             OptionButton(
                 tk(filter.short), small, onClick = onFilter, pixelIcon = PixelIcons.filter,
                 emphasis = filter != AchievementFilter.ALL, contentDescription = tr("FILTER"),

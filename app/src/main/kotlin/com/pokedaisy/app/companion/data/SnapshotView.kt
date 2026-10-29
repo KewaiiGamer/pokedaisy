@@ -49,6 +49,8 @@ data class MonView(
     val statStages: List<Int>? = null,
     /** Party mons: the nickname as the game stores it ([Mon.nickname]); null = not read. */
     val nickname: String? = null,
+    /** Shiny (the battle screen's and INFO's SHINY marks). */
+    val shiny: Boolean = false,
 ) {
     /** What the game's party menu prints: the nickname where it was read, else the species ([name]). */
     val shownName: String get() = nickname ?: name
@@ -70,7 +72,8 @@ fun expProgress(species: Int, level: Int, exp: Long?): ExpProgress? {
     // Gen 1's growth rates and curves are Gen 3's for the first 151 (Yellow's species are Dex numbers here).
     if (activeGame != GameKind.FIRERED && activeGame != GameKind.EMERALD && !activeGame.isGen1 &&
         activeGame != GameKind.ORANGE_ISLANDS && activeGame != GameKind.RECHARGED_YELLOW &&
-        activeGame != GameKind.MARIOMON && activeGame != GameKind.TEAM_ROCKET &&
+        activeGame != GameKind.MARIOMON && activeGame != GameKind.TEAM_ROCKET && activeGame != GameKind.WISHES &&
+        activeGame != GameKind.DREAMSTONE &&
         // Crystal's growth rates for its 251 are Gen 3's, byte for byte, and its curves the same formulas (CrystalDecodeTest);
         // Crystal Clear, Gold and Silver kept Crystal's base data (gen_gen2_tables.py checks it).
         !activeGame.isGen2) return null
@@ -97,6 +100,12 @@ fun expProgress(species: Int, level: Int, exp: Long?): ExpProgress? {
     // So does Team Rocket Edition: Dragonsden (its species are National Dex ids, past Gen 3's).
     val rate = if (activeGame == GameKind.MARIOMON) (if (mariomonV13) growthRatesMariomonV13 else growthRatesMariomon).getOrNull(species)
         else if (activeGame == GameKind.TEAM_ROCKET) growthRatesTeamRocket.getOrNull(species)?.takeIf { it <= 5 }
+        // Wishes of Tomorrow (expansion 1.15.3): vanilla's curves, its gSpeciesInfo's rates (gen_expansion_tables.py).
+        else if (activeGame == GameKind.WISHES) growthRatesWishes.getOrNull(species)?.takeIf { it <= 5 }
+        // PureRGB moved 25 species to other curves: its own BaseStats' (gen_gen1_tables.py purered).
+        else if (activeGame.isPureRgb) gen1GrowthRatesPureRgb.getOrNull(species)
+        // Dreamstone Mysteries too (expansion's curves are vanilla's; its rates from gSpeciesInfo, gen_expansion_tables.py).
+        else if (activeGame == GameKind.DREAMSTONE) growthRatesDreamstone.getOrNull(species)?.takeIf { it <= 5 }
         else gen3GrowthRates.getOrNull(species)?.toInt()
     if (rate == null) return null
     val table = gen3ExperienceTables.getOrNull(rate) ?: return null
@@ -213,6 +222,8 @@ data class SnapshotView(
     val enemyParty: List<MonView> = emptyList(),
     /** [enemyParty] index of the foe that's out; -1 = unknown. */
     val enemyActive: Int = -1,
+    /** [Telemetry.isTrainerBattle]: in a battle, whether it's a trainer's (null = not read). */
+    val isTrainerBattle: Boolean? = null,
     /** The foe the trainer is about to send in ("... is about to use X"):
      * set only while the one that's out has fainted; -1 = none. */
     val enemyNext: Int = -1,
@@ -330,7 +341,7 @@ fun buildSnapshotView(t: Telemetry): SnapshotView {
             status = statusLabel(m.status),
             types = monTypes(type1, type2),
             // A DS game's eggs keep their species: the egg's own icon is NdsArt's 494.
-            iconAsset = if (m.shiny && !isEgg) shinyIconAsset(m.species) else spriteAsset("pokemon", if (isEgg && activeGame.isDsGame) 494 else m.species),
+            iconAsset = if (m.shiny && !isEgg) shinyIconAsset(m.species) else spriteAsset("pokemon", if (isEgg && activeGame.isGen5) NdsArt.BLACK_EGG else if (isEgg && activeGame.isDsGame) 494 else m.species),
             genderSymbol = m.genderSymbol,
             moves = moves,
             exp = if (isEgg) null else expProgress(m.species, m.level, m.exp),
@@ -338,6 +349,7 @@ fun buildSnapshotView(t: Telemetry): SnapshotView {
             stats = if (isEgg) null else m.stats,
             heldItemId = m.heldItem,
             nickname = if (isEgg) null else m.nickname,
+            shiny = m.shiny && !isEgg,
             weaknesses = matchups.weaknesses,
             resistances = matchups.resistances,
             immunities = matchups.immunities,
@@ -382,7 +394,7 @@ fun buildSnapshotView(t: Telemetry): SnapshotView {
                 species = b.species, name = speciesName(b.species), level = b.level,
                 hp = b.hp, maxHp = b.maxHp, status = statusLabel(b.status1),
                 types = monTypes(b.type1, b.type2),
-                iconAsset = spriteAsset("pokemon", b.species),
+                iconAsset = if (b.shiny) shinyIconAsset(b.species) else spriteAsset("pokemon", b.species),
                 moves = moves,
                 stats = statsFor(b, t.party, usedParty),
             )
@@ -395,7 +407,7 @@ fun buildSnapshotView(t: Telemetry): SnapshotView {
                 species = b.species, name = speciesName(b.species), level = b.level,
                 hp = b.hp, maxHp = b.maxHp, status = statusLabel(b.status1),
                 types = monTypes(b.type1, b.type2),
-                iconAsset = spriteAsset("pokemon", b.species),
+                iconAsset = if (b.shiny) shinyIconAsset(b.species) else spriteAsset("pokemon", b.species),
                 // The foe's moveset (battle INFO's FOE MOVES); verdicts against
                 // the player's battlers are worked out where they're shown.
                 moves = moveViews(b.moves, b.pp),
@@ -407,6 +419,7 @@ fun buildSnapshotView(t: Telemetry): SnapshotView {
                 resistances = matchups.resistances,
                 immunities = matchups.immunities,
                 stats = statsFor(b, t.battleFoes, usedFoes, prefer),
+                shiny = b.shiny,
             )
         }
 
@@ -475,6 +488,7 @@ fun buildSnapshotView(t: Telemetry): SnapshotView {
             )
         },
         enemyActive = t.enemyActive,
+        isTrainerBattle = t.isTrainerBattle,
         // Only meaningful once the foe that's out is down and a live one is picked.
         enemyNext = t.enemyNext.takeIf { next ->
             next != t.enemyActive && t.enemyParty.getOrNull(next)?.hp?.let { it > 0 } == true &&

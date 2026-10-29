@@ -56,6 +56,20 @@ class RomArtTest {
         assertEquals("a9c4cfb6", pixels(images.getValue("regionmap/imperium.png")))
     }
 
+    /** Dreamstone Mysteries' Cormoria TOWN MAP (DSM_REGION_*): its own 4bpp tiles, tilemap and palette. */
+    @Test fun dreamstoneSuppliesItsRegionMap() {
+        val images = composed(System.getProperty("user.home") + "/Downloads/Game ROMs & Emulation/gba/Pokemon Dreamstone Mysteries.gba")
+        assertEquals("6a43f441", pixels(images.getValue("regionmap/dreamstone.png")))
+    }
+
+    /** Wishes of Tomorrow's JOKAIM TOWN MAP (WSH_REGION_*): its own 8bpp tiles and tilemap (smol) and palette; the
+     * player's head on it is Emerald's own Brendan / May, which its ROM keeps. */
+    @Test fun wishesSuppliesItsRegionMap() {
+        val images = composed(System.getProperty("user.home") + "/Downloads/Game ROMs & Emulation/gba/Pokemon Wishes of Tomorrow (v1.2.6).gba")
+        assertEquals("f4215285", pixels(images.getValue("regionmap/wishes.png")))
+        assertTrue("regionmap/player_brendan.png" in images && "regionmap/player_may.png" in images)
+    }
+
     /** Super Mariomon's world map (MM_REGION_*, the same bytes in every release) and MARIO's head for it. */
     @Test fun mariomonSuppliesItsRegionMap() {
         for (v in listOf("v1.2.1", "v1.2.2", "v1.3", "v1.5.1 Anniversary", "v1.5.2 Anniversary")) {

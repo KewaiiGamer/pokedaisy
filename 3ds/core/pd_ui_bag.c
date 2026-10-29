@@ -46,51 +46,91 @@ static const struct bag_palette EMERALD_BAG = {
     .backdropA = 0xC871F7, .backdropB = 0x5882F7,
 };
 
-#define HEADER_H 24
-#define LIST_Y (CONTENT_Y + HEADER_H + 4)
-#define LIST_H 118
+#define TAB_H 22
 #define BAG_ROW 17
-#define DESC_Y (LIST_Y + LIST_H + 4)
+#define DESC_H 44
 #define FIRST_HM 339 // ITEM_HM01..ITEM_HM08: no quantity, like the game
 #define LAST_HM 346
+#define MAX_TABS (1 + PD_POCKET_COUNT)
+#define MAX_ROWS 99 // HIT_BAG_ROW's ids
 
-static void header(struct pd_ui* ui, struct pd_canvas* c, const struct bag_palette* p, int pocket) {
-    int x = MARGIN, w = c->w - 2 * MARGIN;
-    pd_layered_box(c, x, CONTENT_Y, w, HEADER_H, 3, p->panel, p->tabLayers, p->panel[p->tabLayers].color);
-    const char* name = pd_pocket_name(pocket);
-    int ty = pd_text_y(CONTENT_Y, HEADER_H);
-    pd_text(c, x + (w - pd_text_width(name)) / 2, ty, name, p->tabText, p->tabTextShadow);
-    // The game's pocket arrows, drawn (the font has no ◀ / ▶).
-    int ay = CONTENT_Y + HEADER_H / 2 - 5;
-    uint32_t prev = ui->pressedId == HIT_POCKET_PREV ? p->cursor : p->tabText;
-    uint32_t next = ui->pressedId == HIT_POCKET_NEXT ? p->cursor : p->tabText;
-    pd_triangle(c, x + 10, ay, 6, PD_LEFT, prev);
-    pd_triangle(c, x + w - 16, ay, 6, PD_RIGHT, next);
-    ui_add_hit(ui, x, CONTENT_Y, 48, HEADER_H, HIT_POCKET_PREV);
-    ui_add_hit(ui, x + w - 48, CONTENT_Y, 48, HEADER_H, HIT_POCKET_NEXT);
+// What one tab lists: ALL, then each pocket with something in it, in the
+// game's own order (the app's ItemsScreen: empty pockets get no tab).
+struct bag_view {
+    int tabs, pockets[MAX_TABS]; // pockets[0] = -1: ALL
+    int count;
+    struct {
+        struct pd_item item;
+        int pocket;
+    } rows[MAX_ROWS];
+};
+
+static void gather(const struct pd_game* g, const struct pd_snapshot* s, int tab, struct bag_view* v) {
+    v->tabs = 0;
+    v->pockets[v->tabs++] = -1;
+    for (int i = 0; i < PD_POCKET_COUNT; i++) {
+        int pocket = g->cfg->bagOrder[i];
+        if (s->bag[pocket].count > 0) v->pockets[v->tabs++] = pocket;
+    }
+    if (tab < 0 || tab >= v->tabs) tab = 0;
+    v->count = 0;
+    for (int i = 0; i < PD_POCKET_COUNT; i++) {
+        int pocket = g->cfg->bagOrder[i];
+        if (v->pockets[tab] >= 0 && pocket != v->pockets[tab]) continue;
+        const struct pd_pocket_items* items = &s->bag[pocket];
+        for (int j = 0; j < items->count && v->count < MAX_ROWS; j++) {
+            v->rows[v->count].item = items->items[j];
+            v->rows[v->count].pocket = pocket;
+            v->count++;
+        }
+    }
+}
+
+// The pocket tabs down the left, the open one joined to the list.
+static void tabs(struct pd_ui* ui, struct pd_canvas* c, const struct bag_palette* p, const struct bag_view* v,
+                 int x, int w, int joinX) {
+    for (int i = 0; i < v->tabs; i++) {
+        int y = CONTENT_Y + i * (TAB_H + 3);
+        bool open = i == ui->bagPocket;
+        uint32_t fill = open ? p->fill : p->panel[p->tabLayers].color;
+        int f = pd_layered_box(c, x, y, w, TAB_H, 3, p->panel, p->tabLayers, fill);
+        // The open tab runs into the list: its fill across both borders.
+        if (open) pd_fill(c, x + w - f, y + f, joinX - (x + w - f), TAB_H - 2 * f, p->fill);
+        const char* name = v->pockets[i] < 0 ? "ALL" : pd_pocket_name(v->pockets[i]);
+        int tx = x + f + 5, ty = pd_text_y(y, TAB_H);
+        int tw = pd_text_fit(c, tx, ty, w - 2 * f - 8, name, open ? p->text : p->tabText,
+                             open ? p->textShadow : p->tabTextShadow);
+        if (open) pd_fill(c, tx, y + TAB_H - f - 4, tw, 2, p->cursor); // the open tab's underline
+        if (ui->pressedId == HIT_BAG_TAB + i) pd_fill(c, x + f, y + f, w - 2 * f, 1, p->cursor);
+        ui_add_hit(ui, x, y, w, TAB_H, HIT_BAG_TAB + i);
+    }
 }
 
 static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct bag_palette* p,
-                 const struct pd_pocket_items* items, int pocket) {
-    int x = MARGIN, w = c->w - 2 * MARGIN;
-    int f = pd_layered_box(c, x, LIST_Y, w, LIST_H, 3, p->panel, p->panelLayers, p->fill);
-    int ix = x + f, iy = LIST_Y + f + 1, iw = w - 2 * f, ih = LIST_H - 2 * f - 2;
+                 const struct bag_view* v, int x, int y, int w, int h) {
+    int f = pd_layered_box(c, x, y, w, h, 3, p->panel, p->panelLayers, p->fill);
+    int ix = x + f, iy = y + f + 1, iw = w - 2 * f, ih = h - 2 * f - 2;
     ui_add_scroll_hit(ui, ix, iy, iw, ih, HIT_BAG_LIST);
-    if (items->count == 0) {
-        pd_text(c, ix + 14, pd_text_y(iy, BAG_ROW), "The pocket is empty.", p->text, p->textShadow);
+    if (v->count == 0) {
+        pd_text(c, ix + 14, pd_text_y(iy, BAG_ROW), "The bag is empty.", p->text, p->textShadow);
         return;
     }
-    int maxScroll = items->count * BAG_ROW - ih;
+    int maxScroll = v->count * BAG_ROW - ih;
     if (maxScroll < 0) maxScroll = 0;
+    // Keep the selected row in view (the D-pad walks down past the window).
+    if (ui->bagSelected >= 0) {
+        int top = ui->bagSelected * BAG_ROW;
+        if (top < ui->bagScroll) ui->bagScroll = top;
+        if (top + BAG_ROW > ui->bagScroll + ih) ui->bagScroll = top + BAG_ROW - ih;
+    }
     if (ui->bagScroll > maxScroll) ui->bagScroll = maxScroll;
     if (ui->bagScroll < 0) ui->bagScroll = 0;
 
     pd_clip(c, ix, iy, iw, ih);
-    int first = ui->bagScroll / BAG_ROW;
-    for (int i = first; i < items->count; i++) {
+    for (int i = ui->bagScroll / BAG_ROW; i < v->count; i++) {
         int ry = iy + i * BAG_ROW - ui->bagScroll;
         if (ry >= iy + ih) break;
-        const struct pd_item* it = &items->items[i];
+        const struct pd_item* it = &v->rows[i].item;
         bool cursor = i == ui->bagSelected || ui->pressedId == HIT_BAG_ROW + i;
         if (cursor) pd_triangle(c, ix + 4, ry + 3, 6, PD_RIGHT, p->cursor);
         const char* name = pd_item_name(g, it->id);
@@ -100,9 +140,9 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g,
             name = fallback;
         }
         pd_text_fit(c, ix + 14, pd_text_y(ry, BAG_ROW), iw - 64, name, p->text, p->textShadow);
-        if (pocket != PD_POCKET_KEY && !(it->id >= FIRST_HM && it->id <= LAST_HM)) {
+        if (v->rows[i].pocket != PD_POCKET_KEY && !(it->id >= FIRST_HM && it->id <= LAST_HM)) {
             char qty[12];
-            snprintf(qty, sizeof(qty), "×%d", it->quantity);
+            snprintf(qty, sizeof(qty), "× %d", it->quantity);
             pd_text_right(c, ix + iw - 10, pd_text_y(ry, BAG_ROW), qty, p->text, p->textShadow);
         }
         if (p->divider) pd_fill(c, ix + 4, ry + BAG_ROW - 1, iw - 8, 1, p->divider);
@@ -112,9 +152,9 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g,
         ui_add_scroll_hit(ui, ix, top, iw, bottom - top, HIT_BAG_ROW + i);
     }
     pd_unclip(c);
-    // A scroll bar when the pocket runs past the window.
+    // A scroll bar when the list runs past the window.
     if (maxScroll > 0) {
-        int total = items->count * BAG_ROW;
+        int total = v->count * BAG_ROW;
         int th = ih * ih / total;
         if (th < 8) th = 8;
         int ty = iy + (ih - th) * ui->bagScroll / maxScroll;
@@ -122,16 +162,13 @@ static void list(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g,
     }
 }
 
-static void description(struct pd_canvas* c, const struct pd_game* g, const struct bag_palette* p,
-                        const struct pd_pocket_items* items, int selected) {
-    int x = MARGIN, w = c->w - 2 * MARGIN, h = c->h - DESC_Y - MARGIN;
-    int f = pd_layered_box(c, x, DESC_Y, w, h, 3, p->desc, p->descLayers, p->descFill);
-    const char* text = "Tap an item to read about it.";
-    if (selected >= 0 && selected < items->count) {
-        const char* d = pd_item_description(g, items->items[selected].id);
-        if (*d) text = d;
-    }
-    pd_text_wrap(c, x + f + 6, DESC_Y + f + 1, w - 2 * (f + 6), 16, (h - 2 * f) / 16, text, p->descText,
+// The picked item's description, a window along the bottom (ItemsScreen's).
+static void description(struct pd_canvas* c, const struct pd_game* g, const struct bag_palette* p, int id, int y) {
+    int x = MARGIN, w = c->w - 2 * MARGIN, h = c->h - y - MARGIN;
+    int f = pd_layered_box(c, x, y, w, h, 3, p->desc, p->descLayers, p->descFill);
+    const char* text = pd_item_description(g, id);
+    if (!*text) text = pd_item_name(g, id);
+    pd_text_wrap(c, x + f + 6, y + f + 1, w - 2 * (f + 6), 16, (h - 2 * f) / 16, text, p->descText,
                  p->descTextShadow);
 }
 
@@ -142,15 +179,17 @@ void ui_bag_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, 
     }
     const struct bag_palette* p = g->kind == PD_GAME_EMERALD ? &EMERALD_BAG : &FIRERED_BAG;
     if (p->backdropA) {
-        for (int y = CONTENT_Y - 2; y < c->h; y += 8) {
-            pd_fill(c, 0, y, c->w, 8, ((y - CONTENT_Y + 2) / 8) % 2 ? p->backdropB : p->backdropA);
-        }
+        for (int y = 0; y < c->h; y += 8) pd_fill(c, 0, y, c->w, 8, (y / 8) % 2 ? p->backdropB : p->backdropA);
     }
-    if (ui->bagPocket < 0 || ui->bagPocket >= PD_POCKET_COUNT) ui->bagPocket = 0;
-    int pocket = g->cfg->bagOrder[ui->bagPocket];
-    const struct pd_pocket_items* items = &s->bag[pocket];
-    if (ui->bagSelected >= items->count) ui->bagSelected = -1;
-    header(ui, c, p, pocket);
-    list(ui, c, g, p, items, pocket);
-    description(c, g, p, items, ui->bagSelected);
+    static struct bag_view v;
+    gather(g, s, ui->bagPocket, &v);
+    if (ui->bagPocket < 0 || ui->bagPocket >= v.tabs) ui->bagPocket = 0;
+    if (ui->bagSelected >= v.count) ui->bagSelected = -1;
+    int tabW = c->w * 27 / 100, panelX = MARGIN + tabW - 3;
+    int bottom = ui->bagSelected >= 0 ? c->h - MARGIN - DESC_H - 4 : c->h - MARGIN;
+    list(ui, c, g, p, &v, panelX, CONTENT_Y, c->w - MARGIN - panelX, bottom - CONTENT_Y);
+    int frame = 0;
+    for (int i = 0; i < p->panelLayers; i++) frame += p->panel[i].width;
+    tabs(ui, c, p, &v, MARGIN, tabW - 4, panelX + frame);
+    if (ui->bagSelected >= 0) description(c, g, p, v.rows[ui->bagSelected].item.id, bottom + 4);
 }

@@ -66,7 +66,15 @@ private const val PARTY_MAX = 6
 @Composable
 fun PartyScreen(party: List<MonView>, onMonClick: (MonView) -> Unit) {
     PartyGrid(party, selected = 0, onSlotClick = onMonClick) { mon ->
-        if (mon.heldItemId != 0) HeldItemTag(mon.heldItemId, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 8.dp))
+        // NUZLOCKE: a Pokémon that fainted once carries a gravestone beside what it holds.
+        val dead = com.pokedaisy.app.companion.Nuzlocke.isDead(mon.personality)
+        if (mon.heldItemId != 0 || dead) Row(
+            Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (dead) NuzlockeDeadTag()
+            if (mon.heldItemId != 0) HeldItemTag(mon.heldItemId)
+        }
     }
 }
 
@@ -176,11 +184,14 @@ internal fun Modifier.slotClickable(sound: Boolean, enabled: Boolean, onClick: (
  * the upper [fill], the HP [band] below it (FireRed's is the light edge's
  * color; flat slots like Gaia's are the fill's), a 1px bottom [shade]. [text]
  * / [textShadow] override the palette's for this state (Lazarus colors its
- * text per state); a transparent shadow = none. */
+ * text per state); a transparent shadow = none. A cut-corner slot ([PartyPalette.chamfer])
+ * is a 1px [outline], [light] and [shade] line round its [fill], with a [stripe] across it. */
 data class PartySlotColors(
     val outline: Color, val light: Color, val fill: Color, val shade: Color,
     val band: Color = light,
     val text: Color? = null, val textShadow: Color? = null,
+    /** A cut-corner slot's diagonal band (Black's): leaning like "/", over the slot's right half. */
+    val stripe: Color? = null,
 )
 
 /** HP bar fill: a darker [top] row over the [main] color. */
@@ -212,6 +223,10 @@ data class PartyPalette(
     val emptyAlpha: Float = 0.35f,
     /** The game's own empty-slot box, drawn solid instead of a faint [normal] one; null = faint. */
     val empty: PartySlotColors? = null,
+    /** The slot's corners cut at 45 degrees this many slot pixels (Black's eight-sided boxes); 0 = FireRed's rounded. */
+    val chamfer: Int = 0,
+    /** An empty slot as lines of this colour every other row ([empty]'s outline and fill round them): the DS games'. */
+    val emptyLines: Color? = null,
 )
 
 /** FireRed's party menu (partyfr/slot_*.png, pokeball.png; Emerald's is identical). */
@@ -460,6 +475,20 @@ private val RedBluePartyPaletteNight = redBluePartyPalette(Color(0xFFE8E8E8), Co
 val RedBluePartyPalette: PartyPalette get() = if (OptionColors.dark) RedBluePartyPaletteNight else RedBluePartyPaletteLight
 
 /**
+ * PureRed / PureBlue on a Color (their default COLORS, OG: the Color's two-tone palettes, sampled headless): Yellow's
+ * slots in pure black and white, every HP bar the screen's dark colour - PureRed's dark red, PureBlue's blue.
+ */
+private fun purePartyPalette(ink: Color, paper: Color, cursor: Color, bar: Color) = yellowPartyPalette(ink, paper, cursor).copy(
+    hpGreen = HpBarColors(bar, bar), hpYellow = HpBarColors(bar, bar), hpRed = HpBarColors(bar, bar),
+)
+private val PureRedPartyPaletteLight = purePartyPalette(Color.Black, Color.White, Color(0xFFDCDCDC), Color(0xFF943939))
+private val PureRedPartyPaletteNight = purePartyPalette(Color(0xFFE8E8E8), Color(0xFF181818), Color(0xFF3A3A3A), Color(0xFFFF8484))
+private val PureBluePartyPaletteLight = purePartyPalette(Color.Black, Color.White, Color(0xFFDCDCDC), Color(0xFF0000FF))
+private val PureBluePartyPaletteNight = purePartyPalette(Color(0xFFE8E8E8), Color(0xFF181818), Color(0xFF3A3A3A), Color(0xFF63A5FF))
+val PureRedPartyPalette: PartyPalette get() = if (OptionColors.dark) PureRedPartyPaletteNight else PureRedPartyPaletteLight
+val PureBluePartyPalette: PartyPalette get() = if (OptionColors.dark) PureBluePartyPaletteNight else PureBluePartyPaletteLight
+
+/**
  * Pokémon Ghost Grey (headless, its party menu): four greys - white slots in a black line, the cursor's slot light grey,
  * black text with no shadow, the HP bar black on white under a white-on-black "HP", a grey ghost's face where FireRed has
  * its Poké Ball. Dark mode turns it round like Yellow's.
@@ -483,6 +512,56 @@ private val GhostGreyPartyPaletteNight =
     ghostGreyPartyPalette(Color(0xFFE8E8E8), Color(0xFF181818), Color(0xFF525252), Color(0xFFADADAD))
 val GhostGreyPartyPalette: PartyPalette get() = if (OptionColors.dark) GhostGreyPartyPaletteNight else GhostGreyPartyPaletteLight
 
+/**
+ * Pokémon Black (headless, its party screen on the player's save, HP poked low / to 0 in two slots): eight-sided boxes in
+ * a dark cyan / bright cyan / dark cyan line, steel blue with a darker diagonal band (lighter blue under the cursor), dark
+ * red with a pink line when fainted (magenta under the cursor), white text on a grey shadow, the "HP" letters green on
+ * charcoal, a frameless bar on near-black; no Poké Ball. Empty slots are blue lines on the navy grid. Its columns stay
+ * level here (the game sets the right one a quarter of a slot lower: the player's call).
+ */
+val BlackPartyPalette = FireRedPartyPalette.copy(
+    normal = PartySlotColors(Color(0xFF0C719E), Color(0xFF96FFFF), Color(0xFF0C5175), Color(0xFF0C719E), band = Color(0xFF0C5175), stripe = Color(0xFF0C304D)),
+    selected = PartySlotColors(Color(0xFF0C719E), Color(0xFF96FFFF), Color(0xFF4579A6), Color(0xFF0C719E), band = Color(0xFF4579A6), stripe = Color(0xFF0C304D)),
+    fainted = PartySlotColors(Color(0xFFC73886), Color(0xFFFF9AAE), Color(0xFF8E2024), Color(0xFFC73886), band = Color(0xFF8E2024), stripe = Color(0xFF6D2824)),
+    selectedFainted = PartySlotColors(Color(0xFF0C699E), Color(0xFFC7CBCF), Color(0xFFEF106D), Color(0xFF0C699E), band = Color(0xFFEF106D), stripe = Color(0xFFB61055)),
+    text = Color(0xFFFBFBFB), textShadow = Color(0xFF828282),
+    male = Color(0xFF00EBFB), maleShadow = Color(0xFF006961),
+    female = Color(0xFFE33838), femaleShadow = Color(0xFF712030),
+    hpFrame = Color(0xFF303030), hpInner = Color(0xFF303030),
+    hpLabel = Color(0xFF00FB49), hpLabelShade = Color(0xFF00BA20),
+    hpGreen = HpBarColors(Color(0xFF61FB61), Color(0xFF18C320)),
+    hpYellow = HpBarColors(Color(0xFFFBDB00), Color(0xFFEBAA00)),
+    hpRed = HpBarColors(Color(0xFFFB9A9A), Color(0xFFFB4938)),
+    hpEmpty = HpBarColors(Color(0xFF202020), Color(0xFF202020)),
+    ball = mapOf('K' to Color.Transparent, 'R' to Color.Transparent, 'H' to Color.Transparent, 'W' to Color.Transparent),
+    chamfer = 9,
+    emptyLines = Color(0xFF0C415D),
+)
+
+/**
+ * Pokémon Platinum (headless, its party screen on the player's save, the lead copied into four more slots, one at 0 HP
+ * and two low): blue slots - light blue over a deeper blue HP band - in a slate line, light blue in an orange line under
+ * the cursor, orange-brown when fainted (salmon under the cursor), the "HP" letters red on black, a black-framed bar;
+ * its pale Poké Ball. Empty slots are the slate stripes in a slate line. Its columns stay level, like Black's.
+ */
+val PlatinumPartyPalette = FireRedPartyPalette.copy(
+    normal = PartySlotColors(Color(0xFF494961), Color(0xFF9AC3F3), Color(0xFF82B2F3), Color(0xFF41699A), band = Color(0xFF5982D3)),
+    selected = PartySlotColors(Color(0xFFEB5900), Color(0xFFB2DBEB), Color(0xFF92DBF3), Color(0xFF69BAEB), band = Color(0xFF69BAEB)),
+    fainted = PartySlotColors(Color(0xFF494961), Color(0xFFDBA251), Color(0xFFCB8228), Color(0xFF923800), band = Color(0xFFBA6108)),
+    selectedFainted = PartySlotColors(Color(0xFFEB5900), Color(0xFFEBBAAA), Color(0xFFEBBAAA), Color(0xFFE39A79), band = Color(0xFFE39A79)),
+    text = Color(0xFFFBFBFB), textShadow = Color(0xFF515151),
+    male = Color(0xFF0071FB), maleShadow = Color(0xFF79BAEB),
+    hpFrame = Color.Black, hpInner = Color(0xFFA2AA92),
+    hpLabel = Color(0xFFFB9A9A), hpLabelShade = Color(0xFFFB4938),
+    hpGreen = HpBarColors(Color(0xFF61FB61), Color(0xFF18C320)),
+    hpYellow = HpBarColors(Color(0xFFFBDB00), Color(0xFFEBAA00)),
+    hpRed = HpBarColors(Color(0xFFFB9A9A), Color(0xFFFB4938)),
+    hpEmpty = HpBarColors(Color(0xFF697161), Color(0xFFA2AA92)),
+    ball = mapOf('K' to Color(0xFF828282), 'R' to Color(0xFFFBBABA), 'H' to Color(0xFFCBAAAA), 'W' to Color(0xFFF3F3F3)),
+    empty = PartySlotColors(Color(0xFF494961), Color(0xFF383849), Color(0xFF383849), Color(0xFF383849)),
+    emptyLines = Color(0xFF798292),
+)
+
 /** The generic slot's palette for [game] - add a palette here to restyle a game. */
 fun partyPaletteFor(game: GameKind): PartyPalette = when (game) {
     GameKind.FIRERED -> if (com.pokedaisy.app.companion.data.runningGhostGrey) GhostGreyPartyPalette else FireRedPartyPalette
@@ -494,14 +573,20 @@ fun partyPaletteFor(game: GameKind): PartyPalette = when (game) {
     GameKind.SOULGOLD -> SoulGoldPartyPalette
     GameKind.YELLOW -> YellowPartyPalette
     GameKind.RED, GameKind.BLUE -> RedBluePartyPalette
+    GameKind.PURE_RED -> PureRedPartyPalette
+    GameKind.PURE_BLUE -> PureBluePartyPalette
     // Gold's and Silver's party menu is Crystal's, pixel for pixel (sampled headless in both).
     GameKind.CRYSTAL, GameKind.CRYSTAL_CLEAR, GameKind.PRISM, GameKind.GOLD, GameKind.SILVER -> CrystalPartyPalette
     GameKind.POLISHED_CRYSTAL -> PolishedCrystalPartyPalette
     GameKind.GLAZED, GameKind.QUETZAL -> GlazedPartyPalette
     GameKind.IMPERIUM -> ImperiumPartyPalette
+    // Dreamstone Mysteries' party grid is Imperium's, colour for colour (sampled headless: boxes, cursor, empty slots).
+    GameKind.DREAMSTONE -> ImperiumPartyPalette
     GameKind.SWORD_SHIELD -> SwordShieldPartyPalette
     GameKind.MARIOMON -> MariomonPartyPalette
     GameKind.HEARTGOLD, GameKind.SOULSILVER -> HeartGoldPartyPalette
+    GameKind.BLACK -> BlackPartyPalette
+    GameKind.PLATINUM -> PlatinumPartyPalette
     // Celia's and Too Many Types 2's slots are FireRed's own colors (only TMT2's backdrop differs).
     else -> FireRedPartyPalette
 }
@@ -572,6 +657,8 @@ fun partySlotStyleFor(game: GameKind): PartySlotStyle? = when (game) {
     GameKind.ELITE_REDUX -> EliteReduxPartyStyle
     // Team Rocket Edition: Dragonsden's party menu is Emerald's slots and list, as its battle party screen showed.
     GameKind.TEAM_ROCKET -> EliteReduxPartyStyle
+    // So is Wishes of Tomorrow's (its own blue backdrop: Theme's backdropColors).
+    GameKind.WISHES -> EliteReduxPartyStyle
     GameKind.HEART_AND_SOUL -> HeartAndSoulPartyStyle
     // Unbound FR redrew "HP" / "Lv" as "PV" / "N." and its status icons (GitHub #227): its own art, English's layout.
     GameKind.UNBOUND -> if (romGameCode == com.pokedaisy.app.companion.data.UNBOUND_FR_TEXT) UnboundFrPartyStyle else UnboundPartyStyle
@@ -672,11 +759,16 @@ private fun PartySlot(palette: PartyPalette, mon: MonView?, selected: Boolean, o
         val showHp = mon != null && !mon.isEgg
         Canvas(
             Modifier.fillMaxSize().then(
-                if (mon == null && palette.empty == null) Modifier.graphicsLayer { alpha = palette.emptyAlpha; compositingStrategy = CompositingStrategy.Offscreen }
-                else Modifier,
+                if (mon == null && palette.empty == null && palette.emptyLines == null) {
+                    Modifier.graphicsLayer { alpha = palette.emptyAlpha; compositingStrategy = CompositingStrategy.Offscreen }
+                } else Modifier,
             ),
         ) {
-            drawSlotFrame(g, colors)
+            when {
+                mon == null && palette.emptyLines != null -> drawEmptyLines(g, palette, palette.emptyLines)
+                palette.chamfer > 0 -> drawCutSlotFrame(g, colors, palette.chamfer)
+                else -> drawSlotFrame(g, colors)
+            }
             if (showHp) drawHpBar(g, palette, mon!!.hp, mon.maxHp)
         }
         if (mon == null) return@BoxWithConstraints
@@ -761,6 +853,54 @@ private fun DrawScope.drawSlotFrame(g: SlotGeometry, c: PartySlotColors) {
     if (c.band != c.light) drawRect(c.band, Offset(g.fx + 3 * u, g.dividerY), Size(g.fw - 6 * u, g.bottom - 3 * u - g.dividerY))
     drawRect(c.fill, Offset(g.fx + 3 * u, g.fy + 3 * u), Size(g.fw - 6 * u, g.dividerY - g.fy - 3 * u))
     drawRect(c.shade, Offset(g.fx + 2 * u, g.bottom - 3 * u), Size(g.fw - 4 * u, u))
+}
+
+/** A box [w] x [h] slot pixels at ([x], [y]) with its corners cut [cut] pixels at 45 degrees, row by row in [c]; with
+ * [span], each row's own part of it (columns from, to) instead of the whole row. */
+private fun DrawScope.cutBox(x: Float, y: Float, w: Int, h: Int, cut: Int, u: Float, c: Color, span: ((Int) -> IntRange)? = null) {
+    for (r in 0 until h) {
+        val inset = maxOf(0, cut - r, cut - (h - 1 - r))
+        var from = inset
+        var to = w - inset
+        span?.invoke(r)?.let { s -> from = maxOf(from, s.first); to = minOf(to, s.last) }
+        if (to > from) drawRect(c, Offset(x + from * u, y + r * u), Size((to - from) * u, u))
+    }
+}
+
+/** Black's party slot: three 1px lines round the box ([PartySlotColors.outline], light, shade), its corners cut, the
+ * fill crossed by the diagonal [PartySlotColors.stripe] (leaning "/", a pixel left a row). */
+private fun DrawScope.drawCutSlotFrame(g: SlotGeometry, c: PartySlotColors, cut: Int) {
+    val u = g.u.toFloat()
+    val w = (g.fw / u).toInt()
+    val h = (g.fh / u).toInt()
+    cutBox(g.fx, g.fy, w, h, cut, u, c.outline)
+    cutBox(g.fx + u, g.fy + u, w - 2, h - 2, cut, u, c.light)
+    cutBox(g.fx + 2 * u, g.fy + 2 * u, w - 4, h - 4, cut, u, c.shade)
+    val fw = w - 6
+    cutBox(g.fx + 3 * u, g.fy + 3 * u, fw, h - 6, cut, u, c.fill)
+    val stripe = c.stripe ?: return
+    val start = fw * 62 / 100
+    val width = fw * 46 / 100
+    cutBox(g.fx + 3 * u, g.fy + 3 * u, fw, h - 6, cut, u, stripe) { r -> (start - r)..(start - r + width) }
+}
+
+/** A DS game's empty slot: [lines] every other row inside the slot's shape, over [PartyPalette.empty]'s fill in its outline. */
+private fun DrawScope.drawEmptyLines(g: SlotGeometry, p: PartyPalette, lines: Color) {
+    val u = g.u.toFloat()
+    val w = (g.fw / u).toInt()
+    val h = (g.fh / u).toInt()
+    val box = p.empty
+    if (p.chamfer > 0) {
+        box?.let { cutBox(g.fx, g.fy, w, h, p.chamfer, u, it.outline); cutBox(g.fx + u, g.fy + u, w - 2, h - 2, p.chamfer, u, it.fill) }
+        for (r in 1 until h - 1 step 2) cutBox(g.fx, g.fy + r * u, w, 1, 0, u, lines) { (p.chamfer - minOf(r, h - 1 - r)).coerceAtLeast(0)..(w - (p.chamfer - minOf(r, h - 1 - r)).coerceAtLeast(0)) }
+    } else {
+        box?.let {
+            drawPixelRoundRect(it.outline, Offset(g.fx, g.fy), Size(g.fw, g.fh), radius = 3 * u, step = u)
+            drawPixelRoundRect(it.fill, Offset(g.fx + 2 * u, g.fy + 2 * u), Size(g.fw - 4 * u, g.fh - 4 * u), radius = u, step = u)
+        }
+        val inset = if (box != null) 2 else 0
+        for (r in inset + 1 until h - inset step 2) drawRect(lines, Offset(g.fx + inset * u, g.fy + r * u), Size(g.fw - 2 * inset * u, u))
+    }
 }
 
 private fun DrawScope.drawHpBar(g: SlotGeometry, p: PartyPalette, hp: Int, maxHp: Int) {

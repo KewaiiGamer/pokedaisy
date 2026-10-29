@@ -53,72 +53,12 @@ fun SaveProgress?.polishedTimeOfDay(): Int = this?.variable(PC_VAR_TIME_OF_DAY)?
  * MAX_LEVEL counted from BadgeBaseLevels (AdjustLevelForBadges).
  */
 object PolishedCrystalWorld : GuideWorld {
-    private class Slot(val level: Int, val species: Int, val odds: Int = 0)
-
-    private class Wild(
-        val grass: Map<Int, Pair<IntArray, List<Slot>>>,
-        val water: Map<Int, Pair<Int, List<Slot>>>,
-        val fishMaps: Map<Int, Int>,
-        val treeMaps: Map<Int, Int>,
-        val rockMaps: Map<Int, Int>,
-        /** Each fish group's OLD / GOOD / SUPER ROD rows: odds are counts of 256. */
-        val fish: Map<Int, List<List<Slot>>>,
-        /** Each headbutt set's common and rare rows: odds in percent. */
-        val trees: Map<Int, Pair<List<Slot>, List<Slot>>>,
-    )
-
-    private val wild: Wild by lazy {
-        val grass = HashMap<Int, Pair<IntArray, List<Slot>>>()
-        val water = HashMap<Int, Pair<Int, List<Slot>>>()
-        val fishMaps = HashMap<Int, Int>()
-        val treeMaps = HashMap<Int, Int>()
-        val rockMaps = HashMap<Int, Int>()
-        val fish = HashMap<Int, List<List<Slot>>>()
-        val trees = HashMap<Int, Pair<List<Slot>, List<Slot>>>()
-        fun pairs(s: String) = s.split(' ').filter { it.isNotEmpty() }.map { p -> p.split(':').let { Slot(it[0].toInt(), it[1].toInt()) } }
-        fun rows(s: String) = s.split(' ').filter { it.isNotEmpty() }.map { p ->
-            p.split(':').let { Slot(level = it[2].toInt(), species = it[1].toInt(), odds = it[0].toInt()) }
-        }
-        PC_WILD_RAW.asSequence().flatMap { it.lineSequence() }.filter { it.isNotBlank() }.forEach { line ->
-            val f = line.split('|')
-            val key by lazy { f[1].toInt() shl 8 or f[2].toInt() }
-            when (f[0]) {
-                "G" -> grass[key] = f[3].split(',').map { it.toInt() }.toIntArray() to pairs(f[4])
-                "W" -> water[key] = f[3].toInt() to pairs(f[4])
-                "F" -> fishMaps[key] = f[3].toInt()
-                "T" -> treeMaps[key] = f[3].toInt()
-                "R" -> rockMaps[key] = f[3].toInt()
-                "FG" -> fish[f[1].toInt()] = f.drop(2).map { rows(it) }
-                "TS" -> trees[f[1].toInt()] = rows(f[2]) to rows(f.getOrElse(3) { "" })
-            }
-        }
-        Wild(grass, water, fishMaps, treeMaps, rockMaps, fish, trees)
-    }
-
-    /** Trainer key (class << 8 | party) -> its team, the normal builds' and the faithful builds' own. */
-    private fun bosses(raw: List<String>): Map<Int, List<Slot4>> =
-        raw.asSequence().flatMap { it.lineSequence() }.filter { it.isNotBlank() }.associate { line ->
-            val f = line.split('|')
-            (f[1].toInt() shl 8 or f[2].toInt()) to f[4].split(';').map { m ->
-                val p = m.split(' ')
-                Slot4(p[0].toInt(), p[1].toInt(), p[2].toInt(), p.getOrElse(3) { "" }.split(',').filter { it.isNotEmpty() }.map { it.toInt() })
-            }
-        }
-
-    private class Slot4(val level: Int, val species: Int, val item: Int, val moves: List<Int>)
-
-    private val normalBosses by lazy { bosses(PC_BOSSES_RAW) }
-    private val faithfulBosses by lazy { normalBosses + bosses(PC_BOSSES_FAITHFUL_RAW) }
+    private val wild by lazy { Gen2WildTables(PC_WILD_RAW) }
+    private val normalBosses by lazy { Gen2BossTables(PC_BOSSES_RAW) }
+    private val faithfulBosses by lazy { normalBosses.teams + Gen2BossTables(PC_BOSSES_FAITHFUL_RAW).teams }
 
     /** The trainer key NEXT BOSS uses for boss [name] (the generator's key: FALKNER, WILL_2, ...). */
-    fun trainer(name: String): Int = trainerKeys[name] ?: error("no boss $name")
-
-    private val trainerKeys: Map<String, Int> by lazy {
-        PC_BOSSES_RAW.asSequence().flatMap { it.lineSequence() }.filter { it.isNotBlank() }.associate { line ->
-            val f = line.split('|')
-            f[0] to (f[1].toInt() shl 8 or f[2].toInt())
-        }
-    }
+    fun trainer(name: String): Int = normalBosses.trainer(name)
 
     /** AdjustLevelForBadges: a level up to MAX_LEVEL as it is; past it, BadgeBaseLevels[badges] + (level - LEVEL_FROM_BADGES),
      * kept within 2..99. */
@@ -138,10 +78,7 @@ object PolishedCrystalWorld : GuideWorld {
         val badges = progress?.polishedBadges() ?: 0
         val tod = progress.polishedTimeOfDay()
         val grassTime = if (tod == PC_EVE) PC_NITE else tod
-        fun merge(rows: List<Triple<Int, IntRange, Double>>): List<EncounterSlot> =
-            rows.groupBy { it.first }.map { (species, g) ->
-                EncounterSlot(species, g.minOf { it.second.first }, g.maxOf { it.second.last }, Math.round(g.sumOf { it.third }).toInt())
-            }.sortedByDescending { it.percent }
+        fun merge(rows: List<Triple<Int, IntRange, Double>>) = wild.merge(rows)
         val grass = wild.grass[key]?.takeIf { it.first[grassTime] > 0 }?.second?.drop(grassTime * GRASS_ODDS.size)?.take(GRASS_ODDS.size)
             ?.mapIndexed { i, s -> Triple(s.species, level(s.level, badges).let { it..it }, GRASS_ODDS[i].toDouble()) }
             ?.let(::merge).orEmpty()
@@ -154,7 +91,7 @@ object PolishedCrystalWorld : GuideWorld {
                 Triple(species, level(s.level, badges).let { it..it }, s.odds * 100.0 / 256)
             })
         }
-        fun trees(rows: List<Slot>) = merge(rows.map { Triple(it.species, level(it.level, badges).let { l -> l..l }, it.odds.toDouble()) })
+        fun trees(rows: List<Gen2WildTables.Slot>) = merge(rows.map { Triple(it.species, level(it.level, badges).let { l -> l..l }, it.odds.toDouble()) })
         val tree = wild.treeMaps[key]?.let { wild.trees[it] }
         return MapEncounters(
             grass = grass,
@@ -170,7 +107,7 @@ object PolishedCrystalWorld : GuideWorld {
 
     override fun party(trainer: Int, progress: SaveProgress?): List<TrainerMon> {
         val badges = progress?.polishedBadges() ?: 0
-        val table = if (activeGen2.polishedFaithful) faithfulBosses else normalBosses
+        val table = if (activeGen2.polishedFaithful) faithfulBosses else normalBosses.teams
         return table[trainer].orEmpty().map { TrainerMon(it.species, level(it.level, badges), it.item, it.moves) }
     }
 

@@ -41,8 +41,6 @@ data class DexFlags(
 
 /** struct Pokedex in SaveBlock2 (+0x18: owned[52] at +0x10, seen[52] at +0x44) + SaveBlock1's copies. */
 private fun vanillaDexFlags(seen1: Long, seen2: Long) = DexFlags(DexFlagBlock.SAVE_BLOCK_2, 0x5C, 0x28, 52, listOf(seen1, seen2))
-val FIRERED_DEX_FLAGS = vanillaDexFlags(0x5F8, 0x3A18)
-val EMERALD_DEX_FLAGS = vanillaDexFlags(0x988, 0x3B24)
 
 /**
  * pokeemerald-expansion keeps a species' whole dex page in its gSpeciesInfo
@@ -217,19 +215,6 @@ data class BaseStatsLayout(
 
 val VANILLA_BASE_STATS = BaseStatsLayout()
 
-val POKEDEX_FIRERED_REV1 = PokedexTables(
-    entries = 0x0844E8B0L,
-    frontPics = 0x0823511CL,
-    palettes = 0x0823737CL,
-    speciesInfo = 0x082547F4L,
-    speciesToNational = 0x0825205EL,
-    abilityNames = 0x0824FCB0L,
-    footprints = 0x0843FB20L,
-    evolutions = 0x082597C4L,
-    tmhmLearnsets = 0x08252C38L,
-    tmhmMoves = 0x0845A604L,
-)
-
 /**
  * CFRU moves the flags out of struct Pokedex into SaveBlock1 (the old bag
  * area): seen at +0x310, owned at +0x38D, 1000 bits each, no anti-cheat copies.
@@ -281,33 +266,6 @@ val POKEDEX_UNBOUND_FR = POKEDEX_UNBOUND.copy(
     probeCategory = "Graine",
 )
 
-/** LeafGreen: FireRed's layout, its own tables (and dex text). */
-val POKEDEX_LEAFGREEN_REV0 = PokedexTables(
-    entries = 0x0844E270L,
-    frontPics = 0x08235088L,
-    palettes = 0x082372E8L,
-    speciesInfo = 0x08254760L,
-    speciesToNational = 0x08251FCAL,
-    abilityNames = 0x0824FC1CL,
-    footprints = 0x0843F8ECL,
-    evolutions = 0x08259734L,
-    tmhmLearnsets = 0x08252BA4L,
-    tmhmMoves = 0x08459FC4L,
-)
-
-val POKEDEX_LEAFGREEN_REV1 = PokedexTables(
-    entries = 0x0844E2E0L,
-    frontPics = 0x082350F8L,
-    palettes = 0x08237358L,
-    speciesInfo = 0x082547D0L,
-    speciesToNational = 0x0825203AL,
-    abilityNames = 0x0824FC8CL,
-    footprints = 0x0843F95CL,
-    evolutions = 0x082597A4L,
-    tmhmLearnsets = 0x08252C14L,
-    tmhmMoves = 0x0845A034L,
-)
-
 /** Ruby (rev 1 and rev 2 share every address): Emerald's flag rules,
  * seen copies at SaveBlock1+0x938/+0x3A8C, two-page dex text. */
 val POKEDEX_RUBY = PokedexTables(
@@ -343,26 +301,6 @@ val POKEDEX_SAPPHIRE = POKEDEX_RUBY.copy(
     regionalOrder = 0x081FC7F4L,
     tmhmLearnsets = 0x081FD098L,
     tmhmMoves = 0x083764ACL,
-)
-
-val POKEDEX_EMERALD = PokedexTables(
-    entries = 0x0856B5B0L,
-    frontPics = 0x0830A18CL,
-    palettes = 0x08303678L,
-    speciesInfo = 0x083203CCL,
-    speciesToNational = 0x0831DC82L,
-    abilityNames = 0x0831B6DBL,
-    footprints = 0x0856E694L,
-    entryStride = 0x20,
-    regionalCount = 202, // HOENN_DEX_COUNT (Jirachi and Deoxys included)
-    regionName = "HOENN",
-    regionalOrder = 0x0831DFB8L,
-    flags = EMERALD_DEX_FLAGS,
-    nationalMagicOff = 2,
-    nationalMagic = 0xDA,
-    evolutions = 0x0832531CL,
-    tmhmLearnsets = 0x0831E898L,
-    tmhmMoves = 0x08615B94L,
 )
 
 /*
@@ -797,6 +735,70 @@ val POKEDEX_IMPERIUM = PokedexTables(
     expansion = SpeciesInfoDex(stride = 0x104, paletteOff = 0x60, footprintOff = 0x80, levelUpOff = 0x94, teachableOff = 0x98, evolutionsOff = 0xA0),
     evoLayout = EvoLayout(EvoScheme.EXPANSION),
     flags = DexFlags(DexFlagBlock.SAVE_BLOCK_1, 0x2F58, 0x2FD9, 129),
+    nationalMagicOff = 2,
+    nationalMagic = 0xDA,
+)
+
+/**
+ * Pokémon Wishes of Tomorrow v1.2.6 (expansion 1.15.3): the page from gSpeciesInfo (0x104-byte entries with Imperium's
+ * field offsets: natDexNum +0x3C, category +0x1F, text +0x4C, smol front pic +0x58, a plain palette +0x60, footprint
+ * +0x80; level-up / teachable / evolutions +0x94 / +0x98 / +0xA0, 12-byte evolution records with a condition list),
+ * gAbilitiesInfo 0x08CC1EFC (0x1C-byte records, from its RHHEXP block). Its dex is expansion's own Hoenn list (214, u32
+ * national numbers at 0x08CC18B0, what HoennToNationalOrder reads), then National (1025) once unlocked; flags in
+ * SaveBlock1 +0x359C / +0x361D (the GF header's seen offset). Checked against its own dex screen on the headless save:
+ * SEEN 1 / OWN 1 in the regional list (PIKACHU, No. 164; the party's other four aren't in it).
+ */
+val POKEDEX_WISHES = PokedexTables(
+    entries = 0,
+    frontPics = 0,
+    palettes = 0,
+    speciesInfo = 0x087011C0L,
+    speciesToNational = 0,
+    abilityNames = 0x08CC1EFCL,
+    footprints = 0,
+    abilityNameLength = 17,
+    abilityNameStride = 0x1C,
+    categorySuffix = "Pokémon",
+    speciesCount = 1581,
+    nationalCount = 1025,
+    regionalCount = 214,
+    regionName = "HOENN",
+    regionalOrder = 0x08CC18B0L,
+    regionalOrderStride = 4,
+    expansion = SpeciesInfoDex(stride = 0x104, paletteOff = 0x60, footprintOff = 0x80, levelUpOff = 0x94, teachableOff = 0x98, evolutionsOff = 0xA0),
+    evoLayout = EvoLayout(EvoScheme.EXPANSION_PARAMS, record = 12, conditionsEnd = 39),
+    flags = DexFlags(DexFlagBlock.SAVE_BLOCK_1, 0x359C, 0x361D, 129),
+    nationalMagicOff = 2,
+    nationalMagic = 0xDA,
+)
+
+/**
+ * Pokémon Dreamstone Mysteries (expansion 1.11.2): Imperium's gSpeciesInfo page (the same 0x104-byte entries and
+ * offsets; gSpeciesInfo 0x087B0160, gAbilitiesInfo 0x08E65E98), its own regional order - 315 national numbers from
+ * 0x08E65C20 (GOTHITA first; CHIKORITA No. 054, OSHAWOTT No. 224) - and the flags in its SaveBlock1 (+0x3494 seen,
+ * +0x3515 caught; the bits of the five a new game was given). Checked against its own dex screen headless: "No054
+ * Chikorita, Leaf POKéMON", 2'11", 14.1 lbs., SEEN 2 / OWN 2 (of the five, only CHIKORITA and OSHAWOTT are in its
+ * list). The game titles that list HOENN (expansion's leftover word); the app names the region the game is in.
+ */
+val POKEDEX_DREAMSTONE = PokedexTables(
+    entries = 0,
+    frontPics = 0,
+    palettes = 0,
+    speciesInfo = 0x087B0160L,
+    speciesToNational = 0,
+    abilityNames = 0x08E65E98L,
+    footprints = 0,
+    abilityNameLength = 17,
+    abilityNameStride = 0x1C,
+    categorySuffix = "Pokémon",
+    speciesCount = 1524,
+    nationalCount = 1025,
+    regionalCount = 315,
+    regionName = "CORMORIA",
+    regionalOrder = 0x08E65C20L,
+    expansion = SpeciesInfoDex(stride = 0x104, paletteOff = 0x60, footprintOff = 0x80, levelUpOff = 0x94, teachableOff = 0x98, evolutionsOff = 0xA0),
+    evoLayout = EvoLayout(EvoScheme.EXPANSION),
+    flags = DexFlags(DexFlagBlock.SAVE_BLOCK_1, 0x3494, 0x3515, 129),
     nationalMagicOff = 2,
     nationalMagic = 0xDA,
 )

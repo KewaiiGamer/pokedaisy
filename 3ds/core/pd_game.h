@@ -1,7 +1,7 @@
 // Which game is running and where its RAM globals live - the C twin of the
 // app's NativeConfig (app/.../companion/data/NativeReader.kt). Only the
-// fields this port reads so far; the addresses are copied from there (each
-// comes from a pret decomp build byte-identical to retail), keep in sync.
+// fields this port reads so far; the values are generated from gamedata/,
+// like the app's (pd_configs_gen.h, from gamedata/targets/3ds.toml).
 #ifndef PD_GAME_H
 #define PD_GAME_H
 
@@ -39,6 +39,9 @@ struct pd_config {
     // species), gMonIconPaletteIndices (u8) and gMonIconPaletteTable
     // ({data, tag}, 8 bytes). 0 = none.
     uint32_t monIconTable, monIconPaletteIndices, monIconPaletteTable;
+    // The bag's icons: sItemIconTable, {tiles, palette} (both LZ77) every itemIconStride bytes. 0 = none.
+    uint32_t itemIconTable;
+    int itemIconStride;
     // gBagPockets: five {slots pointer, capacity} pairs, 8 bytes apart;
     // bagOrder[i] is the pocket (PD_POCKET_*) the game keeps at index i.
     uint32_t bagPockets;
@@ -80,6 +83,37 @@ struct pd_config {
     int stickerVar;
     int frontierSymbolFlag;
     uint32_t museumWinnersOff, frontierBpOff; // in SaveBlock1 / SaveBlock2
+
+    // FLY (the app's FlyFns / HealWarp, Fly.kt): the game's own functions, called between frames (the Linux host's
+    // quick menu). FlagGet, SetUpFieldMove_Fly, GetMapsecType, FadeScreen, Lock- / UnlockPlayerFieldControls and
+    // SetFlyWarpDestination - or, Emerald's way (flyHealTo set), SetWarpDestinationToHealLocation /
+    // SetWarpDestinationToMapWarp + ReturnToFieldFromFlyMapSelect; flyCrcs = CRC32 of each one's first 32 bytes, in
+    // that order. gPartyMenu.slotId (the cut-in's Pokémon), sMapFlyDestinations ({group, num, heal} per map section
+    // from flyFirstMapsec), the GetMapsecType answers that fly and the sections past the table that do (0 = none).
+    // flyFlagGet 0 = no FLY.
+    uint32_t flyFlagGet, flySetUp, flyGetMapsecType, flyFade, flyLock, flyUnlock, flyWarp;
+    int flyBadgeFlag;
+    uint32_t flyPartySlot, flyDestinations;
+    int flyFirstMapsec, flyCount;
+    uint32_t flyCrcs[9];
+    int flyTypes[4], flyExtra[4];
+    uint32_t flyHealTo, flyMapWarp, flyReturn, flySaveBlock2Ptr; // gSaveBlock2Ptr: playerGender at +8
+    int flySpecial[4][2]; // {map section, heal location} taken before the table's
+    int flyGenderMapsec, flyMaleHeal, flyFemaleHeal; // the home town: by the player's gender
+
+    // REPEL and PC anywhere (the app's FieldItemFns / PcFns, FieldItems.kt / Pc.kt): VarGet, VarSet,
+    // CheckBagHasItem, RemoveBagItem and ArePlayerFieldControlsLocked (fieldCrcs, in that order), VAR_REPEL_STEP_COUNT
+    // and the Repels' ids, gItems (holdEffectParam = a Repel's steps, itemNameLen + 5 into struct Item unless
+    // itemParamOffset); ScriptContext_SetupScript, ShowPokemonStorageSystemPC's index in gSpecials (whose entry is
+    // pcFn), their CRCs and where the PC's script goes. fieldVarGet 0 = none.
+    uint32_t fieldVarGet, fieldVarSet, fieldCheckBag, fieldRemoveBag, fieldLocked;
+    uint32_t fieldCrcs[5];
+    int repelVar, repelItems[4];
+    uint32_t gItems;
+    int itemNameLen, itemParamOffset;
+    uint32_t pcSetupScript;
+    int pcSpecial;
+    uint32_t pcSpecials, pcFn, pcCrcs[2], pcScript;
 };
 
 enum pd_card_style { PD_CARD_NONE, PD_CARD_KANTO, PD_CARD_HOENN };

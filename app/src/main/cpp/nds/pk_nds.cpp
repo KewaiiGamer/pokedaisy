@@ -14,6 +14,7 @@
 #include "pk_nds_call.h"
 #include "pk_nds_wide.h"
 #include "pk_nds_music.h"
+#include "pk_nds_gl.h"
 
 #include <NDS.h>
 #include <NDSCart.h>
@@ -70,6 +71,11 @@ struct Ds {
     bool drawn = true;                       // the last frame was drawn (pk_nds_frame_drawn)
     int fieldBits = 0;                       // the field read after the last frame
     bool wildOff = false;                    // WILD ENCOUNTERS OFF (pk_nds_field.cpp holds the map's rates at 0)
+    int scaleWant = 1;                       // DS RESOLUTION: 1 = the software renderer, 2-8 the GPU's (pk_nds_gl.h)
+    bool scalePending = false;
+    bool presented = false;                  // the last frame went out through the GPU path's window
+    int winX = 0, winY = 0, winW = PK_NDS_W, winH = PK_NDS_H;   // EXPAND's window (the screen without it)
+    u32 topArgb[PK_NDS_W * PK_NDS_H] {};     // GPU mode: the top screen's 1x copy as melonDS draws (EXPAND reads it)
 };
 
 Ds* ds = nullptr;
@@ -234,6 +240,7 @@ void pk_nds_deinit(void)
     if (ds->nds) {
         pk_nds_flush_save();
         pk_nds_wide_set(nullptr, false);
+        pk_nds_gl_end(ds->nds);
         pk_nds_music_end(true);
         ds->nds->Stop();
         delete ds->nds;
@@ -261,6 +268,12 @@ void pk_nds_run_frame(void)
 {
     if (!ds) return;
     NDS* nds = ds->nds;
+    if (ds->scalePending) {
+        ds->scalePending = false;
+        pk_nds_gl_set_scale(nds, ds->scaleWant);
+    }
+    bool gpu = pk_nds_gl_scale() > 1;
+    if (gpu) pk_nds_gl_begin_frame();
     nds->SetKeyMask(~ds->keys & 0xFFF);
     u32 t = touch.load();
     if (t & 0x80000000u) nds->TouchScreen((u16) ((t >> 8) & 0xFF), (u16) (t & 0xFF));
@@ -278,7 +291,8 @@ void pk_nds_run_frame(void)
     nds->GPU.SkipDrawNext = !drawNext;
     nds->RunFrame();
     int fb = nds->GPU.FrontBuffer;
-    if (draw) {
+    // GPU mode: the framebuffers hold the 2D lines for the compositor; the screens come from it (below).
+    if (draw && !gpu) {
         convert(nds->GPU.Framebuffer[fb][0].get(), ds->top);
         convert(nds->GPU.Framebuffer[fb][1].get(), ds->bottom);
     }
@@ -286,10 +300,25 @@ void pk_nds_run_frame(void)
     ds->fieldBits = pk_nds_field_bits();
     pk_nds_call_frame(nds, ds->field);
     if (ds->wide) {
-        // The overworld only: the field map on screen with nothing over it (a text box keeps it).
-        bool overworld = (ds->fieldBits & PK_NDS_FIELD_SCREEN) && !(ds->fieldBits & (PK_NDS_FIELD_MENU | PK_NDS_FIELD_BATTLE));
-        pk_nds_wide_frame(nds, nds->GPU.Framebuffer[fb][0].get(), draw, overworld, drawNext,
-            (ds->fieldBits & PK_NDS_FIELD_BATTLE) != 0);
+        // The overworld only: the field map on screen with nothing over it (a text box keeps it) - or a battle that's
+        // all 3D like it (Black's).
+        bool inBattle = (ds->fieldBits & PK_NDS_FIELD_BATTLE) != 0;
+        bool overworld = ((ds->fieldBits & PK_NDS_FIELD_SCREEN) && !(ds->fieldBits & (PK_NDS_FIELD_MENU | PK_NDS_FIELD_BATTLE))) ||
+            (inBattle && pk_nds_battle_3d(ds->field));
+        bool battle = inBattle && pk_nds_battle_margins(ds->field);
+        pk_nds_wide_gpu_want(overworld || battle);
+        pk_nds_wide_frame(nds, gpu ? ds->topArgb : nds->GPU.Framebuffer[fb][0].get(), draw, overworld, drawNext, battle);
+    }
+    ds->presented = false;
+    if (gpu && draw) {
+        bool win = ds->wide && ds->winW > 0 && ds->winH > 0;
+        ds->presented = pk_nds_gl_frame(nds, win ? ds->winX : 0, win ? ds->winY : 0, win ? ds->winW : PK_NDS_W,
+            win ? ds->winH : PK_NDS_H, ds->top, ds->bottom);
+        // The copy as melonDS's own frames are (0xAARRGGBB), for EXPAND's checks on the next frame.
+        for (int i = 0; i < PK_NDS_W * PK_NDS_H; i++) {
+            u32 p = ds->top[i];
+            ds->topArgb[i] = 0xFF000000u | ((p & 0xFF) << 16) | (p & 0xFF00) | ((p >> 16) & 0xFF);
+        }
     }
     if (ds->saveDirty && ++ds->saveQuiet >= SAVE_QUIET_FRAMES) pk_nds_flush_save();
 }
@@ -453,8 +482,8 @@ int pk_nds_field_bits(void)
 {
     if (!ds || !ds->field) return 0;
     int bits = pk_nds_field_state(ds->field, mainRead32, mainWrite32, ds->wildOff);
-    if ((bits & PK_NDS_FIELD_TEXT) && !pk_nds_bg3_tiles(ds->nds)) bits &= ~PK_NDS_FIELD_TEXT;
-    if ((bits & PK_NDS_FIELD_BATTLE) && pk_nds_battle_command(ds->field, mainRead32) == PK_NDS_BATTLE_SELECTING)
+    if ((bits & PK_NDS_FIELD_TEXT) && !pk_nds_bg3_tiles(ds->nds, ds->field->textBg ? ds->field->textBg : 3)) bits &= ~PK_NDS_FIELD_TEXT;
+    if ((bits & PK_NDS_FIELD_BATTLE) && pk_nds_battle_command(ds->field, mainRead32) == pk_nds_battle_selecting(ds->field))
         bits |= PK_NDS_FIELD_BATTLE_INPUT;
     return bits;
 }
@@ -462,7 +491,10 @@ int pk_nds_field_bits(void)
 int pk_nds_bgm(void)
 {
     if (!ds || !ds->field || !ds->field->currentBgm) return -1;
-    return (int) (mainRead32(ds->field->currentBgm) & 0xFFFF);
+    // Gen 5: a stack of songs (a battle's over the field's), the playing one at its depth.
+    u32 depth = ds->field->bgmDepth ? mainRead32(ds->field->bgmDepth) : 0;
+    if (depth > 7) return -1;
+    return (int) (mainRead32(ds->field->currentBgm + 0x1C * depth) & 0xFFFF);
 }
 
 bool pk_nds_bgm_fading(void)
@@ -533,7 +565,29 @@ bool pk_nds_wide_draw(uint32_t* out, int x, int y, int w, int h)
 void pk_nds_wide_window(int x, int y, int w, int h)
 {
     pk_nds_wide_need(-x, x + w - PK_NDS_W, -y, y + h - PK_NDS_H);
+    if (!ds) return;
+    ds->winX = x;
+    ds->winY = y;
+    ds->winW = w;
+    ds->winH = h;
 }
+
+void pk_nds_set_scale(int scale)
+{
+    if (!ds) return;
+    ds->scaleWant = scale;
+    ds->scalePending = true;
+}
+
+int pk_nds_scale(void) { return ds ? pk_nds_gl_scale() : 1; }
+
+int pk_nds_gpu_supported(void) { return pk_nds_gl_supported(); }
+
+bool pk_nds_presented(void) { return ds && ds->presented; }
+
+bool pk_nds_gpu_frame_info(int64_t timestamp, int32_t out[6]) { return pk_nds_gl_frame_info(timestamp, out); }
+
+void pk_nds_set_window(ANativeWindow* window) { pk_nds_gl_set_window(window); }
 
 int pk_nds_wide_scene(void)
 {

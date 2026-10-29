@@ -233,6 +233,7 @@ fun CompanionScreen(
                 "GUIDE" -> guide != null || id in cachedTabs
                 "CARD" -> card != null && cardArt?.style == card.style || id in cachedTabs
                 "ACHIEVEMENTS" -> achievements != null
+                "NUZLOCKE" -> com.pokedaisy.app.companion.Nuzlocke.on && com.pokedaisy.app.companion.Nuzlocke.supports(game)
                 else -> true
             }
         }
@@ -360,6 +361,13 @@ fun CompanionScreen(
                     visible = current == "ITEMS" && hasItemsBackdrop(game),
                     enter = fadeIn(tween(200)), exit = fadeOut(tween(200)), label = "tab-backdrop",
                 ) { ItemsBackdrop(game, Modifier.fillMaxSize()) }
+                // The Pokédex's own screen (Black's green grid), the same way.
+                dsDexPattern(game)?.let { dex ->
+                    AnimatedVisibility(
+                        visible = current == "DEX",
+                        enter = fadeIn(tween(200)), exit = fadeOut(tween(200)), label = "dex-backdrop",
+                    ) { DsBackdrop(dex) }
+                }
             }
 
             val tabBar: @Composable () -> Unit = {
@@ -527,6 +535,8 @@ fun CompanionScreen(
                                 onConfigure = { settingsUi.page = Page.TABS; openTab("SETTINGS") },
                                 usable = { !snapshot.unsupported || it == "ACHIEVEMENTS" },
                             )
+                        } else if (tab == "NUZLOCKE") {
+                            NuzlockeScreen(snapshot.regionMapSectionId, snapshot.location.mapSecName)
                         } else if (tab == "ACHIEVEMENTS") {
                             AchievementsScreen(achievements, focus = achievementFocus, onFocused = { achievementFocus = null })
                         } else if (tab == "STATES") {
@@ -633,6 +643,15 @@ fun CompanionScreen(
                 },
             )
 
+            // A feature tip, when this companion has a screen of its own (one screen: it's over the game, the HUD's view).
+            if (settings != null) {
+                FeatureTipHost(
+                    active = settings.showsTips, roomy = true,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), cardModifier = Modifier.fillMaxWidth(),
+                    maxWidth = 1200.dp, keys = settings::tipKeys, onTry = settings::tryTip,
+                )
+            }
+
             // PLAY TOGETHER ONLY: the partner's proposal over whatever tab is open, on the touchable screen when the game screen isn't
             // (settings.coopProposalHere). BACK / a tap outside hides it until the next proposal; only NO declines.
             if (settings?.coopProposalHere == true && settings.coopEnabled) {
@@ -705,6 +724,7 @@ internal fun companionTabLabel(id: String): String = when (id) {
     "DEX" -> tr("DEX")
     "MAP" -> tr("MAP")
     "GUIDE" -> tr("GUIDE")
+    "NUZLOCKE" -> tr("NUZLOCKE")
     "CARD" -> tr("CARD")
     "STATES" -> tr("STATES")
     "BATTLE" -> tr("BATTLE")
@@ -715,7 +735,7 @@ internal fun companionTabLabel(id: String): String = when (id) {
         GameKind.ROWE -> "INVENTORY"
         GameKind.MARIOMON -> "POCKETS"
         GameKind.CRYSTAL, GameKind.CRYSTAL_CLEAR, GameKind.PRISM, GameKind.GOLD, GameKind.SILVER -> "PACK"
-        GameKind.YELLOW, GameKind.RED, GameKind.BLUE -> tr("ITEM")   // Gen 1's START menu (the European carts' own word)
+        GameKind.YELLOW, GameKind.RED, GameKind.BLUE, GameKind.PURE_RED, GameKind.PURE_BLUE -> tr("ITEM")   // Gen 1's START menu (the European carts' own word)
         else -> tr("BAG")
     }
     else -> id
@@ -758,7 +778,7 @@ val LocalShoulderHints = androidx.compose.runtime.staticCompositionLocalOf { fal
 
 /** The companion's height in GBA pixels (rememberGbaTextMetrics' unit) below which its main text goes a step smaller: the
  * RG DS's 480 px are 240, the Thor's 1080 px 360, the Duo Lite's 960 px 320. */
-private const val SHORT_COMPANION_UNITS = 280
+private const val SHORT_COMPANION_UNITS = 316
 
 /** The companion is on a short screen ([isShortCompanion]): its text a step smaller, its fixed-size buttons smaller too
  * ([NavButtonSize], [SETTINGS_CHIP_WIDTH]). */
@@ -862,6 +882,8 @@ internal fun TabChip(label: String, selected: Boolean, modifier: Modifier = Modi
             if (selected) OptionColors.valueShadow else OptionColors.labelShadow,
             m,
             bold = gameBoldLabels(),
+            // A long label (NUZLOCKE on a full bar) narrows its letters rather than being cut short.
+            modifier = Modifier.narrowToFit(m),
         )
     }
 }

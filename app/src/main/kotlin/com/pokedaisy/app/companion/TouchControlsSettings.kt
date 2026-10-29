@@ -40,6 +40,8 @@ enum class TouchButton(val label: String, val gba: Int, val extra: Boolean = fal
     A("A", 1), B("B", 2),
     L("L", 512), R("R", 256),
     START(tk("START"), 8), SELECT(tk("SELECT"), 4),
+    /** The DS's own X and Y, so only shown in a DS game. */
+    X("X", com.pokedaisy.app.MgbaCore.Key.X), Y("Y", com.pokedaisy.app.MgbaCore.Key.Y),
     /** A tap turns FF on / off, held = fast while held. */
     FF(tk("FF"), 0, extra = true),
     /** Opens the QUICK MENU (a phone has no L3). */
@@ -157,10 +159,11 @@ data class TouchControlsStyle(
     val hasCustom get() = !portrait.isEmpty || !landscape.isEmpty
 
     /** What a control-by-control layout is built from: the GBA buttons and the extras switched on. */
-    fun shown(gameBoy: Boolean): List<TouchButton> = TouchButton.entries.filter { b ->
+    fun shown(gameBoy: Boolean, ds: Boolean = false): List<TouchButton> = TouchButton.entries.filter { b ->
         when {
             b.extra -> b in extras
             gameBoy && (b == TouchButton.L || b == TouchButton.R) -> false
+            !ds && (b == TouchButton.X || b == TouchButton.Y) -> false
             else -> true
         }
     }
@@ -183,4 +186,6 @@ data class TouchStage(
     val companion: Rect? = null,
     val gameAspect: Float = 1.5f,
     val gameBoy: Boolean = false,
+    /** A DS game: X and Y join A and B. */
+    val ds: Boolean = false,
 )

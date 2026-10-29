@@ -1,0 +1,112 @@
+# FieldItemFns's fields (FieldItems.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | int_set | long_set |
+# int_map | ref (a Kotlin val's name, or a record in gamedata/gen3/records/); record names the schema of the
+# record a ref names (its defaults stand in where there is none).
+
+version = 1
+kotlin_class = 'FieldItemFns'
+kotlin_file = 'FieldItems.kt'
+
+[field.varGet]
+kotlin = 'Long'
+type = 'long'
+
+[field.varSet]
+kotlin = 'Long'
+type = 'long'
+
+[field.checkBagHasItem]
+kotlin = 'Long'
+type = 'long'
+
+[field.removeBagItem]
+kotlin = 'Long'
+type = 'long'
+
+[field.fieldControlsLocked]
+kotlin = 'Long'
+type = 'long'
+
+# VAR_REPEL_STEP_COUNT (FireRed 0x4020, Emerald 0x4021).
+[field.repelVar]
+kotlin = 'Int'
+type = 'int'
+
+# gItems: struct Item, holdEffectParam at +0x13 (a Repel's steps) with [itemNameLen] 14.
+[field.items]
+kotlin = 'Long'
+type = 'long'
+
+# CRC32 of each function's first 32 bytes (varGet, varSet, checkBagHasItem, removeBagItem,
+# fieldControlsLocked): a build that moved them is left alone.
+[field.codeCrcs]
+kotlin = 'List<Long>'
+type = 'long_list'
+
+# USE on a party Pokémon and GIVE; null = the Repels only.
+[field.party]
+kotlin = 'PartyItemFns?'
+type = 'ref'
+record = 'gen3_party_items'
+default = 'none'
+
+# struct Item's name length: 14 (44-byte records), Japanese 10 (40). Every field after it moves with it.
+[field.itemNameLen]
+kotlin = 'Int'
+type = 'int'
+default = 14
+
+# FLY from the MAP tab (Fly.kt); null = none.
+[field.fly]
+kotlin = 'FlyFns?'
+type = 'ref'
+record = 'gen3_fly'
+default = 'none'
+
+# holdEffectParam's offset in struct Item where a build moved it off [itemNameLen] + 5 (Recharged Emerald dropped
+# the itemId field: 0x15 after its name[18]); null = the usual place.
+[field.itemParamOffset]
+kotlin = 'Int?'
+type = 'int'
+default = 'none'
+
+# Variables the game's own Task_UseRepel sets to 0 before the steps (Recharged Emerald: its Lure's), in its order.
+[field.repelClearVars]
+kotlin = 'List<Int>'
+type = 'int_list'
+default = []
+
+# Where Task_UseRepel keeps the Repel just used, for the game's "use another?" when it wears off; 0 = none.
+[field.lastRepelVar]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+# PC anywhere from the BAG tab (Pc.kt); null = none.
+[field.pc]
+kotlin = 'PcFns?'
+type = 'ref'
+record = 'gen3_pc'
+default = 'none'
+
+# USE / GIVE / TAKE from the bag; false = the table is there for FLY and the PC only (a game whose items the app
+# doesn't know the ids / gItems layout of: the expansion hacks) - and the Repels, where [checkBagHasItem],
+# [removeBagItem] and [items] are mapped (SoulGold).
+[field.bagActions]
+kotlin = 'Boolean'
+type = 'bool'
+default = true
+
+# The Repels' item ids (REPEL, SUPER, MAX: [REPEL_ITEMS] in every Gen 3 game; SoulGold's own 114..116).
+[field.repelItems]
+kotlin = 'Set<Int>'
+type = 'int_set'
+# REPEL_ITEMS: REPEL, SUPER REPEL, MAX REPEL
+default = [86, 83, 84]
+
+# The [repelVar] bit a Lure sets (newer expansion: 0x8000, its steps below it); a Repel can go on while a Lure
+# works, as the game's own ItemUseOutOfBattle_Repel allows. 0 = no Lures.
+[field.repelLureBit]
+kotlin = 'Int'
+type = 'int'
+default = 0

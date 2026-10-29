@@ -31,7 +31,7 @@ const games = new Set(data.matrix.rows.map((r) => r.game)).size;
           <h1><span class="red">POKE</span>DAISY</h1>
         </div>
         <div class="dialog f-dialog">
-          <p>Play your Pokémon games. See everything about them on your second screen, or right beside the game.</p>
+          <p>Play your Pokémon games. See everything about them on your second screen, or over the game.</p>
           <span class="more"><Pixel name="more" scale={1} /></span>
         </div>
         <div class="chips">
@@ -44,8 +44,6 @@ const games = new Set(data.matrix.rows.map((r) => r.game)).size;
 
       <div class="dev"><HeroDevice still /></div>
       <div class="dev1"><HeroSingleDevice still /></div>
-      <span class="tag t1 chip f-chip"><Pixel name="dual" scale={0.5} /> TWO SCREENS</span>
-      <span class="tag t2 chip f-chip"><Pixel name="single" scale={0.5} /> ONE SCREEN</span>
     </div>
   </body>
 </html>
@@ -81,10 +79,7 @@ const games = new Set(data.matrix.rows.map((r) => r.game)).size;
   .chip { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; line-height: 1; padding: 8px 12px; white-space: nowrap; }
 
   .dev .textbox, .dev1 .textbox { display: none; }
-  .dev { position: absolute; right: 56px; top: 24px; width: 380px; --px: 3px; }
-  .dev1 { position: absolute; left: 640px; top: 330px; width: 400px; --px: 3px; z-index: 2; }
-  .dev1 .device { max-width: none; filter: drop-shadow(12px 12px 0 rgba(29, 27, 38, 0.22)); }
-  .tag { position: absolute; z-index: 3; filter: drop-shadow(8px 8px 0 rgba(29, 27, 38, 0.14)); }
-  .t1 { right: 40px; top: 12px; }
-  .t2 { left: 664px; top: 306px; }
+  /* The Thor at the back on the right, the Retroid Pocket 5 in front under it, over only its bottom edge. */
+  .dev { position: absolute; right: 48px; top: 40px; width: 330px; }
+  .dev1 { position: absolute; left: 610px; top: 430px; width: 410px; z-index: 2; }
 </style>

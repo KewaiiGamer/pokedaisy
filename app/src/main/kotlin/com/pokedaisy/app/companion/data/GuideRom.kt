@@ -50,6 +50,9 @@ data class GuideTables(
      * (Super Mariomon) - for [trainerMon]s without moves of their own, which get their level-up
      * moves (CreateNPCTrainerParty's GiveMonInitialMoveset). */
     val learnsetPairs: Boolean = false,
+    /** Bytes from one species' learnset pointer to the next: 4 for a pointer table, gSpeciesInfo's stride where the
+     * pointers live in it ([learnsets] = gSpeciesInfo + its levelUpLearnset offset: Wishes of Tomorrow). */
+    val learnsetStride: Int = 4,
     /** More gTrainers tables a hack picks between (Amethyst's per difficulty): a
      * trainer id or'd with (k + 1) << [TRAINER_TABLE_SHIFT] reads table k, and
      * an empty record there falls back to [trainers], as the game does. */
@@ -77,6 +80,9 @@ data class GuideTables(
     val wildSetVars: Map<Int, Int> = emptyMap(),
     /** A map's second wild header, right after its first, is its night set, picked by the game's clock (Lazarus). */
     val nightWild: NightWild? = null,
+    /** The save's progress also carries SaveBlock2's trainer ID ([GBA_VAR_TRAINER_ID]): Wishes of Tomorrow's randomizer
+     * swaps the wild Pokémon by it ([WishesRandomizer]). */
+    val trainerIdVar: Boolean = false,
 )
 
 /** GetCurrentMapWildMonHeaderId's `i++` at night: the next header when it's the same map, while gLocalTime's hour
@@ -90,6 +96,9 @@ data class NightWild(val hourAddr: Long, val day: IntRange = 7..19, val skipGrou
 
 /** The game's clock hour (gLocalTime.hours, 0-23) as a var past the save's own, like the DS games' [GEN4_VAR_HOUR]. */
 const val GBA_VAR_HOUR = 0x10000
+
+/** SaveBlock2's trainer ID (+0xA) as two vars past the save's own, low half first ([GuideTables.trainerIdVar]). */
+const val GBA_VAR_TRAINER_ID = 0x10010
 
 /** Which of map [group].[num]'s back-to-back wild headers the game reads now ([GuideTables.wildSetVars], else
  * [GuideTables.nightWild]'s clock); 0 = the first. */
@@ -113,53 +122,6 @@ const val TRAINER_TABLE_SHIFT = 16
 
 /** pokeemerald-expansion's struct TrainerMon: moves (u16 x4), species, held item, level. */
 data class TrainerMonLayout(val stride: Int, val movesOff: Int, val speciesOff: Int, val itemOff: Int, val levelOff: Int)
-
-val GUIDE_TABLES_FIRERED_REV1 = GuideTables(
-    trainers = 0x0823EB38L,
-    learnsets = 0x0825D824L,
-    wildHeaders = 0x083C9D28L,
-    mapGroups = 0x08352718L,
-)
-
-// LeafGreen, from pret/pokefirered's `leafgreen` / `leafgreen_rev1` maps (both
-// builds byte-identical to retail): same layouts, its own addresses and data
-// (version-exclusive wild encounters).
-val GUIDE_TABLES_LEAFGREEN_REV0 = GuideTables(
-    trainers = 0x0823EAA4L,
-    learnsets = 0x0825D794L,
-    wildHeaders = 0x083C9AF4L,
-    guide = GuideId.LEAFGREEN,
-    mapGroups = 0x08352688L,
-)
-
-val GUIDE_TABLES_LEAFGREEN_REV1 = GuideTables(
-    trainers = 0x0823EB14L,
-    learnsets = 0x0825D804L,
-    wildHeaders = 0x083C9B64L,
-    guide = GuideId.LEAFGREEN,
-    mapGroups = 0x083526F8L,
-)
-
-/**
- * Retail Emerald, from the pinned pokeemerald commit built unpatched with
- * agbcc - byte-identical to retail (sha1 f3ae0881…) - and its ELF
- * (arm-none-eabi-nm). The tables have FireRed's layouts (struct Trainer is
- * the same 0x28 bytes, same party structs, learnsets and wild headers);
- * SaveBlock1.flags / .vars sit at 0x1270 / 0x139C (offsetof, compiled with
- * agbcc) with 300 flag bytes. Trainer 265 is ROXANNE.
- */
-val GUIDE_TABLES_EMERALD = GuideTables(
-    trainers = 0x08310030L,
-    learnsets = 0x0832937CL,
-    wildHeaders = 0x08552D48L,
-    sb1FlagsOff = 0x1270,
-    sb1VarsOff = 0x139C,
-    flagBytes = 0x12C,
-    probeTrainer = 265,
-    probeName = "ROXANNE",
-    guide = GuideId.EMERALD,
-    mapGroups = 0x08486578L,
-)
 
 // The European Emerald releases: English's tables, moved (found through the
 // literal pools of English's code); ROXANNE is each game's own name for her.
@@ -263,7 +225,8 @@ fun readSaveProgress(c: MemoryReader, cfg: NativeConfig, t: GuideTables): SavePr
         c.readCoreMemory(sb1 + t.sb1FlagsOff, t.flagBytes), c.readCoreMemory(sb1 + t.sb1VarsOff, t.varCount * 2),
         t.flagBanks.map { it to c.readCoreMemory(sb1 + it.sb1Off, (it.count + 7) / 8) },
         t.varBanks.map { it to c.readCoreMemory(sb1 + it.sb1Off, it.count * 2) } +
-            listOfNotNull(t.nightWild?.let { SaveBank(GBA_VAR_HOUR, 0, 1) to byteArrayOf(c.readCoreMemory(it.hourAddr, 1).getOrElse(0) { -1 }, 0) }),
+            listOfNotNull(t.nightWild?.let { SaveBank(GBA_VAR_HOUR, 0, 1) to byteArrayOf(c.readCoreMemory(it.hourAddr, 1).getOrElse(0) { -1 }, 0) }) +
+            listOfNotNull(if (t.trainerIdVar) SaveBank(GBA_VAR_TRAINER_ID, 0, 2) to c.readCoreMemory(saveBlock2(c, cfg) + 0xA, 4) else null),
     )
 }
 
@@ -310,6 +273,7 @@ object GuideRomSource {
     /** A new ROM ([PokedexSource.romChanged]): two can share tables, so start over. */
     fun romChanged() {
         synchronized(this) { cachedFor = null }
+        GuideRandomizer.romChanged()
     }
 
     private fun sync(t: GuideTables) {
@@ -322,13 +286,17 @@ object GuideRomSource {
     }
 
     fun cachedEncounters(t: GuideTables, group: Int, num: Int, set: Int = 0): MapEncounters? =
-        if (cachedFor == t) encounters[group shl 8 or num or (set shl 16)] else null
+        if (cachedFor == t) encounters[group shl 8 or num or (set shl 16)]?.let(GuideRandomizer::wild) else null
 
     fun cachedParty(t: GuideTables, trainer: Int): List<TrainerMon>? = if (cachedFor == t) parties[trainer] else null
 
     /** The wild Pokémon of map [group].[num] - empty when it has none. [set]: which of its back-to-back headers
      * ([GuideTables.wildSetOf]). */
-    fun encounters(t: GuideTables, group: Int, num: Int, set: Int = 0): MapEncounters? {
+    fun encounters(t: GuideTables, group: Int, num: Int, set: Int = 0): MapEncounters? =
+        romEncounters(t, group, num, set)?.let(GuideRandomizer::wild)
+
+    /** [encounters] as the ROM's tables have them, before a randomizer's swaps ([GuideRandomizer]). */
+    private fun romEncounters(t: GuideTables, group: Int, num: Int, set: Int): MapEncounters? {
         sync(t)
         val key = group shl 8 or num
         encounters[key or (set shl 16)]?.let { return it }
@@ -384,6 +352,10 @@ object GuideRomSource {
         sync(t)
         val run = headerRun(t, group, num)
         if (run > 1) return (0 until run).mapNotNull { encounters(t, group, num, it) }
+        return romEncounterSets(t, group, num).map(GuideRandomizer::wild)
+    }
+
+    private fun romEncounterSets(t: GuideTables, group: Int, num: Int): List<MapEncounters> {
         val hdr = headerIndex(t)[group shl 8 or num] ?: return emptyList()
         val h = rd(hdr, wildHeaderStride(t))
         val sets = if (t.wildLayout != null) 1 else t.wildSets
@@ -460,7 +432,7 @@ object GuideRomSource {
     /** GiveMonInitialMoveset: the level-up moves up to [level], newest four, no repeats. */
     private fun defaultMoves(t: GuideTables, species: Int, level: Int): List<Int> {
         if (t.learnsets == 0L) return emptyList() // not located for this game: no moves shown
-        val ptr = u32le(rd(t.learnsets + species * 4L, 4), 0)
+        val ptr = u32le(rd(t.learnsets + species.toLong() * t.learnsetStride, 4), 0)
         if (!Gfx.inRom(ptr)) return emptyList()
         val moves = ArrayDeque<Int>()
         fun learn(move: Int) {
@@ -887,10 +859,11 @@ val GUIDE_TABLES_TMT2 = GuideTables(
 /** SoulGold v1.1.4: gTrainers[EASY][NORMAL][HARD][1164] at 0x0849606C - NORMAL 0x084A4CDC (0x34-byte records
  * like Heart and Soul's; 19 = Falkner), HARD 0x084B394C (used when SaveBlock2+0x16 bit 3 is set and the
  * record has a party). 0x28-byte TrainerMons (level +0x1C). gWildMonHeaders 0x094158D8 (15 refs, 139
- * headers of 84 bytes; set 0 the default). Flags 0x1898 (0x2AA bytes), vars 0x1B42. */
+ * headers of 84 bytes; set 0 the default). Flags 0x1898 (0x2AA bytes), vars 0x1C10 (not right after the flags: the
+ * fixtures' VAR_STARTER_SPECIES 0x4051 = 155 sits at +0x1CB2). */
 val GUIDE_TABLES_SOULGOLD = GuideTables(
     trainers = 0x084A4CDCL, learnsets = 0, wildHeaders = 0x094158D8L,
-    sb1FlagsOff = 0x1898, sb1VarsOff = 0x1B42, flagBytes = 0x2AA,
+    sb1FlagsOff = 0x1898, sb1VarsOff = 0x1C10, flagBytes = 0x2AA,
     probeTrainer = 19, probeName = "Falkner", guide = GuideId.SOULGOLD,
     trainerStride = 0x34, trainerNameOff = 0x1F, trainerNameLen = 11, trainerSizeOff = 0x2B, trainerPartyOff = 8,
     trainerMon = TrainerMonLayout(stride = 0x28, movesOff = 0x0C, speciesOff = 0x14, itemOff = 0x16, levelOff = 0x1C),
@@ -986,6 +959,68 @@ val GUIDE_TABLES_TEAM_ROCKET = GuideTables(
     guide = GuideId.TEAM_ROCKET,
     // 24-byte TrainerMons: iv, level (u16), species, held item, six EVs, a nature, moves +0x10.
     trainerMon = TrainerMonLayout(stride = 24, movesOff = 16, speciesOff = 4, itemOff = 6, levelOff = 2),
+)
+
+/**
+ * Pokémon Wishes of Tomorrow v1.2.6 (expansion 1.15.3): HERE only. gTrainers[EASY][NORMAL][HARD][896] at 0x08428F54 (EASY
+ * empty, so its NORMAL array 0x08435354; 0x38-byte records - its own, four bytes longer than the reference build's: party
+ * +8, class +0x1C, a 13-byte name +0x1F, party size +0x2D; 885 is GENERAL EDWARDS, whose six the headless trainer battle
+ * met), expansion's 0x24-byte TrainerMons (moves 0 = the level-up ones: gSpeciesInfo's levelUpLearnset, {move, level}
+ * pairs). gWildMonHeaders 0x08E88AA4 (13 literal-pool words like the reference's; 142 headers of 84 bytes, four
+ * time-of-day sets with only the first filled). SaveBlock1's flags / vars at +0x1270 / +0x13A0 (its GF ROM header).
+ */
+val GUIDE_TABLES_WISHES = GuideTables(
+    trainers = 0x08435354L,
+    learnsets = 0x08701254L, // gSpeciesInfo[0].levelUpLearnset
+    learnsetStride = 0x104,
+    learnsetPairs = true,
+    wildHeaders = 0x08E88AA4L,
+    sb1FlagsOff = 0x1270,
+    sb1VarsOff = 0x13A0,
+    flagBytes = 0x130,
+    probeTrainer = 885,
+    probeName = "EDWARDS",
+    guide = GuideId.WISHES,
+    trainerStride = 0x38,
+    trainerNameOff = 0x1F,
+    trainerNameLen = 13,
+    trainerSizeOff = 0x2D,
+    trainerPartyOff = 8,
+    trainerMon = TrainerMonLayout(stride = 0x24, movesOff = 0x0C, speciesOff = 0x14, itemOff = 0x16, levelOff = 0x1A),
+    wildSets = 4,
+    wildSet = 0,
+    mapGroups = 0x08F90738L,
+    trainerIdVar = true,
+)
+
+/**
+ * Pokémon Dreamstone Mysteries (pokeemerald-expansion 1.11.2), from the ROM: gTrainers is [3][855] 0x28-byte records
+ * from 0x085837E4 (GetTrainerDifficultyLevel: VarGet(0x40A8) picks the table, a NULL party there falls back to the second);
+ * [trainers] is the second, the first is [altTrainers] (see GuideDreamstone.kt), the third is empty. 12 = LEADER INGER
+ * (Rockruff 12, Geodude 12, Minior 13), 1.11.2's 0x24-byte TrainerMon. gWildMonHeaders 0x0900247C (165 of 24 bytes:
+ * land / water / rock smash / fishing / hidden; ROUTE 1's land set is its RATTATA / PIDOVE / CUBONE / ROCKRUFF), gMapGroups
+ * 0x09186E6C (40 groups; CARABRUE TOWN is 0.0, ROUTE 1 0.4). SaveBlock1's flags / vars at +0x148C / +0x15B8 (FlagSet's and
+ * GetVarPointer's literals, 0x0810E820 / 0x0810E672).
+ */
+val GUIDE_TABLES_DREAMSTONE = GuideTables(
+    trainers = 0x085837E4L + 0x8598,
+    learnsets = 0,
+    wildHeaders = 0x0900247CL,
+    sb1FlagsOff = 0x148C,
+    sb1VarsOff = 0x15B8,
+    flagBytes = 0x12C,
+    probeTrainer = 12,
+    probeName = "Inger",
+    guide = GuideId.DREAMSTONE,
+    trainerStride = 0x28,
+    trainerNameOff = 0x13,
+    trainerNameLen = 11,
+    trainerSizeOff = 0x20,
+    trainerPartyOff = 4,
+    trainerMon = TrainerMonLayout(stride = 0x24, movesOff = 0x0C, speciesOff = 0x14, itemOff = 0x16, levelOff = 0x1A),
+    altTrainers = listOf(0x085837E4L),
+    wildLayout = WildLayout(stride = 24),
+    mapGroups = 0x09186E6CL,
 )
 
 /** 2.65.3b's: the same shapes at its own addresses. */

@@ -90,6 +90,29 @@ val GEN1_MUSIC_RED = GEN1_MUSIC_YELLOW.copy(
 val GEN1_MUSIC_BLUE = GEN1_MUSIC_RED.copy(sha1 = TelemetrySampler.BLUE_SHA1)
 
 /**
+ * PureRed / PureBlue v2.7.6 (pureRGB's pokered.sym, the same in both): Red's sound engine and audio RAM, its own PlayMusic
+ * (0x21D1), and its songs: Red's, but EVOLUTION where Red has SAFARI ZONE and bank 0x08's / 0x1F's ids from the gym battle
+ * / CINNABAR MANSION on shifted (constants/music_constants.asm). Its added songs (bank 0x36's RONALD and the others it starts
+ * its own way) aren't in the list: heard live, they don't start from PlayMusic and play SPED-UP. The park: 0x0DAE, the
+ * `18 FE` inside `jr .x` / `cp $ff` in bank 0 (the jr's operand: nothing jumps there). Checked headless (mgba_dump gbpark /
+ * gbcall / gbloop): ROUTES1 loops at 22.9 s, the wild battle at 31.3 s after a 13.1 s intro - Red's numbers.
+ */
+val GEN1_MUSIC_PURE_RED = GEN1_MUSIC_RED.copy(
+    sha1 = TelemetrySampler.PURE_RED_V2_7_6_SHA1,
+    playMusic = 0x21D1,
+    spin = 0x0DAE,
+    songs = listOf(
+        2 to 186, 2 to 189, 2 to 192, 2 to 195, 2 to 199, 2 to 202, 2 to 205, 2 to 208, 2 to 212, 2 to 216,
+        2 to 219, 2 to 222, 2 to 225, 2 to 229, 2 to 232, 2 to 235, 2 to 239, 2 to 243, 2 to 247, 2 to 251,
+        8 to 236, 8 to 239, 8 to 242, 8 to 245, 8 to 248, 8 to 251, 8 to 254,
+        0x1F to 195, 0x1F to 199, 0x1F to 202, 0x1F to 205, 0x1F to 208, 0x1F to 210, 0x1F to 214, 0x1F to 217,
+        0x1F to 220, 0x1F to 224, 0x1F to 228, 0x1F to 232, 0x1F to 235, 0x1F to 239, 0x1F to 242, 0x1F to 245,
+        0x1F to 248, 0x1F to 251,
+    ),
+)
+val GEN1_MUSIC_PURE_BLUE = GEN1_MUSIC_PURE_RED.copy(sha1 = TelemetrySampler.PURE_BLUE_V2_7_6_SHA1)
+
+/**
  * Crystal (rev 0, rev 1, Australia: pret/pokecrystal, the same addresses in all three). Gen 2's sound engine: songs are ids
  * 1..0x66 (MUSIC_TITLE .. MUSIC_MOBILE_CENTER) with their banks in its own pointer table; PlayMusic (00:3B97) takes the id in
  * DE. Its channel structs are 0x32 bytes from wChannel1 (C101): Flags1 +3, MusicAddress / LastMusicAddress +6, NoteDuration
@@ -119,7 +142,7 @@ val GEN2_MUSIC_CRYSTAL_AU = crystalMusic(TelemetrySampler.CRYSTAL_AU_SHA1)
 
 object Gen1Music {
     private val GAMES = listOf(GEN1_MUSIC_YELLOW, GEN1_MUSIC_YELLOW_DE, GEN1_MUSIC_YELLOW_FR, GEN1_MUSIC_YELLOW_IT, GEN1_MUSIC_YELLOW_ES,
-        GEN1_MUSIC_RED, GEN1_MUSIC_BLUE, GEN2_MUSIC_CRYSTAL, GEN2_MUSIC_CRYSTAL_REV1, GEN2_MUSIC_CRYSTAL_AU)
+        GEN1_MUSIC_RED, GEN1_MUSIC_BLUE, GEN1_MUSIC_PURE_RED, GEN1_MUSIC_PURE_BLUE, GEN2_MUSIC_CRYSTAL, GEN2_MUSIC_CRYSTAL_REV1, GEN2_MUSIC_CRYSTAL_AU)
 
     fun forSha1(sha1: String): Gen1MusicTables? = GAMES.firstOrNull { it.sha1 == sha1 }
 

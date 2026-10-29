@@ -1,6 +1,6 @@
 captured: 2026-10-16 (headless mgba_dump, by hand; Game Boy Color: wram.bin = C000-DFFF as the bus had it,
   hram.bin = FF80-FFFE, wramx.bin = all 8 WRAM banks, 0x1000 each - the game keeps its state in bank 1)
-rom: polishedcrystal-3.2.3.gbc (~/Downloads/Game ROMs & Emulation/gbc/, the official release build, sha1 6930b48a...)
+rom: Pokemon Polished Crystal (v3.2.3).gbc (~/Downloads/Game ROMs & Emulation/gbc/, the official release build, sha1 6930b48a...)
 save: ~/Documents/RetroArch/saves/mGBA/polishedcrystal-3.2.3.sav - a new game played headless (the user had no Polished
   Crystal save): the start-up options left at their defaults (START), the clock at the game's default (DAY 10:00, SUNDAY,
   Daylight Saving Time YES at MOM's), the default (middle) trainer-card photo, named Daisy, MOM's POKeGEAR, CYNDAQUIL from

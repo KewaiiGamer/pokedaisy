@@ -1,0 +1,33 @@
+# Gen 3 configs (retail). The format and the commands: gamedata/README.md.
+
+# LeafGreen (BPGE). pret/pokefirered @ c75f352 builds `leafgreen` and
+# `leafgreen_rev1` byte-identical to the user's retail dumps (sha1 574fa542…
+# / 7862c67b…), and their .map files put every RAM global and all of the
+# battle-controller code at FireRed's own addresses for the same revision -
+# only ROM data (icons, dex tables, dex text) moves. sItemIconTable is static
+# (not in the map): found by matching FireRed's item-icon data.
+[config.leafgreen_rev0]
+base = 'firered_rev0'
+itemDescs = { preset = 'vanilla', base = 0x083DAE64 }
+monIconTable = 0x083D35DC
+monIconPaletteIndices = 0x083D3CBC
+monIconPaletteTable = 0x083D3E74
+itemIconTable = 0x083D40D0
+pokedex = 'POKEDEX_LEAFGREEN_REV0'
+guideTables = 'GUIDE_TABLES_LEAFGREEN_REV0'
+trainerCard = 'TRAINER_CARD_FIRERED'
+
+[config.leafgreen_rev1]
+base = 'firered_rev1'
+itemDescs = { preset = 'vanilla', base = 0x083DAED4 }
+actionCursor = 0
+moveCursor = 0  # FireRed's, probably, but not checked on LeafGreen yet
+monIconTable = 0x083D364C
+monIconPaletteIndices = 0x083D3D2C
+monIconPaletteTable = 0x083D3EE4
+itemIconTable = 0x083D4140
+pokedex = 'POKEDEX_LEAFGREEN_REV1'
+# FireRed rev 1's guide tables are ROM addresses - LeafGreen's own here.
+# Its foe-team RAM addresses (gEnemyParty, gBattlerPartyIndexes, ...)
+# match FireRed's in the map, so those carry over unchanged.
+guideTables = 'GUIDE_TABLES_LEAFGREEN_REV1'

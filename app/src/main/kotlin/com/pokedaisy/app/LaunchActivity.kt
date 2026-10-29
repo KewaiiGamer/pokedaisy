@@ -38,8 +38,13 @@ import java.io.RandomAccessFile
  */
 class LaunchActivity : Activity() {
 
+    /** The app that sent the launch (its package, from the referrer Android hands us), for crash reports: which
+     * frontend - Cocoon, ES-DE, iiSU... - a crash came from. */
+    private var sender: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sender = runCatching { referrer?.takeIf { it.scheme == "android-app" }?.host }.getOrNull()
         // Its toasts in the player's language (no ROM yet: AUTO = the device's).
         L10n.apply(Prefs(this).appLanguage, null)
         val uri = romUri(intent)
@@ -192,6 +197,7 @@ class LaunchActivity : Activity() {
             Intent(this, PokeDaisyActivity::class.java)
                 .putExtra(LibraryActivity.EXTRA_ROM, rom.absolutePath)
                 .putExtra(PokeDaisyActivity.EXTRA_FROM_FRONTEND, true)
+                .putExtra(LibraryActivity.EXTRA_LAUNCHED_FROM, "frontend: ${sender ?: "unknown"}")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             // A frontend on the bottom screen: the game still goes to the top one.
             Screens.mainDisplayLaunch(this),

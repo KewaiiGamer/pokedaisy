@@ -7,19 +7,25 @@
 
 import Pixel from './Pixel.astro';
 
-/** [tabs]: the app's tab bar along the bottom (the hero handheld's screen); [tinted]: the app's teal, faintly. */
-interface Props { label: string; bare?: boolean; tabs?: string[]; tinted?: boolean }
-const { label, bare = false, tabs, tinted = false } = Astro.props;
+/**
+ * [tabs]: the app's tab bar along the bottom (the hero handhelds' screens); [tinted]: the app's teal, faintly;
+ * [width]: a wider canvas, the companion's window on a 16:9 screen (SidePanel.kt's companionWindowSize, ~1.39:1) -
+ * the panes stretch across it; [shoulders]: that window's L / R keys at the tab bar's ends.
+ */
+interface Props { label: string; bare?: boolean; tabs?: string[]; tinted?: boolean; width?: number; shoulders?: boolean }
+const { label, bare = false, tabs, tinted = false, width = 560, shoulders = false } = Astro.props;
 const H = tabs ? 488 : 448;
 ---
 <div class:list={['appcard', !bare && 'f-card']}>
-  <div class="appwrap" data-appwrap role="img" aria-label={label} style={`aspect-ratio: 560 / ${H}`}>
-    <div class:list={['app', tinted && 'tinted']} data-app data-h={H} style={`height:${H}px`}>
+  <div class="appwrap" data-appwrap role="img" aria-label={label} style={`aspect-ratio: ${width} / ${H}`}>
+    <div class:list={['app', tinted && 'tinted']} data-app data-w={width} data-h={H} style={`width:${width}px;height:${H}px;--aw:${width}px`}>
       <div class="app-body"><slot /></div>
       {tabs && (
         <nav class="app-tabs" aria-hidden="true">
-          {tabs.map((t, i) => <span class:list={['app-tab', i === 0 ? 'f-appTabOn on' : 'f-appTab']}>{t}</span>)}
+          {shoulders && <span class="app-key f-appKey">L</span>}
+          {tabs.map((t, i) => <span class:list={['app-tab', i === 0 ? 'f-appTabOn on' : 'f-appTab']} data-tab={t}>{t}</span>)}
           <span class="app-tab gear f-appTab"><Pixel name="gear" scale={0.75} /></span>
+          {shoulders && <span class="app-key f-appKey">R</span>}
         </nav>
       )}
       <span class="tap" data-tap aria-hidden="true"></span>
@@ -32,7 +38,10 @@ const H = tabs ? 488 : 448;
   .appcard { filter: var(--hard-shadow); max-width: calc(560px + var(--px) * 10); margin: 0 auto; }
   .appcard:not(.f-card) { max-width: none; }
   .appcard.f-card { padding: calc(var(--px) * 2); }
-  .appwrap { position: relative; width: 100%; aspect-ratio: 560 / 448; overflow: hidden; }
+  /* Its width never comes from inside: the script sets the height from the width, and with the
+     aspect-ratio Safari fed that height back into the width (a 1px round-up a time), so a canvas in an
+     auto-sized track kept growing past its screen. */
+  .appwrap { position: relative; width: 100%; min-width: 0; aspect-ratio: 560 / 448; overflow: hidden; contain: inline-size; }
   .app {
     --px: 2px;
     position: absolute; left: 0; top: 0; width: 560px; height: 448px; overflow: hidden;
@@ -43,12 +52,15 @@ const H = tabs ? 488 : 448;
   }
   /* Scaled to a fraction of a device pixel (a phone): smooth the font rather than break it. */
   .app.soft { -webkit-font-smoothing: antialiased; }
-  .app .app-body { position: absolute; left: 0; right: 0; top: 0; height: 448px; }
+  /* The panes take the canvas's width: wider in the one-screen window, where they stretch (as the app's do). */
+  .app .app-body { position: absolute; left: 0; width: var(--aw, 560px); top: 0; height: 448px; }
   .app.tinted { background: repeating-linear-gradient(180deg, #e2f1ee 0 2px, #d6ebe7 2px 4px); }
-  .app .app-tabs { position: absolute; left: 14px; right: 14px; bottom: 10px; height: 34px; display: flex; gap: 8px; }
+  /* Under the panes with a gap: they end by 448, the bar starts at 452. */
+  .app .app-tabs { position: absolute; left: 14px; right: 14px; bottom: 6px; height: 30px; display: flex; gap: 8px; }
   .app .app-tab { flex: 1; display: grid; place-items: center; font-size: 24px; color: #707070; text-shadow: 2px 2px 0 #c4c4c4; }
   .app .app-tab.on { color: #d81818; text-shadow: 2px 2px 0 #f8b8a8; }
   .app .app-tab.gear { flex: 0 0 60px; }
+  .app .app-key { flex: 0 0 34px; display: grid; place-items: center; font-size: 24px; color: #707070; text-shadow: 2px 2px 0 #c4c4c4; }
 
   /* Panes: one shows at a time. */
   .app .pane { position: absolute; inset: 0; visibility: hidden; }
@@ -77,7 +89,7 @@ const H = tabs ? 488 : 448;
   .app .pb-move::before { background: linear-gradient(90deg, var(--t) 0 12px, transparent 12px calc(100% - 12px), var(--t) calc(100% - 12px)); opacity: 0.85; }
 
   /* The white window (SummaryFrame / battle INFO) and what goes in it. */
-  .app .win { position: absolute; left: 14px; top: 14px; width: 532px; height: 354px; padding: 4px 8px; color: #585858; text-shadow: 2px 2px 0 #d8d8d8; }
+  .app .win { position: absolute; left: 14px; right: 14px; top: 14px; height: 354px; padding: 4px 8px; color: #585858; text-shadow: 2px 2px 0 #d8d8d8; }
   .app .sep-h { height: 2px; background: #c8c8d0; margin: 6px 0; }
   .app .sep-v { width: 2px; background: #c8c8d0; align-self: stretch; }
   .app .red { color: #d81818; text-shadow: 2px 2px 0 #f8b8a8; }
@@ -121,11 +133,12 @@ const H = tabs ? 488 : 448;
     const app = wrap.querySelector<HTMLElement>('[data-app]');
     if (!app) return;
     const dpr = window.devicePixelRatio || 1;
-    const fitK = Math.min(1, wrap.clientWidth / 560);
+    const W = Number(app.dataset.w) || 560;
+    const fitK = Math.min(1, wrap.clientWidth / W);
     const crisp = Math.floor(fitK * dpr) / dpr;
     const k = crisp >= fitK * 0.85 ? crisp : fitK;
     app.style.setProperty('--k', String(k));
-    app.style.left = `${Math.floor((wrap.clientWidth - 560 * k) / 2)}px`;
+    app.style.left = `${Math.floor((wrap.clientWidth - W * k) / 2)}px`;
     app.classList.toggle('soft', k !== crisp);
     wrap.style.height = `${Math.ceil(Number(app.dataset.h) * k)}px`;
   };

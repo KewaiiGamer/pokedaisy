@@ -67,6 +67,7 @@ import com.pokedaisy.app.companion.data.GameKind
 import com.pokedaisy.app.companion.data.activeGame
 import com.pokedaisy.app.companion.data.isGameBoyGame
 import com.pokedaisy.app.companion.data.isRedBlue
+import com.pokedaisy.app.companion.data.isPureRgb
 import com.pokedaisy.app.companion.ui.theme.AppColors
 import com.pokedaisy.app.companion.ui.theme.gbaFocusRing
 import androidx.compose.ui.focus.onFocusChanged
@@ -109,8 +110,9 @@ object OptionColors {
     private val G1_INK get() = if (dark) Color(0xFFE8E8E8) else gbInk(activeGame)
     private val G1_PAPER get() = if (dark) Color(0xFF181818) else gbPaper(activeGame)
 
-    /** A Game Boy game's own black and white in light mode: Yellow's and Gen 2's GBC ones, Red / Blue's SGB ones. */
-    fun gbInk(game: GameKind?): Color = if (game.isRedBlue) Color(0xFF181010) else Color(0xFF181818)
+    /** A Game Boy game's own black and white in light mode: Yellow's and Gen 2's GBC ones, Red / Blue's SGB ones,
+     * PureRed / PureBlue's pure black (their Color palettes, sampled headless). */
+    fun gbInk(game: GameKind?): Color = if (game.isRedBlue) Color(0xFF181010) else if (game.isPureRgb) Color.Black else Color(0xFF181818)
     fun gbPaper(game: GameKind?): Color = if (game.isRedBlue) Color(0xFFFFEFFF) else Color(0xFFFFFFFF)
     private val G1_FRAME get() = listOf(G1_PAPER to 2, G1_INK to 1, G1_PAPER to 1, G1_INK to 1, G1_PAPER to 1)
 
@@ -566,13 +568,15 @@ fun OptionButton(
     frameLayers: List<Pair<Color, Int>>? = null,
     /** The room either side of the content, in GBA pixels: less for a row of icon buttons on a narrow screen. */
     sidePadding: Int = 8,
+    /** In a pop-up, the D-pad starts here rather than on its first control. */
+    focusStart: Boolean = false,
 ) {
     val u = m.u
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val stack = LocalOverlayStack.current
     val self = remember { FocusRequester() }
-    if (enabled) LocalOverlayStart.current?.register(self, current = false)
+    if (enabled) LocalOverlayStart.current?.register(self, current = focusStart)
     val fg = when {
         !enabled -> OptionColors.muted
         labelColors != null -> labelColors.first
@@ -740,13 +744,16 @@ fun <T> OptionSelector(
     onDismiss: () -> Unit,
     /** An [OptionBadge] after an option's label. */
     badge: (T) -> String? = { null },
+    /** A few words above the options in the subtitles' grey (SHINY ODDS' disclaimer), or null. */
+    note: String? = null,
 ) {
     OptionOverlay(onDismiss, Modifier.widthIn(max = 480.dp)) {
         BoxWithConstraints {
             // Fit every option + CANCEL on screen when there's room (title
-            // window, gap and list frame take ~40u), else scroll.
+            // window, gap and list frame take ~40u, a note about two lines), else scroll.
             val u = m.u
-            val room = if (maxHeight == Dp.Infinity) m.rowHeight * 20 else maxHeight - u * 40 - m.lineHeight
+            val noteRoom = if (note != null) subtitleMetrics(m).lineHeight * 2 + u * 8 else 0.dp
+            val room = if (maxHeight == Dp.Infinity) m.rowHeight * 20 else maxHeight - u * 40 - m.lineHeight - noteRoom
             val rowHeight = (room / (options.size + 1)).coerceIn(m.rowHeight, m.rowHeight * 1.3f)
             // The D-pad's row (index, options.size = CANCEL): while it's on another one, the current choice keeps
             // its marker but not the white, so one row is lit.
@@ -756,6 +763,12 @@ fun <T> OptionSelector(
                 Spacer(Modifier.height(u * 4))
                 OptionListWindow(m, Modifier.fillMaxWidth()) {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
+                        note?.let {
+                            GbaText(
+                                tr(it), OptionColors.muted, OptionColors.mutedShadow, subtitleMetrics(m), maxLines = Int.MAX_VALUE,
+                                modifier = Modifier.padding(horizontal = u * 8, vertical = u * 4),
+                            )
+                        }
                         options.forEachIndexed { i, opt ->
                             val on = opt == selected
                             OptionLine(
@@ -827,6 +840,8 @@ fun GameBackdrop(game: GameKind, modifier: Modifier = Modifier.fillMaxSize()) {
         Canvas(modifier) { drawRect(HGSS_BACKDROP) }
         return
     }
+    // Black's and Platinum's party screens: their own patterns (the scrim already on [modifier]).
+    dsPartyPattern(game)?.let { DsBackdrop(it, modifier, scrim = 0f); return }
     val bg = rememberGameBackground(game) ?: return
     if (bg.tiled) {
         // Whole-number scale of a 240px-wide GBA screen - on the

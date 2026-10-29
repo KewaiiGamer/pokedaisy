@@ -29,7 +29,7 @@ export function demo(root, script) {
       if (!el) return;
       const a = app.getBoundingClientRect();
       const b = el.getBoundingClientRect();
-      const k = a.width / 560 || 1;
+      const k = a.width / (Number(app.dataset.w) || 560) || 1;
       ring.style.left = `${(b.left + b.width / 2 - a.left) / k}px`;
       ring.style.top = `${(b.top + b.height / 2 - a.top) / k}px`;
       ring.classList.remove('go');

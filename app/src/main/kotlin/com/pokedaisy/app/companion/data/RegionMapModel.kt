@@ -48,7 +48,8 @@ data class RegionMapMark(val x: Int, val y: Int, val asset: String, val visitedA
  * the map sections on them ([sections], [MapSecInfo.region] indexes [images])
  * and, where known, each screen's cursor grid ([layouts], by image). Tile (tx, ty) covers map pixels from
  * ([originX] + tx * [tile], [originY] + ty * [tile]): the GBA maps' 8px tiles from the corner, Platinum's 7px Town Map
- * blocks from where its grid starts. [marks]: sprites over the map (Platinum's towns, coloured once visited).
+ * blocks from where its grid starts. [marks]: sprites over the map (Platinum's towns, coloured once visited). [points]: a
+ * section's own point on the map (Black's Town Map places), where the game centres the player and its cursor.
  */
 class RegionMapModel(
     val images: Array<String>,
@@ -58,6 +59,7 @@ class RegionMapModel(
     val originX: Int = 0,
     val originY: Int = 0,
     val marks: List<RegionMapMark> = emptyList(),
+    val points: Map<Int, Pair<Int, Int>> = emptyMap(),
 ) {
     /**
      * The section and dungeon at tile ([tx], [ty]) of image [region]: the grid
@@ -136,6 +138,7 @@ class RegionMapModel(
 
 /** The Map tab's maps for the running game - the same source [lookupLocation] names places from. */
 fun activeRegionMap(): RegionMapModel? {
+    if (activeGame == GameKind.BLACK) return blackTownMap
     if (activeGame == GameKind.PLATINUM) return platinumTownMap
     if (activeGame.isHgss) return PokegearMap.model()
     val rom = if (readsRomRegionMap) RomRegionMap.current else null
@@ -153,6 +156,8 @@ fun activeRegionMap(): RegionMapModel? {
         GameKind.GLAZED -> regionLayoutsGlazed
         GameKind.HEART_AND_SOUL -> regionLayoutsHns
         GameKind.IMPERIUM -> regionLayoutsImperium
+        GameKind.DREAMSTONE -> regionLayoutsDreamstone
+        GameKind.WISHES -> regionLayoutsWishes
         GameKind.QUETZAL -> if (quetzalV084) regionLayoutsEmerald else regionLayoutsQuetzal
         GameKind.ROWE -> regionLayoutsRowe
         GameKind.MARIOMON -> if (mariomonV13) regionLayoutsMariomonV13 else regionLayoutsMariomon
@@ -180,6 +185,51 @@ private val platinumTownMap: RegionMapModel by lazy {
             RegionMapMark(it.x - crop[0], it.y - crop[1], NdsArt.platinumBlock(it.shape, 0), NdsArt.platinumBlock(it.shape, 1 + it.palette),
                 it.firstArrival, it.hiddenUntilVisited)
         },
+    )
+}
+
+/**
+ * Black's Town Map (NdsArt rebuilds its picture and sprites from the cart): no blocks of its own - each place is a point
+ * ([townMapPlacesBlack]) the game's cursor snaps to - so its grid here is 8-pixel cells, each the place whose point is
+ * within 8 pixels of it (the records' touch area: their point 4 pixels up and down, radius 8), the nearest one where two
+ * reach, a point's own cell always its place's. Its sections are every place name (the player's own zone names one the
+ * map may not show: a house's, a cave's), named by the cart. Arrived-at towns, Victory Road and Unity Tower get the
+ * game's sprite (Unity Tower none before), Liberty Garden its island's once the bag holds the Liberty Pass.
+ */
+internal val blackTownMap: RegionMapModel by lazy {
+    val tile = GEN5_TOWN_MAP_TILE
+    val w = 256 / tile
+    val h = 168 / tile
+    val none = 0xFFFF
+    val cells = IntArray(w * h) { none }
+    for (ty in 0 until h) for (tx in 0 until w) {
+        val cx = tx * tile + tile / 2
+        val cy = ty * tile + tile / 2
+        var best = none
+        var bestD = Int.MAX_VALUE
+        for (p in townMapPlacesBlack) {
+            val dy = when { cy < p.y - 4 -> p.y - 4 - cy; cy > p.y + 4 -> cy - p.y - 4; else -> 0 }
+            val d = (cx - p.x) * (cx - p.x) + dy * dy
+            if (d <= 8 * 8 && d < bestD) { bestD = d; best = p.place }
+        }
+        cells[ty * w + tx] = best
+    }
+    for (p in townMapPlacesBlack) cells[(p.y / tile) * w + p.x / tile] = p.place
+    val grid = ByteArray(w * h * 2) { i -> (cells[i / 2] shr (8 * (i % 2))).toByte() }
+    RegionMapModel(
+        images = arrayOf(NdsArt.BLACK_MAP),
+        sections = placeNamesBlack.mapValues { (id, name) -> MapSecInfo(NdsArt.names?.place(id) ?: name, 0, 0, 0, 0, 0) },
+        layouts = listOf(RegionLayout(0, 0, w, h, none, listOf(grid), cellBytes = 2)),
+        tile = tile,
+        marks = townMapPlacesBlack.mapNotNull { p ->
+            val bit = when {
+                p.kind == 4 -> GEN5_LIBERTY_PASS_BIT
+                p.flag >= 0 && p.kind in intArrayOf(0, 3, 5) -> p.flag - GEN5_FIRST_ARRIVAL
+                else -> return@mapNotNull null
+            }
+            RegionMapMark(p.x, p.y, NdsArt.blackTown(p.kind), NdsArt.blackTown(p.kind), bit, hiddenUntilVisited = true)
+        },
+        points = townMapPlacesBlack.associate { it.place to (it.x to it.y) },
     )
 }
 

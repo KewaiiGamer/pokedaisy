@@ -13,8 +13,14 @@ class Gen4DexTables(
     /** The pages' file and the pictures' folder under rom-art. */
     val pages: String,
     val fronts: String,
-    /** Each machine's move: TM01..TM92, then HM01..HM08 (the games' HM05 differ). */
+    /** Each machine's move: TM01..TM92, then HM01..HM08 (the games' HM05 differ); Black's TM01..TM95, HM01..HM06. */
     val tmMoves: IntArray,
+    /** How many of [tmMoves] are TMs (the rest HMs). */
+    val tmCount: Int = 92,
+    /** The last National Dex number (an evolution past it is dropped). */
+    val lastSpecies: Int = 493,
+    /** Gen 5's evolution methods ([Gen4Dex.parse]). */
+    val gen5: Boolean = false,
 )
 
 val GEN4_DEX_PLATINUM = Gen4DexTables(NdsArt.PLATINUM_DEX, NdsArt.PLATINUM_FRONT, tmMovesPlatinum)
@@ -70,7 +76,7 @@ object Gen4Dex {
     fun machines(t: Gen4DexTables, species: Int): List<TeachMove>? {
         val bits = load(t)?.machines?.get(species) ?: return null
         return t.tmMoves.indices.filter { i -> i / 8 < bits.size && (bits[i / 8].toInt() shr (i % 8)) and 1 != 0 }.map { i ->
-            TeachMove(if (i < 92) "TM%02d".format(i + 1) else "HM%02d".format(i - 91), t.tmMoves[i])
+            TeachMove(if (i < t.tmCount) "TM%02d".format(i + 1) else "HM%02d".format(i - t.tmCount + 1), t.tmMoves[i])
         }
     }
 
@@ -83,7 +89,7 @@ object Gen4Dex {
         val key = f.path to f.lastModified()
         if (pagesFor != key) synchronized(this) {
             if (pagesFor != key) {
-                pages = runCatching { parse(f.readLines()) }.getOrNull()
+                pages = runCatching { parse(f.readLines(), t.lastSpecies, t.gen5) }.getOrNull()
                 pagesFor = key
             }
         }
@@ -99,8 +105,9 @@ object Gen4Dex {
 
     /** NdsArt's lines: species, category, description, height dm, weight hg, the six stats (the page's order), type 1 / 2,
      * catch rate, gender ratio, egg groups 1 / 2, abilities 1 / 2; then (a cart read since v8) the regional number, the
-     * evolutions, the level-up moves and the TM / HM bits. */
-    internal fun parse(lines: List<String>): Pages {
+     * evolutions, the level-up moves and the TM / HM bits; Black's a hidden ability last. Evolutions to past
+     * [lastSpecies] are dropped; [gen5]: their methods are Gen 5's ([gen5EvoReqs]). */
+    internal fun parse(lines: List<String>, lastSpecies: Int = 493, gen5: Boolean = false): Pages {
         val entries = HashMap<Int, DexEntry>()
         val regional = HashMap<Int, Int>()
         val evolutions = HashMap<Int, List<EvoLink>>()
@@ -118,10 +125,12 @@ object Gen4Dex {
                 heightDm = i(3),
                 weightHg = i(4),
                 description = c[2].replace("\\n", " "),
-                type1 = i(11),
-                type2 = i(12),
+                // the cart's type ids: Gen 5's skip ??? (FIRE 9), the app keeps Gen 3's
+                type1 = if (gen5) gen5Type(i(11)) else i(11),
+                type2 = if (gen5) gen5Type(i(12)) else i(12),
                 baseStats = (5..10).map(::i),
                 abilities = listOf(c[17], c[18]).filter { it.isNotBlank() }.distinct(),
+                hiddenAbility = c.getOrNull(23)?.takeIf { it.isNotBlank() && it != c[17] && it != c[18] },
                 catchRate = i(13),
                 genderRatio = i(14),
                 eggGroups = listOf(i(15), i(16)).distinct().mapNotNull { eggGroupName(it) },
@@ -129,7 +138,7 @@ object Gen4Dex {
             if (i(19) > 0) regional[i(19)] = n
             c.getOrNull(20)?.takeIf { it.isNotEmpty() }?.split(';')?.mapNotNull { e ->
                 val (m, p, to) = e.split(',').map { it.toIntOrNull() ?: return@mapNotNull null }.takeIf { it.size == 3 } ?: return@mapNotNull null
-                if (to !in 1..493 || to == n) null else EvoLink(n, to, evoReqs(m, p))
+                if (to !in 1..lastSpecies || to == n) null else EvoLink(n, to, if (gen5) gen5EvoReqs(m, p) else evoReqs(m, p))
             }?.distinct()?.takeIf { it.isNotEmpty() }?.let { evolutions[n] = it }
             c.getOrNull(21)?.takeIf { it.isNotEmpty() }?.split(',')?.mapNotNull { e ->
                 val (lv, mv) = e.split(':').map { it.toIntOrNull() ?: return@mapNotNull null }.takeIf { it.size == 2 } ?: return@mapNotNull null
@@ -141,6 +150,14 @@ object Gen4Dex {
         }
         val order = regional.keys.sorted().let { nums -> IntArray(nums.size) { regional.getValue(nums[it]) } }
         return Pages(entries, order, evolutions, levelUp, machines)
+    }
+
+    /** Gen 5's methods (Black / White): Gen 4's with 7 a trade with another Pokémon ([p] the other one's species, as
+     * NdsArt writes it) put in, every later one a number up (8 an item used, ..., 27 the ice rock). */
+    private fun gen5EvoReqs(m: Int, p: Int): List<EvoReq> = when {
+        m == 7 -> if (p > 0) listOf(EvoReq.Trade, EvoReq.TradeFor(p)) else listOf(EvoReq.Trade)
+        m > 7 -> evoReqs(m - 1, p)
+        else -> evoReqs(m, p)
     }
 
     /** pokeheartgold's EVO_* (include/constants/pokemon.h; pokeplatinum's generated/evolution_methods.txt: the same): Gen 3's 1-15, then 16 / 17 a stone on a male / female, 18 /

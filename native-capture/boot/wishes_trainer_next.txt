@@ -1,0 +1,40 @@
+# Pokémon Wishes of Tomorrow: trainer 864 (BLACK BELT Kenji: MACHOP, MEDITITE, MACHOKE). At the action menu his
+# MACHOP's HP is poked to 1 and the lead's Speed to 999; FIGHT, TACKLE faints it; dumped at "BLACK BELT Kenji is about to send
+# out Machoke" (his pick: gBattleStruct + 0xEB + 1 = 2).
+wait 600
+press START
+wait 300
+# the main menu takes the second A (the first only wakes it)
+press A
+wait 60
+press A
+wait 400
+poke32 0x0203FC00 0x6000345C
+poke32 0x0203FC04 0x00000003
+poke32 0x0203FC08 0x387FEF00
+poke32 0x0203FC0C 0x00000008
+poke32 0x0203FC10 0x00000000
+poke32 0x0203FC14 0x00000000
+poke32 0x0203FC18 0x00000000
+poke32 0x0203FC1C 0x00000000
+poke32 0x0203FC20 0x00000000
+poke32 0x0203FC24 0x00000000
+poke32 0x0203FC28 0x00000200
+call 0x081FDCC9 0x0203FC00
+wait 300
+press A
+wait 300
+press A
+wait 300
+poke16 0x020004D2 1
+poke16 0x02000426 999
+press A
+wait 60
+press A
+wait 600
+press B
+wait 120
+press B
+wait 120
+press B
+wait 120

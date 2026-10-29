@@ -3,7 +3,7 @@ title: Troubleshooting and FAQ
 summary: Answers to the questions people ask most, from missing games and lost saves to silent music, achievements and what the app sends online.
 section: help
 order: 3
-keywords: [help, faq, problem, issue, bug, broken, fix, not working, missing, privacy, data, network, internet, offline, contact, report]
+keywords: [help, faq, problem, issue, bug, broken, fix, not working, missing, privacy, data, network, internet, offline, contact, report, discord, community, chat, support]
 ---
 
 Something not working the way you expect? Start here. If your question isn't answered, see [the last section](#how-do-i-report-a-bug-or-ask-for-a-game) for how to reach us.
@@ -12,11 +12,11 @@ Something not working the way you expect? Start here. If your question isn't ans
 
 Work through these in order:
 
-- **Is the folder linked?** Open Settings > `FOLDERS` and check `ROMS FOLDER`. If it says `NOT LINKED`, tap `CHOOSE FOLDER`. Picking a folder needs Android's "All files access" for PokeDaisy; if Android asks, allow it and tap the button again. Only folders on the device's own storage or SD card work, not cloud folders.
+- **Is the folder linked?** Tap `+` > `MANAGE ROMS FOLDERS` in the library (or open Settings > `FOLDERS` > `ROMS FOLDERS`) and check the game's folder is in the list, or one it sits in. If not, tap `ADD FOLDER`. Picking a folder needs Android's "All files access" for PokeDaisy; if Android asks, allow it and tap the button again. Only folders on the device's own storage or SD card work, not cloud folders.
 - **Did it rescan?** The library looks for new games every time you open it. Tap the Refresh button (the circular arrow at the top of the library) to scan now; it tells you what it found.
 - **Is it deep in subfolders?** The scan looks a few folders down, not forever. Move very deeply nested games up a level or two.
-- **Is it a file PokeDaisy reads?** `.gba`, `.gb` and `.gbc` files, or one of those inside a `.zip` or `.7z`. Other archives and disc images aren't games it can play.
-- **Is it a game the companion supports?** The linked folder only lists Pokémon games: supported ones, plus unknown ones built on FireRed, LeafGreen, Emerald, Ruby or Sapphire (tagged `NOT SUPPORTED`, so you can still try them). Any other GBA or Game Boy game can be added with the **+** button in the library; PokeDaisy asks before adding a game the companion can't read.
+- **Is it a file PokeDaisy reads?** `.gba`, `.gb`, `.gbc` and `.nds` files, or one of those inside a `.zip` or `.7z`. Other archives and disc images aren't games it can play.
+- **Is it a game the companion supports?** The linked folders only list Pokémon games: supported ones, plus unknown ones built on FireRed, LeafGreen, Emerald, Ruby or Sapphire (tagged `NOT SUPPORTED`, so you can still try them). Any other GBA or Game Boy game can be added with the **+** button in the library; PokeDaisy asks before adding a game the companion can't read.
 - **Did you hide it?** Games you hid with `HIDE` stay out of the library. Open Settings > `HIDDEN GAMES` and tap `SHOW` next to it.
 
 See [Library](library.md) for more on folders and importing.
@@ -120,10 +120,13 @@ PokeDaisy has no accounts of its own, no ads and no tracking. Your games and sav
 - **Crash reports**, only if you turn `CRASH REPORTS` on (it's off until you do; the app asks once, after a few days). A report holds the device model, Android version and where the app crashed.
 - **Sharing a best effort match**, only if you tap `SHARE` when asked. The window lists every value sent: the ROM's SHA-1, size, game code and revision, the game it was read as and how well, and the app version. No file name, account or device details.
 
+The play time the library uses to ask for support once ([Supporting PokeDaisy](library.md#supporting-pokedaisy)) never leaves your device either.
+
 `ASK FOR SUPPORT` doesn't send anything by itself: it opens the game request form in your browser, which you can read before you send it.
 
 ## How do I report a bug or ask for a game?
 
+- **Want help, or not sure it's a bug?** Ask on [PokeDaisy's Discord](https://discord.gg/vcmyKZZV5q) (Settings > `DISCORD` opens it). It's also the place for ideas and a chat.
 - **No GitHub account?** Use the [feedback page](https://pokedaisy.com/feedback/) for bug reports, game requests and ideas.
 - **On GitHub:** report a bug in [Issues](https://github.com/lidor30/pokedaisy/issues). Ask for a game in [Game requests](https://github.com/lidor30/pokedaisy/discussions/categories/game-requests) and share an idea in [Ideas](https://github.com/lidor30/pokedaisy/discussions/categories/ideas), where you can also upvote other people's.
 - **For a game the companion doesn't read,** `ASK FOR SUPPORT` on the companion's NOT SUPPORTED page (or in the game's library `INFO`) fills in the details we need.

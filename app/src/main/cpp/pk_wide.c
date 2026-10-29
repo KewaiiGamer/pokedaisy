@@ -837,6 +837,14 @@ void pk_follower_show(struct mCore* core, int on) {
     if (on && core && core->platform(core) == mPLATFORM_GBA) hookScanlines((struct GBA*) core->board);
 }
 
+void pk_wide_extras_reset(void) {
+    followOn = followHave = false;
+    followState = 0;
+    followOam = followSlot = -1;
+    tintR = tintG = tintB = 256;
+    tintShown = false;
+}
+
 static void followBegin(struct GBAVideoRenderer* r);
 static void followEnd(struct GBAVideoRenderer* r);
 static void partnerBegin(struct GBAVideoRenderer* r);
@@ -2764,14 +2772,16 @@ void pk_field_wild(uint32_t addr, bool wasOff) {
 /** WILD ENCOUNTERS: the game's own switch (StandardWildEncounter returns at once while it's 1; fishing, Sweet Scent and
  * scripted battles don't look at it), rolled every frame the player is free on the field, so the step that would have
  * met a Pokémon finds it off with [keep]% left. Left alone in a battle, a script or FireRed's quest log replay (which
- * turns it on itself), and only put back to 0 where we set it. */
+ * turns it on itself). NORMAL puts it back to 0 whenever it finds it on the free field, ours or not: nothing else
+ * sets it there (CFRU only reads it), and a savestate taken while OFF carries it on - loaded with NORMAL, or across a
+ * restart, it stayed on and no wild Pokémon came again (GitHub #298). */
 static void wildRoll(int s, int keep) {
     if (!F.wild || (s & (PK_FIELD_LOCKED | PK_FIELD_BATTLE))) return;
     if (F.questLog && (r8(F.questLog) == 2 || r8(F.questLog) == 3)) return;
     uint8_t* p = (uint8_t*) mem(F.wild, 1);
     if (!p) return;
     if (keep >= 100) {
-        if (wildOwned) *p = 0;
+        if (*p) *p = 0;
         wildOwned = false;
         return;
     }

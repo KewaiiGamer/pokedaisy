@@ -8,4 +8,7 @@ object CrashReports {
     val available: Boolean get() = true
     fun shouldAsk(context: Context, prefs: Prefs, now: Long = System.currentTimeMillis()): Boolean = false
     fun setEnabled(prefs: Prefs, on: Boolean) { prefs.crashReportsEnabled = on }
+    fun gameStarted(context: Context, rom: java.io.File, romData: java.io.File, launchedFrom: String?) {}
+    fun gameIdentified(kind: String, how: String? = null) {}
+    const val LAUNCHED_FROM_LIBRARY = "library"
 }

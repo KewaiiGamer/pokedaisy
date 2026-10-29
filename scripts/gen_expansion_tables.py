@@ -233,6 +233,81 @@ GAMES = {
                     gender={1: 31, 4: 31, 25: 127}, items={1: "Poké Ball", 2: "Great Ball", 28: "Potion"},
                     moves={1: (1, 40), 10: (1, 40), 33: (1, 40), 52: (11, 40), 57: (12, 90), 89: (5, 100), 585: (19, 95)}),
     ),
+    # Pokemon Wishes of Tomorrow v1.2.6 (FlatFoot Labs; BPEE, 32 MB), pokeemerald-expansion 1.15.3 (its RHHEXP
+    # block: 848 moves, 1581 species, 924 items, 20-letter item names), gcc, no source. Its GF ROM header gives
+    # gSpeciesInfo 0x087011C0, gItemsInfo 0x086AF774 and gMovesInfo 0x086D00FC; checked against the data:
+    #  - species: 0x104-byte entries, National Dex ids: "Bulbasaur" at 0x087012F0 (entry +0x2C), "Ivysaur"
+    #    0x104 later; base stats 45/49/49/45/65/65 at name-0x2C, types (13 Grass, 4 Poison) name-0x26, genderRatio
+    #    31 name-0x1A - the same offsets as Imperium's 1.10. Its headless save's party (Cyndaquil, Pikachu,
+    #    Charizard, Gengar, Lucario, a Togepi egg) reads these names at those ids.
+    #  - items: 0x2C-byte entries with a name POINTER at +0x14 ("Poké Ball" at 1, "Potion" at 28 = the bag's;
+    #    Snag Ball 918), the description pointer 8 bytes before the name's.
+    #  - moves: 0x44-byte entries, the name pointer first ("Pound" 1, "Karate Chop" 2); +0xA type/power bits.
+    #  - chart: the unique [21][21] u32 run whose Normal row is 1x except Rock/Steel 0.5x, Ghost 0x (0x083DB990).
+    #  - mapsecs: older {x, y, w, h, name ptr} entries from 0x08CE114C (0x00-0xE4, MAPSEC_NONE 0xE5); the save's gMapHeader
+    #    in its first town reads 0xD1 = MUNEN VILLAGE. Emerald's / Kanto's ids keep their vanilla rects; its own JOKAIM
+    #    sections are 0xD1-0xE4, with a few Kanto ids renamed for its places (SENNEN 0x66, TORII ROUTE 0x67).
+    #  - region map: Emerald's kind of screen (an 8bpp affine BG, a 64x64 one-byte tilemap, its palette at BG palette 7),
+    #    smol art: RomArt's WSH_REGION_* rebuild regionmap/wishes.png. Its map code keeps six regions (a table of
+    #    tilemap / tiles / palette at 0x08CDC868, one u8 [15][28] cursor grid each from 0x08CE24CC: FireRed-style Kanto and
+    #    Sevii maps among them), but the TOWN MAP shows JOKAIM for every place it has (headless: MUNEN VILLAGE and RYUDEN
+    #    ISLAND, which isn't on JOKAIM's grid, both on JOKAIM with the player's head at the entry + (1, 2) tiles). JOKAIM's
+    #    grid is 0x08CE2D00.
+    "wishes": dict(
+        suffix="Wishes",
+        label="Pokemon Wishes of Tomorrow v1.2.6",
+        sha1="60182b934d2e8eb3eef226a9bbc25e5df6becd4f",
+        species_name1=0x087012F0, species_stride=0x104, species_max=1581,
+        species_types_off=-0x26, species_gender_off=-0x1A, species_growth_off=-0x17,
+        items_base=0x086AF774 + 0x14, items_stride=0x2C, items_desc_off=-8,
+        moves_base=0x086D00FC, moves_stride=0x44, move_bits_off=0x0A,
+        chart=0x083DB990, chart_n=21,
+        mapsec_base=0x08CE114C, mapsec_name_off=4,
+        # Below 0xD1 (its first own section) only the grid's are placed: Emerald's / Kanto's leftovers keep their rects.
+        region_map=dict(image="wishes", layout=0x08CE2D00, w=28, h=15, ox=1, oy=2, none=0xE5, place_min=0xD1),
+        checks=dict(species={1: "Bulbasaur", 6: "Charizard", 25: "Pikachu", 94: "Gengar", 155: "Cyndaquil",
+                             448: "Lucario"},
+                    types={1: (13, 4), 6: (11, 3), 25: (14, 14), 155: (11, 11)},
+                    gender={1: 31, 25: 127}, growth={1: 3, 25: 0, 155: 3, 448: 3},
+                    items={1: "Poké Ball", 2: "Great Ball", 28: "Potion", 918: "Snag Ball"},
+                    moves={1: (1, 40), 2: (2, 50), 33: (1, 40), 52: (11, 40), 57: (12, 90), 89: (5, 100), 585: (19, 95)}),
+    ),
+    # Pokemon Dreamstone Mysteries (dsmyst; no version shown anywhere in the game). Its debug menu's EXPANSION VERSION
+    # prints "v1.11.2 Development Build" (BufferExpansionVersion, 0x080F9F31), and there is no RHHEXP header block.
+    # Found from the ROM + a new game played headless:
+    #  - species: gSpeciesInfo 0x087B0160, 0x104-byte entries, Imperium's field offsets ("Bulbasaur" at +0x2C of
+    #    entry 1, 45/49/49/45/65/65 at name-0x2C, types (13, 4) name-0x26, genderRatio 31 name-0x1A). National Dex ids
+    #    to 905, then forms with Gen 9 among them (SPRIGATITO 1289), the table ends at 1524 (the egg, unnamed).
+    #  - items: gItemsInfo 0x0872F6B8, 0x50-byte entries with the name inline at +0x14 ("Poké Ball" 1, "Potion" 28 =
+    #    the save's bag), the description pointer 8 bytes before it, the pocket byte at +0x41 (1 Items, 2 Medicine,
+    #    3 Battle Items, 4 Balls, 5 Berries, 6 TMs, 7 Key Items).
+    #  - moves: gMovesInfo 0x08759858, 0x30 apart (the only pointer to "Pound" is move 1's name), +0xA bits as before.
+    #  - chart: the unique [21][21] u32 run whose Normal row is 1x but Rock / Steel 0.5x, Ghost 0x (0x08531EC0).
+    #  - mapsecs: {x, y, w, h, name ptr} from 0x08E82D24: Emerald's 0x00-0xD4, then its own Cormoria 0xD5-0xFB
+    #    (CARABRUE TOWN 0xD5 = the save's gMapHeader); 0xFC (MAPSEC_NONE) has no entry.
+    #  - region map: FireRed's kind of screen (an 8bpp text BG, its 4bpp twin, a 32x20 u16 tilemap, BG palette 0;
+    #    RomArt's DSM_REGION_* rebuild regionmap/dreamstone.png); the cursor grid is u8 [15][28] right after the names
+    #    (0x08E84144, MAPSEC_NONE 0xFC). In game (the TOWN MAP, headless) CARABRUE TOWN's marker sits at grid
+    #    (0x12, 8) + (1, 2) tiles, where its entry says.
+    "dreamstone": dict(
+        suffix="Dreamstone",
+        label="Pokemon Dreamstone Mysteries",
+        sha1="20e91aecb3243eea7cd610659846f37062f5d709",
+        species_name1=0x087B0290, species_stride=0x104, species_max=1525,
+        species_types_off=-0x26, species_gender_off=-0x1A, species_growth_off=-0x17,
+        # The table ends at 855 (ARCHAEOLENS 2.0): its item descriptions follow, which would read as names.
+        items_base=0x0872F6B8 + 0x14, items_stride=0x50, items_name_inline=True, items_desc_off=-8, items_max=856,
+        moves_base=0x08759858, moves_stride=0x30, move_bits_off=0x0A,
+        chart=0x08531EC0, chart_n=21,
+        mapsec_base=0x08E82D24, mapsec_name_off=4,
+        # Cormoria reuses a few of Emerald's / Kanto's ids (IVY RIVER 0x8F, VICTORY ROAD 0x94, ...); the Hoenn sections
+        # it doesn't use keep Emerald's rects, so below 0xD5 only the grid's sections are placed.
+        region_map=dict(image="dreamstone", layout=0x08E84144, w=28, h=15, ox=1, oy=2, none=0xFC, place_min=0xD5),
+        checks=dict(species={1: "Bulbasaur", 25: "Pikachu", 255: "Torchic", 501: "Oshawott", 1289: "Sprigatito"},
+                    types={1: (13, 4), 25: (14, 14), 255: (11, 11), 501: (12, 12)},
+                    gender={1: 31, 25: 127}, items={1: "Poké Ball", 2: "Great Ball", 28: "Potion", 829: "Lab Package"},
+                    moves={1: (1, 40), 33: (1, 40), 52: (11, 40), 57: (12, 90), 89: (5, 100), 585: (19, 95)}),
+    ),
 }
 
 CHARS = {0x00: " ", 0x1B: "é", 0xAB: "!", 0xAC: "?", 0xAD: ".", 0xAE: "-", 0xB0: "…", 0xB1: "“", 0xB2: "”",
@@ -309,7 +384,7 @@ def write(name, body):
 
 
 def species(rom, g):
-    names, types, gender = {}, {}, {}
+    names, types, gender, growth = {}, {}, {}, {}
     for i in range(1, g["species_max"]):
         a = g["species_name1"] + (i - 1) * g["species_stride"]
         if rom.off(a) + g["species_stride"] > len(rom.d):
@@ -320,11 +395,14 @@ def species(rom, g):
         names[i] = n
         types[i] = (rom.u8(a + g["species_types_off"]), rom.u8(a + g["species_types_off"] + 1))
         gender[i] = rom.u8(a + g["species_gender_off"])
+        if "species_growth_off" in g:
+            growth[i] = rom.u8(a + g["species_growth_off"])
     c = g["checks"]
     assert all(names.get(i) == n for i, n in c["species"].items()), "species table address is wrong"
     assert all(types.get(i) == t for i, t in c["types"].items()), "species type offset is wrong"
     assert all(gender.get(i) == r for i, r in c["gender"].items()), "species gender offset is wrong"
-    return names, types, gender
+    assert all(growth.get(i) == r for i, r in c.get("growth", {}).items()), "species growth rate offset is wrong"
+    return names, types, gender, growth
 
 
 def named_table(rom, base, stride, inline=False, limit=4000):
@@ -365,7 +443,7 @@ def main():
     sfx = g["suffix"]
     low = sfx[0].lower() + sfx[1:]
 
-    names, types, gender = species(rom, g)
+    names, types, gender, growth = species(rom, g)
     write(f"SpeciesNames{sfx}.kt", header(g, "gSpeciesInfo inline names, keyed by the\n"
           "// game's own species ids (National Dex order, then forms/customs).\n") +
           f"val speciesNames{sfx}: Map<Int, String> = mapOf(\n" +
@@ -375,11 +453,24 @@ def main():
           "".join(f"    {i} to SpeciesTypes({a}, {b}),\n" for i, (a, b) in sorted(types.items())) + ")\n")
     top = max(gender)
     hexs = "".join("%02x" % gender.get(i, 255) for i in range(top + 1))
+    if "species_growth_off" in g:  # opt-in: games whose EXP bar reads their own growth rates
+        rates = "".join("%02x" % (rom.u8(g["species_name1"] + (i - 1) * g["species_stride"] + g["species_growth_off"])
+                                 if i in names else 255) for i in range(max(names) + 1))
+        assert rates[2:4] == "03", "species growth rate offset is wrong"  # BULBASAUR: MEDIUM_SLOW
+        write(f"GrowthRates{sfx}.kt", header(g, "gSpeciesInfo growthRate by species id (vanilla's 0..5:\n"
+              "// MEDIUM_FAST, ERRATIC, FLUCTUATING, MEDIUM_SLOW, FAST, SLOW; 255 = no species).\n") +
+              f"internal val growthRates{sfx}: IntArray by lazy {{ unhexRatios(\"{rates}\") }}\n")
     write(f"GenderRatios{sfx}.kt", header(g, "gSpeciesInfo genderRatio by species id (0 always\n"
           "// male, 254 always female, 255 genderless, else female when (personality & 0xFF) < ratio).\n") +
           f"val genderRatios{sfx}: IntArray by lazy {{ unhexRatios(\"{hexs}\") }}\n")
+    if growth:  # only games that ask (species_growth_off): their EXP bar
+        hexg = "".join("%02x" % growth.get(i, 255) for i in range(max(growth) + 1))
+        write(f"GrowthRates{sfx}.kt", header(g, "gSpeciesInfo growthRate by species id (vanilla's GROWTH_* ids:\n"
+              "// ExpTables.kt's curves; 255 = no species).\n") +
+              f"internal val growthRates{sfx}: IntArray by lazy {{ unhexRatios(\"{hexg}\") }}\n")
 
-    items = named_table(rom, g["items_base"], g["items_stride"], g.get("items_name_inline", False))
+    items = named_table(rom, g["items_base"], g["items_stride"], g.get("items_name_inline", False),
+                        limit=g.get("items_max", 4000))
     assert all(items.get(i) == n for i, n in g["checks"]["items"].items()), "item table address is wrong"
     write(f"ItemNames{sfx}.kt", header(g, "gItemsInfo names, keyed by item id.\n") +
           f"val itemNames{sfx}: Map<Int, String> = mapOf(\n" +
@@ -454,7 +545,10 @@ def main():
         for i, s in sorted(mapsecs.items()):
             a = g["mapsec_base"] + 8 * i
             x, y, mw, mh = (rom.u8(a + k) for k in range(4))
-            if (x, y) != (0, 0) and mw and mh:
+            # place_min: a hack that drew a region of its own over Emerald's ids keeps Emerald's {x, y, w, h} for
+            # the Hoenn sections it never uses - below this id a section is placed only where the grid names it.
+            stale = i < rm.get("place_min", 0) and i not in on_grid
+            if (x, y) != (0, 0) and mw and mh and not stale:
                 rows.append(f"    {i} to MapSecInfo({kstr(s)}, 0, {x + rm['ox']}, {y + rm['oy']}, {mw}, {mh}),\n")
             elif i in on_grid:
                 rows.append(f"    {i} to MapSecInfo({kstr(s)}, 0, 0, 0, 0, 0),\n")

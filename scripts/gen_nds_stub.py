@@ -5,6 +5,7 @@
 
 - stub/pk_nds_hook.c: the function caller pk_nds_call.cpp hooks into the game's main loop - clang for armv5te, ARM
   mode, no jump tables, so the bytes run wherever they're copied (the script checks there's nothing to relocate).
+- stub/pk_nds_skill.c: Gen 5's field-skill helper (Black's FLY), built the same way.
 - stub/platinum_*.s: field scripts in the game's own script language, assembled with pret/pokeplatinum's own macros
   and make_script_bin.sh in its build image (pokeplatinum-build, the one that builds the retail ROM byte for byte).
 - stub/heartgold_*.s: the same for HeartGold / SoulSilver, with pret/pokeheartgold's macros and makescript.sh (in the
@@ -28,14 +29,14 @@ def run(cmd, **kw):
     subprocess.run(cmd, check=True, **kw)
 
 
-def hook(tmp):
-    obj = os.path.join(tmp, "hook.o")
+def hook(tmp, src="pk_nds_hook.c"):
+    obj = os.path.join(tmp, src[:-2] + ".o")
     run(["clang", "--target=armv5te-none-eabi", "-marm", "-O2", "-fno-jump-tables", "-ffreestanding", "-fno-builtin",
-         "-nostdlib", "-c", os.path.join(STUB, "pk_nds_hook.c"), "-o", obj])
+         "-nostdlib", "-c", os.path.join(STUB, src), "-o", obj])
     relocs = subprocess.run([os.path.join(LLVM, "llvm-objdump"), "-r", "--section=.text.entry", obj],
                             capture_output=True, text=True, check=True).stdout
     assert "R_ARM" not in relocs, "the hook needs relocating:\n" + relocs
-    out = os.path.join(tmp, "hook.bin")
+    out = os.path.join(tmp, src[:-2] + ".bin")
     run([os.path.join(LLVM, "llvm-objcopy"), "-O", "binary", "--only-section=.text.entry", obj, out])
     return open(out, "rb").read()
 
@@ -71,7 +72,7 @@ def array(name, data):
 
 def main():
     with tempfile.TemporaryDirectory() as tmp:
-        parts = [array("PK_NDS_HOOK_CODE", hook(tmp))]
+        parts = [array("PK_NDS_HOOK_CODE", hook(tmp)), array("PK_NDS_SKILL_CODE", hook(tmp, "pk_nds_skill.c"))]
         for sym, name in SCRIPTS:
             data = script(tmp, name)
             assert len(data) <= 0x1000, (name, len(data))

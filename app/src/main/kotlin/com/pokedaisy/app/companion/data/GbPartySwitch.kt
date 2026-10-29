@@ -74,7 +74,6 @@ fun gen2MonKey(raw: ByteArray, off: Int): Long = gbMonKey(u8(raw, off), be16(raw
 
 private const val TILE_CURSOR = 0xED   // ▶, a menu waiting for input
 private const val GEN1_NORMAL_PARTY_MENU = 0
-private const val GEN1_BATTLE_PARTY_MENU = 2   // after a faint
 private const val GEN1_SUBMENU_TOP = 0x0C      // SWITCH / STATS / CANCEL: wTopMenuItemY = wTopMenuItemX = $c
 private const val GEN2_CHOOSE_POKEMON = 0      // PARTYMENUACTION_CHOOSE_POKEMON (BattleMenu_PKMN)
 private const val GEN2_SWITCH = 2              // PARTYMENUACTION_SWITCH (the pick after a faint)
@@ -136,9 +135,9 @@ fun readGen1PartyMenu(r: MemoryReader, cfg: Gen1Config): GbPartyMenu? {
     val count = u8(r.readCoreMemory(cfg.partyCount, 1), 0)
     val type = u8(r.readCoreMemory(cfg.partyMenuType, 1), 0)
     if (count !in 1..PARTY_SIZE || max != count - 1) return null
-    if (type != GEN1_NORMAL_PARTY_MENU && type != GEN1_BATTLE_PARTY_MENU) return null   // e.g. a Potion's "use on which?"
+    if (type != GEN1_NORMAL_PARTY_MENU && type != cfg.battlePartyMenu) return null   // e.g. a Potion's "use on which?"
     if (!cursorShown(top + 2 * item)) return null
-    return GbPartyMenu(submenu = false, cursor = item, forced = type == GEN1_BATTLE_PARTY_MENU)
+    return GbPartyMenu(submenu = false, cursor = item, forced = type == cfg.battlePartyMenu)
 }
 
 /** Crystal's battle party menu or its SWITCH / STATS / CANCEL menu, while one waits for a press (in a battle only). */

@@ -1,0 +1,55 @@
+---
+// The companion's MAP tab as an AppScreen pane (MapScreen.kt): the region map like the game draws it -
+// here an invented region (regionmap.js), never a game's art - with the place's name on a dark strip at the
+// top left (FireRed's label), the player's head where they stand, FireRed's map cursor (four white corners
+// that swap between two sizes) and the PLACES / ME / FLY buttons top right. CompanionDemo moves the cursor
+// over places (data-place) and back to the player (ME).
+import Pixel from './Pixel.astro';
+import { PLACES, PLAYER, T } from '../lib/regionmap.js';
+import { spriteUrl } from '../lib/pixel.js';
+
+// The map sprite at scale 2 (the app's --px is 2): a sprite pixel is 4 canvas pixels, a tile T x 4.
+const S = T * 4;
+const at = (p: { x: number; y: number }) => `left:${p.x * S}px;top:${p.y * S}px`;
+---
+<div class="pane map-pane" data-pane="map" data-tile={S} style={`--sea:${spriteUrl('sea')}`}>
+  <div class="map-inner">
+    <span class="map-art"><Pixel name="regionMap" scale={2} /></span>
+    {PLACES.map((p) => <span class="map-place" data-place={p.id} data-name={p.name} style={at(p)}></span>)}
+    <span class="map-place" data-place="ME" data-name={PLAYER.name} style={at(PLAYER)}></span>
+    <span class="map-head" style={at(PLAYER)}><Pixel name="mapHead" scale={1.5} /></span>
+    <span class="map-cursor" data-map-cursor style={at(PLAYER)}><i></i><i></i><i></i><i></i></span>
+  </div>
+  <div class="map-label t32" data-map-label>{PLAYER.name}</div>
+  <div class="map-btns">
+    <span class="mbtn f-appBtn t24" data-b="places">PLACES</span>
+    <span class="mbtn f-appBtn t24" data-b="me">ME</span>
+    <span class="mbtn f-appBtnFly t24 fly" data-b="fly">FLY</span>
+  </div>
+</div>
+
+<style is:global>
+  /* The map keeps its shape in the middle of a wider tab, the sea carried on past its sides (its wave lines
+     lined up with the map's), and stops short of the tab bar. The label and buttons keep to the tab's corners. */
+  .app .map-pane { bottom: auto; height: 440px; overflow: hidden; background: #4878d0 var(--sea) calc((var(--aw, 560px) - 560px) / 2) 0 / 40px 48px; }
+  .app .map-inner { position: absolute; left: calc(50% - 280px); top: 0; width: 560px; height: 448px; }
+  .app .map-art { position: absolute; left: 0; top: 0; }
+  .app .map-place { position: absolute; width: 28px; height: 28px; }
+  /* The player's head, a little above their tile, like the game's. */
+  .app .map-head { position: absolute; margin: -10px 0 0 -1px; animation: headBob 0.66s steps(1) infinite; }
+  @keyframes headBob { 50% { transform: translateY(-2px); } }
+  /* FireRed's cursor: four white 2-pixel corners, a size bigger every other 20 frames. */
+  .app .map-cursor { position: absolute; width: 28px; height: 28px; transition: left 0.24s steps(4), top 0.24s steps(4); z-index: 2; --o: -6px; animation: cursorSize 0.66s steps(1) infinite; }
+  @keyframes cursorSize { 50% { --o: -10px; } }
+  @property --o { syntax: '<length>'; inherits: true; initial-value: -6px; }
+  .app .map-cursor i { position: absolute; width: 10px; height: 10px; border: 0 solid #fff; filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.35)); }
+  .app .map-cursor i:nth-child(1) { left: var(--o); top: var(--o); border-width: 4px 0 0 4px; }
+  .app .map-cursor i:nth-child(2) { right: var(--o); top: var(--o); border-width: 4px 4px 0 0; }
+  .app .map-cursor i:nth-child(3) { left: var(--o); bottom: var(--o); border-width: 0 0 4px 4px; }
+  .app .map-cursor i:nth-child(4) { right: var(--o); bottom: var(--o); border-width: 0 4px 4px 0; }
+  .app .map-label { position: absolute; left: 0; top: 14px; padding: 6px 22px 8px 14px; color: #fff; text-shadow: 2px 2px 0 #404048; background: rgba(16, 16, 24, 0.5); white-space: nowrap; }
+  .app .map-btns { position: absolute; right: 12px; top: 12px; display: grid; gap: 8px; justify-items: stretch; }
+  .app .mbtn { display: grid; place-items: center; height: 44px; padding: 0 12px; color: #484848; text-shadow: 2px 2px 0 #d8d8d8; transition: transform 0.08s steps(1); }
+  .app .mbtn.fly { color: #3152cd; text-shadow: 2px 2px 0 #a4c5f6; }
+  .app .mbtn.pressed { transform: translateY(2px); filter: brightness(0.92); }
+</style>

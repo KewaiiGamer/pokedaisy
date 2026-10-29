@@ -6,6 +6,9 @@ contact_links:
   - name: Suggest a feature
     url: https://github.com/lidor30/pokedaisy/discussions/new?category=ideas
     about: Share an idea for PokeDaisy, and upvote the ones you want.
+  - name: Get help on Discord
+    url: https://discord.gg/vcmyKZZV5q
+    about: Not sure it's a bug, or need a hand setting something up? Ask on PokeDaisy's Discord.
   - name: Check a ROM first
     url: https://pokedaisy.com/compatibility/
     about: See whether the companion can read your ROM - it's checked in your browser, never uploaded.

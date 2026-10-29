@@ -517,6 +517,15 @@ class HackPokedexTest {
         assertEquals(listOf("Blaze"), charmander.abilities)
     }
 
+    /** Wishes of Tomorrow (expansion 1.15.3): expansion's Hoenn list (u32 national numbers), every National entry readable. */
+    @Test
+    fun `Wishes of Tomorrow entries and the Hoenn order`() = roms("Pokemon Wishes of Tomorrow (v1.2.6).gba", GameKind.WISHES, POKEDEX_WISHES) { t ->
+        assertEquals(252, PokedexSource.regionalOrder(t)!!.first())
+        val pikachu = PokedexSource.entry(t, 25)!!
+        assertEquals("Mouse" to (4 to 60), pikachu.category to (pikachu.heightDm to pikachu.weightHg))
+        assertEquals(listOf("Static"), pikachu.abilities)
+    }
+
     @Test
     fun `Glazed entries in its own numbering`() = roms("Pokemon Glazed (v9.2.0).gba", GameKind.GLAZED, POKEDEX_EMERALD) { t ->
         val chimchar = PokedexSource.entry(t, 322)!!

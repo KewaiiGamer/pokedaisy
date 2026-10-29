@@ -32,6 +32,8 @@ class PolishedCrystalDecodeTest {
             val t = read(fixture, cfg)
             assertFalse(fixture, t.inBattle)
             assertEquals(fixture, listOf("Cyndaquil", "Pidgey"), t.party.map { speciesName(it.species) })
+            // Its charmap's 0x53-terminated wPartyMonNicknames.
+            assertEquals(fixture, listOf("Cyndaquil", "Pidgey"), t.party.map { it.nickname })
             val cyndaquil = t.party[0]
             assertEquals(155 to 5, cyndaquil.species to cyndaquil.level)
             assertEquals(13 to 19, cyndaquil.hp to cyndaquil.maxHp)
@@ -75,7 +77,7 @@ class PolishedCrystalDecodeTest {
 
     @Test
     fun `dex flags - by species, past the 8th bit (with the ROM)`() {
-        val rom = File(File(RETAIL_ROM_DIR).parentFile, "gbc/polishedcrystal-3.2.3.gbc")
+        val rom = File(File(RETAIL_ROM_DIR).parentFile, "gbc/Pokemon Polished Crystal (v3.2.3).gbc")
         assumeTrue("Polished Crystal 3.2.3 not on this machine", rom.isFile)
         Gen1Dex.rom = rom.readBytes()
         try {

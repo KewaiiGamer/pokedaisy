@@ -55,13 +55,13 @@ object SavesLocation {
 
     /**
      * Folders likely to hold the player's existing saves, with at least one
-     * `.sav` / `.srm` in them: the linked ROMs folder (saves kept next to the
+     * `.sav` / `.srm` in them: the linked ROMs folders (saves kept next to the
      * games) and its `saves/`, then RetroArch's save folders on every volume.
      * Blocking (lists folders) and needs All files access to see anything.
      */
     fun suggestions(prefs: Prefs): List<Suggestion> {
         val candidates = buildList {
-            prefs.romsFolder?.let { add(File(it)); add(File(it, "saves")) }
+            prefs.romsFolders.forEach { add(File(it)); add(File(it, "saves")) }
             for (root in StorageAccess.volumeRoots()) {
                 for (core in RETROARCH_SAVE_DIRS) add(File(root, "RetroArch/saves/$core"))
                 add(File(root, "RetroArch/saves"))

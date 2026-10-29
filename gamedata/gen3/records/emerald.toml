@@ -1,0 +1,154 @@
+# Gen 3 records (retail Emerald): the Pokédex, guide, trainer-card and dex-flag tables the configs in
+# gen3/retail/ name, and that the 3DS / Linux companion reads (gamedata/targets/3ds.toml).
+# The format and the commands: gamedata/README.md.
+
+# Emerald's own item.c: gBagPockets[ITEMS_POCKET=0/BALLS_POCKET=1/
+# TMHM_POCKET=2/BERRIES_POCKET=3/KEYITEMS_POCKET=4] - a different order.
+[list.EMERALD_BAG_POCKET_ORDER]
+of = 'Int'
+items = ['POCKET_ITEMS', 'POCKET_POKE_BALLS', 'POCKET_TM_HM', 'POCKET_BERRIES', 'POCKET_KEY_ITEMS']
+
+# FireRed's struct Pokedex; SaveBlock1's copies of seen sit elsewhere.
+[record.EMERALD_DEX_FLAGS]
+schema = 'gen3_dexflags'
+base = 'FIRERED_DEX_FLAGS'
+seenCopies = [0x988, 0x3B24]
+
+[record.POKEDEX_EMERALD]
+schema = 'gen3_pokedex'
+entries = 0x0856B5B0
+frontPics = 0x0830A18C
+palettes = 0x08303678
+speciesInfo = 0x083203CC
+speciesToNational = 0x0831DC82
+abilityNames = 0x0831B6DB
+footprints = 0x0856E694
+entryStride = 0x20
+regionalCount = 202  # HOENN_DEX_COUNT (Jirachi and Deoxys included)
+regionName = 'HOENN'
+regionalOrder = 0x0831DFB8
+flags = 'EMERALD_DEX_FLAGS'
+nationalMagicOff = 2
+nationalMagic = 0xDA
+evolutions = 0x0832531C
+tmhmLearnsets = 0x0831E898
+tmhmMoves = 0x08615B94
+
+# Retail Emerald, from the pinned pokeemerald commit built unpatched with
+# agbcc - byte-identical to retail (sha1 f3ae0881…) - and its ELF
+# (arm-none-eabi-nm). The tables have FireRed's layouts (struct Trainer is
+# the same 0x28 bytes, same party structs, learnsets and wild headers);
+# SaveBlock1.flags / .vars sit at 0x1270 / 0x139C (offsetof, compiled with
+# agbcc) with 300 flag bytes. Trainer 265 is ROXANNE.
+[record.GUIDE_TABLES_EMERALD]
+schema = 'gen3_guide'
+trainers = 0x08310030
+learnsets = 0x0832937C
+wildHeaders = 0x08552D48
+sb1FlagsOff = 0x1270
+sb1VarsOff = 0x139C
+flagBytes = 0x12C
+probeTrainer = 265
+probeName = 'ROXANNE'
+guide = 'GuideId.EMERALD'
+mapGroups = 0x08486578
+
+# Emerald's card: Battle Frontier symbols, the museum's paintings (SaveBlock1.contestWinners[8..])
+# and battle points add its stars.
+[record.TRAINER_CARD_EMERALD]
+schema = 'gen3_card'
+style = 'CardStyle.HOENN'
+gameStatsOff = 0x159C
+flagsOff = 0x1270
+varsOff = 0x139C
+badgeFlag = 0x867
+pokedexFlag = 0x861
+nationalMagicOff = 0x1A  # 0x18 + 2
+nationalMagic = 0xDA
+nationalVar = 0x4046
+nationalVarValue = 0x302
+nationalFlag = 0x896
+dexFlags = 'EMERALD_DEX_FLAGS'
+regionalDex = 'HOENN_TO_NATIONAL'
+frontierSymbolFlag = 0x8C4
+museumWinnersOff = 0x2F90  # 0x2E90 + 8 * 32
+frontierBpOff = 0xEBA
+
+# FLY (Fly.kt's FlyFns): retail Emerald, pret's pokeemerald built clean (byte for byte retail) and its ELF.
+# sMapHealLocations covers map sections 0..49; Ever Grande flies to the city (the game's League spot needs the
+# cursor's top tile).
+[record.FLY_EMERALD]
+schema = 'gen3_fly'
+flagGet = 0x0809D790
+badgeFlag = 0x86C
+setUpFieldMoveFly = 0x081B5884
+getMapsecType = 0x08123D58
+fadeScreen = 0x080ABCD0
+lockControls = 0x08098E54
+unlockControls = 0x08098E60
+setFlyWarpDestination = 0
+partyMenuSlotId = 0x0203CED1
+destinations = 0x085A1E3C
+firstMapsec = 0
+count = 50
+codeCrcs = [0xBCF97BF3, 0x13BE1A7A, 0x4B625BC4, 0xF9959006, 0xB9FB85A7, 0xB037C8AF, 0x74DBCE3A, 0x2F1D18CA, 0xA284286D]
+flyTypes = [2, 4]
+extraMapsecs = [58]
+healWarp = 'HEAL_WARP_EMERALD'
+
+# Emerald's CB_ExitFlyMap: the heal location, Littleroot by the player's gender, else the map warp.
+[record.HEAL_WARP_EMERALD]
+schema = 'gen3_heal_warp'
+toHealLocation = 0x08084CCC
+toMapWarp = 0x08084C28
+returnToField = 0x080B69DC
+saveBlock2Ptr = 0x03005D90
+# MAPSEC_EVER_GRANDE_CITY, MAPSEC_BATTLE_FRONTIER (HEAL_LOCATION_EVER_GRANDE_CITY, _BATTLE_FRONTIER_OUTSIDE_EAST)
+special = [[15, 11], [58, 22]]
+genderMapsec = 0
+maleHeal = 12
+femaleHeal = 13
+
+# USE / GIVE / TAKE, the Repels, FLY and PC anywhere (FieldItems.kt's FieldItemFns): retail Emerald (BPEE). Its
+# functions sit where the pinned pokeemerald build has them (Emerald Kaizo's too, retail edited in place). Every
+# address from pret's pokeemerald built clean (byte for byte retail, SHA1 f3ae0881...) and its ELF. Emerald has no
+# PokemonItemUseNoEffect: the no-effect check is its party menu's own, ExecuteTableBasedItemEffect, on the Pokémon
+# and then undone (PartyItemFns.itemNoEffect).
+[record.FIELD_ITEMS_EMERALD]
+schema = 'gen3_field_items'
+varGet = 0x0809D694
+varSet = 0x0809D6B0
+checkBagHasItem = 0x080D6724
+removeBagItem = 0x080D6AA4
+fieldControlsLocked = 0x08098E6C
+repelVar = 0x4021
+items = 0x085839A0
+codeCrcs = [0x7D0D07B6, 0x519C39C0, 0x312F6576, 0x379EF742, 0x2532A407]
+party = 'PARTY_ITEMS_EMERALD'
+fly = 'FLY_EMERALD'
+pc = 'PC_EMERALD'
+
+[record.PARTY_ITEMS_EMERALD]
+schema = 'gen3_party_items'
+getMonData = 0x0806A518
+setMonData = 0x0806ACAC
+itemNoEffect = 'none'
+itemEffect = 0x0806BD04
+addBagItem = 0x080D6928
+party = 0x020244EC
+partyCount = 0x020244E9
+# EWRAM's last symbol (sRayScene) ends at 0x0203CF64; nothing writes past it (EWRAM_END is defined, never used).
+scratch = 0x0203FFF0
+itemCount = 377
+unholdablePockets = [5, 3] # POCKET_KEY_ITEMS, POCKET_TM_HM
+codeCrcs = [0x9670EBDE, 0x8D555FF8, 0xEADAC6C9, 0x75BC5970]
+# ItemUseOutOfBattle_Medicine, _PPRecovery, _PPUp, _Repel
+useFuncs = [0x080FDEA0, 0x080FDEF4, 0x080FDF10, 0x080FE0BC]
+
+[record.PC_EMERALD]
+schema = 'gen3_pc'
+setupScript = 0x08098EF8
+special = 63
+specials = 0x081DBA64
+pcFn = 0x080C7579
+codeCrcs = [0xEF3698BA, 0x81188148]

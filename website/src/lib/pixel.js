@@ -4,6 +4,8 @@
 // bitmaps; the rest are drawn in the same style.
 
 import { CREATURES } from './creatures.js';
+import { HANDHELD_SPRITES } from './handheld.js';
+import { regionMapSprite, seaSprite } from './regionmap.js';
 
 const INK = '#202020';
 
@@ -364,6 +366,22 @@ SPRITES.reddit = {
     '...KKKKKKK...',
   ],
 };
+SPRITES.discord = {
+  pal: { K: INK, W: '#ffffff', B: '#5865f2' },
+  rows: [
+    '..KK.....KK..',
+    '.KBBKKKKKBBK.',
+    '.KBBBBBBBBBK.',
+    'KBBBBBBBBBBBK',
+    'KBBWWBBBWWBBK',
+    'KBBWWBBBWWBBK',
+    'KBBWWBBBWWBBK',
+    'KBBBBBBBBBBBK',
+    'KBBBBBBBBBBBK',
+    '.KBBKKKKKBBK.',
+    '..KK.....KK..',
+  ],
+};
 SPRITES.dual = {
   pal: { K: INK, U: '#58a0f0', W: '#d8f0ff', S: '#909098', L: '#c8c8d0', G: '#58c058' },
   rows: [
@@ -634,76 +652,7 @@ SPRITES.dpad = {
     '...KLLK...', '...KLLK...', '...KKKK...'],
 };
 
-// The Thor's controls, drawn round from circles so they keep their shape at any size: sticks with
-// the glowing ring, the d-pad and ABXY on their round bases.
-function grid(size, paint) {
-  const rows = [];
-  for (let y = 0; y < size; y++) {
-    let row = '';
-    for (let x = 0; x < size; x++) row += paint(x + 0.5 - size / 2, y + 0.5 - size / 2) ?? '.';
-    rows.push(row);
-  }
-  return rows;
-}
-function thorStick(size) {
-  const R = size / 2;
-  return {
-    pal: { K: '#0c0c10', B: '#1b1b22', C: '#74e4ff', c: '#3fb8e0', G: '#3e3e4a', L: '#6a6a78', D: '#2a2a34', E: '#24242c' },
-    rows: grid(size, (dx, dy) => {
-      const r = Math.hypot(dx, dy);
-      if (r > R - 0.3) return null;
-      if (r > R - 1.3) return 'K';
-      if (r > R * 0.8) return 'B';
-      if (r > R * 0.68) return dy > 0 ? 'C' : 'c';
-      if (r > R * 0.62) return 'K';
-      if (r > R * 0.4 && r < R * 0.48) return 'E';
-      if (dx + dy < -R * 0.55 && r > R * 0.3) return 'L';
-      return dx + dy > R * 0.5 ? 'D' : 'G';
-    }),
-  };
-}
-function thorDpad(size) {
-  const R = size / 2;
-  const arm = size * 0.15;
-  return {
-    pal: { K: '#0c0c10', B: '#1b1b22', G: '#474754', L: '#686876', D: '#2c2c36' },
-    rows: grid(size, (dx, dy) => {
-      const r = Math.hypot(dx, dy);
-      if (r > R - 0.3) return null;
-      if (r > R - 1.3) return 'K';
-      const inCross = (Math.abs(dx) < arm && Math.abs(dy) < R * 0.78) || (Math.abs(dy) < arm && Math.abs(dx) < R * 0.78);
-      if (!inCross) return 'B';
-      const edge = (Math.abs(dx) < arm && Math.abs(dy) > R * 0.78 - 1.1) || (Math.abs(dy) < arm && Math.abs(dx) > R * 0.78 - 1.1)
-        || (Math.abs(dx) > arm - 1.1 && Math.abs(dy) > arm - 0.1) || (Math.abs(dy) > arm - 1.1 && Math.abs(dx) > arm - 0.1);
-      if (edge) return 'K';
-      if (Math.hypot(dx, dy) < arm * 0.6) return 'D';
-      return dx + dy < -arm ? 'L' : dx + dy > arm ? 'D' : 'G';
-    }),
-  };
-}
-function thorAbxy(size) {
-  const R = size / 2;
-  const br = size * 0.17;
-  const at = R * 0.52;
-  const centres = [[0, -at], [-at, 0], [at, 0], [0, at]];
-  return {
-    pal: { K: '#0c0c10', B: '#1b1b22', G: '#3e3e4a', L: '#70707e', W: '#c8c8d4' },
-    rows: grid(size, (dx, dy) => {
-      const r = Math.hypot(dx, dy);
-      if (r > R - 0.3) return null;
-      if (r > R - 1.3) return 'K';
-      for (const [cx, cy] of centres) {
-        const d = Math.hypot(dx - cx, dy - cy);
-        if (d < br - 0.9) return dx - cx + (dy - cy) < -br * 0.5 ? 'L' : Math.abs(dx - cx) < 0.8 && Math.abs(dy - cy) < br * 0.45 ? 'W' : 'G';
-        if (d < br + 0.1) return 'K';
-      }
-      return 'B';
-    }),
-  };
-}
-SPRITES.thorStick = thorStick(26);
-SPRITES.thorDpad = thorDpad(26);
-SPRITES.thorAbxy = thorAbxy(26);
+// The hero handhelds' controls are handheld.js's (thorDpad2 & co.).
 
 // The app's STATUS BAR icons: the place pin and the battery.
 SPRITES.pin = {
@@ -796,6 +745,34 @@ SPRITES.logo = daisyBall(32);
 /** A sprite as a CSS url() - for tiled backgrounds. */
 // The invented creatures (creatures.js) draw by their id: <Pixel name="emberpup" />.
 for (const [id, c] of Object.entries(CREATURES)) SPRITES[id] = { pal: c.pal, rows: c.rows };
+Object.assign(SPRITES, HANDHELD_SPRITES);
+SPRITES.regionMap = regionMapSprite();
+SPRITES.sea = seaSprite();
+// The MAP tab's player: the walker's head, as the region map marks where you are.
+SPRITES.mapHead = { pal: SPRITES.walker.pal, rows: SPRITES.walker.rows.slice(0, 8) };
+
+// The BAG tab's invented items (never a real item's name or art): tonics, eye drops, a bun, a ball of thread.
+const bottle = (c, l) => ({
+  pal: { K: INK, W: '#ffffff', C: c, L: l, G: '#c8d0d8' },
+  rows: ['....KKKK....', '....KGGK....', '....KKKK....', '...KWWWWK...', '...KCCCCK...', '..KCLCCCCK..', '..KCLCCCCK..', '..KCCWWCCK..', '..KCCWWCCK..', '..KCCCCCCK..', '...KCCCCK...', '....KKKK....'],
+});
+SPRITES.tonic = bottle('#d84890', '#f8a8d0');
+SPRITES.tonicSuper = bottle('#f08828', '#f8d090');
+SPRITES.drops = {
+  pal: { K: INK, W: '#ffffff', B: '#4898e8', L: '#a8d8ff' },
+  rows: ['.....KK.....', '....KWWK....', '....KKKK....', '...KBBBBK...', '...KBLBBK...', '..KBBLBBBK..', '..KBLBBBBK..', '..KBBBBBBK..', '..KBBBBBBK..', '...KBBBBK...', '....KKKK....'],
+};
+SPRITES.bun = {
+  pal: { K: '#5a3010', B: '#d89040', L: '#f8c878', W: '#fff4d8' },
+  rows: ['............', '....KKKK....', '..KKLLLLKK..', '.KLLWWLLLLK.', '.KLWWLLLLBK.', 'KBLLLLLLLBBK', 'KBBBBBBBBBBK', 'KKBBBBBBBBKK', '.KKKKKKKKKK.'],
+};
+SPRITES.thread = {
+  pal: { K: INK, R: '#e84838', L: '#f8a090', W: '#d8c8b0' },
+  rows: ['....KKKK....', '..KKRRRRKK..', '.KRLRRLRRRK.', '.KRRLRRLRRK.', 'KRLRRLRRLRRK', 'KRRLRRLRRLRK', 'KRRRLRRLRRRK', '.KRRRLRRLRK.', '.KRRRRLRRRK.', '..KKRRRRKKW.', '....KKKK..W.'],
+};
+// The companion window's X (PixelIcons.panelClose's shape).
+SPRITES.winClose = ink(['1100011', '1110111', '0111110', '0011100', '0111110', '1110111', '1100011'], '#505058');
+
 
 export function spriteUrl(name) {
   return `url("data:image/svg+xml,${encodeURIComponent(spriteSvg(name).svg)}")`;
@@ -876,6 +853,8 @@ export const FRAMES = {
   patreonHot: frameSvg([[INKF, 1], ['#ffffff', 1]], 2, '#ffc4be'),
   reddit: frameSvg([[INKF, 1], ['#ffe2d2', 1]], 2, '#ffb48e'),
   redditHot: frameSvg([[INKF, 1], ['#ffffff', 1]], 2, '#ffcbb0'),
+  discord: frameSvg([[INKF, 1], ['#e3e6ff', 1]], 2, '#aab2ff'),
+  discordHot: frameSvg([[INKF, 1], ['#ffffff', 1]], 2, '#c6ccff'),
   chip: frameSvg([[INKF, 1]], 1, '#ffffff'),
   chipOn: frameSvg([[INKF, 1]], 1, INKF),
   pillGreen: frameSvg([['#2c7a3a', 1]], 1, '#dff6e2'),
@@ -904,6 +883,26 @@ export const FRAMES = {
   thorShell: frameSvg([['#0c0c10', 1], ['#4a4a58', 1], ['#2e2e38', 1]], 7, '#24242c'),
   shellLight: frameSvg([[INKF, 1], ['#ffffff', 1]], 6, '#dcdce6'),
   bezel: frameSvg([[INKF, 1]], 3, '#101016'),
+  // The hero handhelds (handheld units, not page pixels): the Thor's black shell and its screens' glass,
+  // the Retroid Pocket 5's light grey shell and glass.
+  thorLid: frameSvg([['#050507', 1], ['#5a5a68', 1], ['#3a3a46', 1]], 7, '#30303a'),
+  thorBase: frameSvg([['#050507', 1], ['#5a5a68', 1], ['#3a3a46', 1]], 7, '#2c2c35'),
+  glass: frameSvg([['#000000', 1], ['#2a2a34', 1]], 3, '#0b0b0f'),
+  rp5Shell: frameSvg([[INKF, 1], ['#f8f7fb', 1], ['#e2e1e8', 1]], 13, '#cecdd6'),
+  rp5Glass: frameSvg([['#4a4858', 1], ['#000000', 1]], 4, '#0c0c11'),
+  rp5Key: frameSvg([['#6e6c7c', 1]], 1, '#9896a6'),
+  // The companion's map buttons (OptionButton, title frame) and FLY in the field moves' blue (OptionColors.fieldMove).
+  appBtn: frameSvg([['#63737b', 2], ['#ced6d6', 1]], 3, '#ffffff'),
+  appBtnFly: frameSvg([['#3152cd', 2], ['#a4c5f6', 1]], 3, '#ffffff'),
+  appKey: frameSvg([['#63737b', 1]], 2, '#ffffff'),
+  // The companion window's frame over its edge (SidePanel.kt's WindowFrame: the title window's layers), see-through inside.
+  winFrame: frameSvg([['#63737b', 2], ['#ced6d6', 1]], 4, 'none'),
+  // FireRed's bag (ItemsScreen.kt's FireRedBag): the list window, its folder tabs, the blue description box.
+  bagPanel: frameSvg([['#686868', 2], ['#e8e0a8', 1], ['#f0c870', 2], ['#d0b050', 2]], 4, '#f8f8c8'),
+  bagTab: frameSvg([['#686868', 2], ['#e8e0a8', 1]], 3, '#d0b050'),
+  bagTabOn: frameSvg([['#686868', 2], ['#e8e0a8', 1]], 3, '#f0c870'),
+  bagDesc: frameSvg([['#005070', 2], ['#10a8d8', 1]], 3, '#0078c0'),
+  bagIcon: frameSvg([['#b8d0d0', 1]], 2, '#f8f8f8'),
 };
 
 /** CSS for every frame: `.f-NAME` draws it (border-image), `.h-NAME` swaps to it on hover / focus. */

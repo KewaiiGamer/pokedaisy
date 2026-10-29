@@ -1,0 +1,16 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Ghost Grey (JoeyZeed; 32 MB, BPRE rev 0): v1.0.2 (sha1 74337272…) and v1.0.4 (0dafc011…) share every
+# table; v1.0.1 (20dfaea1…) differs in one move's type, so it is its own config (ActiveTables' fireRedHack picks
+# the text by config). FireRed 1.0 edited in place with HexManiacAdvance, not CFRU: Rocket Edition's repointed
+# moves / types / ability names, its ghosts in FireRed's species slots, gWildMonHeaders moved to 0x09300100, and
+# every other literal pool the config points through still naming rev 0's address. Its save (a 1.0.3 one, from
+# its Discord) loads in all three builds: the `ghost_grey*` fixtures decode with rev 0's RAM. Its region map's art
+# is its own grey (RomRegionMap).
+[config.ghost_grey]
+base = 'ultra_violet'
+pokedex = 'POKEDEX_GHOST_GREY'
+guideTables = 'GUIDE_TABLES_GHOST_GREY'
+
+[config.ghost_grey_v1_0_1]
+base = 'ghost_grey'

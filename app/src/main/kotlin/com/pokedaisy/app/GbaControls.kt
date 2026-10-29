@@ -2,6 +2,7 @@ package com.pokedaisy.app
 
 import android.util.Log
 import android.view.KeyEvent
+import com.pokedaisy.app.companion.i18n.tk
 import java.io.File
 import java.util.Properties
 
@@ -13,31 +14,51 @@ import java.util.Properties
  */
 object GbaControls {
 
-    /** X / Y: the DS games' X (menu) and Y (registered item); in the other games a second START / SELECT (they
-     * were START 2 / SELECT 2, still their names in the file: [prop]). On the field of a two-screen device X takes
-     * the buttons to the companion instead (PokeDaisyActivity's bottom focus). TURBO A / B (issue #32, unbound by
+    /** Which games a [Btn] row is for: the GBA's own buttons are every game's, X / Y only the DS's, and the GBA / Game
+     * Boy games have their own spare buttons instead (a key can be on one of each: they never run at once). */
+    enum class Group(val title: String) {
+        ALL(tk("ALL GAMES")), DS(tk("DS GAMES")), GBA(tk("GBA AND GAME BOY"));
+
+        fun overlaps(other: Group) = this == ALL || other == ALL || this == other
+    }
+
+    /** X / Y: the DS games' X (menu) and Y (registered item). START 2 / SELECT 2 are the other games' second START /
+     * SELECT, and TO COMPANION ([COMPANION]) takes the buttons to the companion on the field of a two-screen device
+     * (PokeDaisyActivity's bottom focus) - by default all on the DS's X / Y keys. TURBO A / B (issue #32, unbound by
      * default) press A / B on and off while held - [TURBO] marks them in [load]'s map, [GbaInput] pulses them. */
-    enum class Btn(val bit: Int, val label: String) {
+    enum class Btn(val bit: Int, val label: String, val group: Group = Group.ALL) {
         A(MgbaCore.Key.A, "A"), B(MgbaCore.Key.B, "B"),
         L(MgbaCore.Key.L, "L"), R(MgbaCore.Key.R, "R"),
         START(MgbaCore.Key.START, "START"), SELECT(MgbaCore.Key.SELECT, "SELECT"),
-        // On a DS game they're its own X / Y ([DS_X] / [DS_Y]: GbaInput swaps them in).
-        X(MgbaCore.Key.START or DS_X, "X"), Y(MgbaCore.Key.SELECT or DS_Y, "Y"),
-        TURBO_A(MgbaCore.Key.A or TURBO, "TURBO A"), TURBO_B(MgbaCore.Key.B or TURBO, "TURBO B");
+        TURBO_A(MgbaCore.Key.A or TURBO, "TURBO A"), TURBO_B(MgbaCore.Key.B or TURBO, "TURBO B"),
+        X(MgbaCore.Key.X, "X", Group.DS), Y(MgbaCore.Key.Y, "Y", Group.DS),
+        START_2(MgbaCore.Key.START, "START 2", Group.GBA), SELECT_2(MgbaCore.Key.SELECT, "SELECT 2", Group.GBA),
+        TO_COMPANION(COMPANION, tk("TO COMPANION"), Group.GBA);
 
-        val prop get() = when (this) { X -> "start2"; Y -> "select2"; else -> name.lowercase() }
-        /** Its row's name in GAME BUTTONS: the GBA's own buttons say so, X / Y are the DS's. */
-        val title get() = if (this == X || this == Y) label else "GBA $label"
-        /** A line under its row: what X / Y press in the games that have no X / Y (English; translated where drawn). */
-        /** X's NEW tag: on the field of a two-screen device it takes the buttons to the companion. */
-        val badge: String? get() = if (this == X) com.pokedaisy.app.companion.NewFeatures.badge(com.pokedaisy.app.companion.NewFeatures.X_COMPANION) else null
-        val subtitle: String? get() = when (this) {
-            X -> "DS games' X. Others: START, or the companion on the field"
-            Y -> "DS games' Y. Others: SELECT"
+        /** Its key in the file: START 2 / SELECT 2 kept the names X / Y had when they were one row each. */
+        val prop get() = when (this) {
+            X -> "ds_x"; Y -> "ds_y"; START_2 -> "start2"; SELECT_2 -> "select2"; TO_COMPANION -> "companion"
+            else -> name.lowercase()
+        }
+        /** Its row's name in GAME BUTTONS: the GBA's own buttons say so, the others are their own. */
+        val title get() = if (group == Group.ALL) "GBA $label" else label
+        /** START 2 / SELECT 2 / TO COMPANION are new rows (they were all X / Y once); TO COMPANION keeps X's tag. */
+        val badge: String? get() = when (this) {
+            TO_COMPANION -> com.pokedaisy.app.companion.NewFeatures.badge(com.pokedaisy.app.companion.NewFeatures.X_COMPANION)
+            START_2, SELECT_2 -> com.pokedaisy.app.companion.NewFeatures.badge(com.pokedaisy.app.companion.NewFeatures.GBA_BUTTONS)
             else -> null
         }
-        /** TURBO A / B start unbound and can go back to it; every other button always keeps a key. */
-        val canClear get() = this == TURBO_A || this == TURBO_B
+        /** A line under its row: what it does (English; translated where drawn). */
+        val subtitle: String? get() = when (this) {
+            START_2 -> "A second START"
+            SELECT_2 -> "A second SELECT"
+            TO_COMPANION -> "Two screens, on the field: your buttons go to the companion"
+            else -> null
+        }
+        /** Every game needs the GBA's buttons and the DS its X / Y; the rest start unbound or can go back to it. */
+        val canClear get() = this == TURBO_A || this == TURBO_B || group == Group.GBA
+        /** TO COMPANION shares its key with a button (by default START 2's); it never takes the key from one. */
+        fun sharesKeyWith(other: Btn) = this == other || !group.overlaps(other.group) || this == TO_COMPANION || other == TO_COMPANION
     }
 
     private val DEFAULTS = linkedMapOf(
@@ -49,18 +70,27 @@ object GbaControls {
         "select" to "BUTTON_SELECT, BACKSLASH, SHIFT_RIGHT",
         // Face buttons go by Android's names (Xbox positions) on every device, even where
         // the printed labels differ (AYN, Retroid: BUTTON_A is the bottom one); GAME BUTTONS remaps.
+        "ds_x" to "BUTTON_X",
+        "ds_y" to "BUTTON_Y",
         "start2" to "BUTTON_X",
         "select2" to "BUTTON_Y",
+        "companion" to "BUTTON_X",
         "turbo_a" to "",
         "turbo_b" to "",
     )
 
+    /** Rows that came out of one: a file from before them gives each its old row's keys, so nothing moves (X was the
+     * DS's X, a second START and the companion; Y the DS's Y and a second SELECT). */
+    private val SPLIT_FROM = mapOf("ds_x" to "start2", "ds_y" to "select2", "companion" to "start2")
+
     /** Above every GBA key bit: a [load] value with it is a turbo button for the bits below. */
     const val TURBO = 1 shl 16
 
-    /** X / Y's mark: on a DS game ([GbaInput.ds]) the key presses the DS's X / Y instead. */
-    const val DS_X = 1 shl 17
-    const val DS_Y = 1 shl 18
+    /** TO COMPANION's mark in the GBA / Game Boy map ([Btn.TO_COMPANION]): never a game button. */
+    const val COMPANION = 1 shl 17
+
+    /** keycode -> button bits, for the GBA / Game Boy games ([gba]) and the DS games ([ds]). */
+    class KeyMaps(val gba: Map<Int, Int>, val ds: Map<Int, Int>)
 
     private fun file(dir: File) = File(dir, "controls.properties")
 
@@ -69,6 +99,8 @@ object GbaControls {
         val f = file(dir)
         if (f.isFile) runCatching { f.inputStream().use(p::load) }
         var changed = false
+        // A file from before the split rows: start2 / select2 were X / Y, so they had keys if anything did.
+        if (p.containsKey("start2")) for ((k, from) in SPLIT_FROM) if (!p.containsKey(k)) { p.setProperty(k, p.getProperty(from) ?: DEFAULTS.getValue(from)); changed = true }
         for ((k, v) in DEFAULTS) if (!p.containsKey(k)) { p.setProperty(k, v); changed = true }
         if (changed) runCatching {
             f.outputStream().use { p.store(it, "PokeDaisy GBA button map — Android key names, comma-separated") }
@@ -76,16 +108,23 @@ object GbaControls {
         return p
     }
 
-    /** keycode -> GBA key bit ([TURBO] set for TURBO A / B). A key bound twice takes the later button. */
-    fun load(dir: File): Map<Int, Int> {
+    /** keycode -> button bits per [Group] ([TURBO] set for TURBO A / B, [COMPANION] added to a key's button). A key
+     * bound twice in one map takes the later button. */
+    fun load(dir: File): KeyMaps {
         val props = readProps(dir)
-        val out = HashMap<Int, Int>()
+        val gba = HashMap<Int, Int>()
+        val ds = HashMap<Int, Int>()
         for (btn in Btn.entries) {
             props.getProperty(btn.prop).orEmpty().split(',').forEach { n ->
-                resolveKey(n.trim())?.let { out[it] = btn.bit }
+                val key = resolveKey(n.trim()) ?: return@forEach
+                if (btn == Btn.TO_COMPANION) gba[key] = (gba[key] ?: 0) or COMPANION
+                else {
+                    if (btn.group != Group.DS) gba[key] = btn.bit or ((gba[key] ?: 0) and COMPANION)
+                    if (btn.group != Group.GBA) ds[key] = btn.bit
+                }
             }
         }
-        return out
+        return KeyMaps(gba, ds)
     }
 
     fun rawBindings(dir: File): Map<Btn, List<String>> {
@@ -95,11 +134,14 @@ object GbaControls {
         }
     }
 
-    /** [btn] is [keyCode] now - and that key leaves any other button it was on (else the later button kept it). */
-    fun setBinding(dir: File, btn: Btn, keyCode: Int) {
+    /** [btn] is [keyCode] now - and that key leaves any other button it was on in the same games (else the later
+     * button kept it); a DS row and a GBA / Game Boy row can share one, and TO COMPANION shares with anything. */
+    fun setBinding(dir: File, btn: Btn, keyCode: Int) = setBindingNamed(dir, btn, Hotkeys.keyName(keyCode))
+
+    /** [setBinding] by the key's name (no "KEYCODE_" prefix). */
+    fun setBindingNamed(dir: File, btn: Btn, name: String) {
         val props = readProps(dir)
-        val name = Hotkeys.keyName(keyCode)
-        for (other in Btn.entries) if (other != btn) {
+        for (other in Btn.entries) if (!btn.sharesKeyWith(other)) {
             val keys = props.getProperty(other.prop).orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             if (name in keys) props.setProperty(other.prop, (keys - name).joinToString(", "))
         }
@@ -107,7 +149,7 @@ object GbaControls {
         runCatching { file(dir).outputStream().use { props.store(it, "PokeDaisy GBA button map") } }
     }
 
-    /** Leaves [btn] unbound - TURBO A / B only ([Btn.canClear]). */
+    /** Leaves [btn] unbound - TURBO A / B and the GBA / Game Boy rows only ([Btn.canClear]). */
     fun clearBinding(dir: File, btn: Btn) {
         if (!btn.canClear) return
         val props = readProps(dir)

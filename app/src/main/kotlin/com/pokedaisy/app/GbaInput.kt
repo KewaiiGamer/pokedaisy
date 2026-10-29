@@ -10,7 +10,7 @@ import kotlin.math.abs
  * shoulder / menu buttons are remappable via [setControls] (GbaControls); the
  * D-pad and analog stick are fixed.
  */
-class GbaInput {
+class GbaInput : Hotkeys.GameKeys {
     @Volatile
     var mask: Int = 0
         private set
@@ -27,22 +27,31 @@ class GbaInput {
     private var scriptExclusive = false
 
     @Volatile
-    private var controls: Map<Int, Int> = DEFAULT_CONTROLS
+    private var gbaControls: Map<Int, Int> = DEFAULT_CONTROLS
+    @Volatile
+    private var dsControls: Map<Int, Int> = DEFAULT_CONTROLS
 
-    fun setControls(map: Map<Int, Int>) { controls = map }
+    fun setControls(maps: GbaControls.KeyMaps) { gbaControls = maps.gba; dsControls = maps.ds }
 
-    /** A DS game runs: X / Y ([GbaControls.DS_X] / [GbaControls.DS_Y]) press its X / Y. */
+    /** One map for every game (tests). */
+    fun setControls(map: Map<Int, Int>) { gbaControls = map; dsControls = map }
+
+    /** A DS game runs: the keys go by GAME BUTTONS' DS map (X / Y), else by the GBA / Game Boy one (START 2, SELECT 2,
+     * TO COMPANION). */
     @Volatile var ds = false
 
+    private val controls get() = if (ds) dsControls else gbaControls
+
     /** @return true if the event was consumed. */
-    fun onKey(keyCode: Int, down: Boolean): Boolean {
+    override fun onKey(keyCode: Int, down: Boolean): Boolean {
         val bit = keyToBit(keyCode) ?: return false
         if (bit and GbaControls.TURBO != 0) {
-            if (down) turboKeys[keyCode] = bit and GbaControls.TURBO.inv() else turboKeys.remove(keyCode)
+            if (down) turboKeys[keyCode] = bit and (GbaControls.TURBO or GbaControls.COMPANION).inv() else turboKeys.remove(keyCode)
             turboBits = turboKeys.values.fold(0) { acc, b -> acc or b }
             return true
         }
-        if (down) heldKeys[keyCode] = bit else heldKeys.remove(keyCode)
+        // A TO COMPANION key with no button of its own is still the player's: it's taken, the game gets nothing.
+        if (down) heldKeys[keyCode] = bit and GbaControls.COMPANION.inv() else heldKeys.remove(keyCode)
         buttonBits = heldKeys.values.fold(0) { acc, b -> acc or b }
         recompute()
         return true
@@ -50,14 +59,38 @@ class GbaInput {
 
     /** The GBA button [keyCode] is bound to (D-pad, or the player's GAME BUTTONS; a TURBO key counts as its button),
      * null = none. The companion's window reads keys through this, so it follows the player's bindings. */
-    fun buttonFor(keyCode: Int): Int? = keyToBit(keyCode)?.let { it and GbaControls.TURBO.inv() }
+    override fun buttonFor(keyCode: Int): Int? = keyToBit(keyCode)?.let { it and (GbaControls.TURBO or GbaControls.COMPANION).inv() }
 
-    /** [keyCode] is bound to X (GAME BUTTONS), whatever it presses in the game running. */
-    fun isX(keyCode: Int): Boolean = (controls[keyCode] ?: 0) and GbaControls.DS_X != 0
+    /** [keyCode] is GAME BUTTONS' TO COMPANION (a GBA / Game Boy game), whatever else it presses in the game. */
+    fun isCompanion(keyCode: Int): Boolean = !ds && (gbaControls[keyCode] ?: 0) and GbaControls.COMPANION != 0
+
+    /** The player holds a game button (a key, the stick / D-pad or the touch controls). */
+    override val holdsButtons: Boolean get() = heldKeys.isNotEmpty() || turboKeys.isNotEmpty() || hatBits != 0 || touchBits != 0
+
+    /** A press that was held back from the game (SELECT / START of a hotkey chord, [Hotkeys.gameKey]) and let go:
+     * pressed for [TAP_FRAMES] game frames from now ([tapMask]). */
+    @Volatile private var tapBits = 0
+    @Volatile private var tapFrames = 0
+
+    override fun tap(keyCode: Int) {
+        tapBits = buttonFor(keyCode) ?: return
+        tapFrames = TAP_FRAMES
+    }
+
+    /** [tap]'s button for this frame, counting it down; the engine calls it once per game frame. None while a script
+     * steers, like [turboMask]. */
+    fun tapMask(): Int {
+        if (tapFrames <= 0) return 0
+        val bits = tapBits
+        if (--tapFrames == 0) tapBits = 0
+        return if (scriptExclusive) 0 else bits
+    }
 
     /** Lets go of every key the player holds (not a script's): the companion's window took the buttons, or a rebind
      *  the keys' releases. */
     fun releaseAll() {
+        tapFrames = 0
+        tapBits = 0
         heldKeys.clear()
         turboKeys.clear()
         buttonBits = 0
@@ -122,22 +155,14 @@ class GbaInput {
         KeyEvent.KEYCODE_DPAD_UP_RIGHT -> MgbaCore.Key.UP or MgbaCore.Key.RIGHT
         KeyEvent.KEYCODE_DPAD_DOWN_LEFT -> MgbaCore.Key.DOWN or MgbaCore.Key.LEFT
         KeyEvent.KEYCODE_DPAD_DOWN_RIGHT -> MgbaCore.Key.DOWN or MgbaCore.Key.RIGHT
-        else -> controls[keyCode]?.let(::forCore)   // remappable face/shoulder/menu buttons
-    }
-
-    /** A binding's bits for the game running: X / Y are X / Y on a DS, else START / SELECT. */
-    private fun forCore(bits: Int): Int {
-        val marks = GbaControls.DS_X or GbaControls.DS_Y
-        if (bits and marks == 0) return bits
-        if (!ds) return bits and marks.inv()
-        var out = bits and marks.inv() and (MgbaCore.Key.START or MgbaCore.Key.SELECT).inv()
-        if (bits and GbaControls.DS_X != 0) out = out or MgbaCore.Key.X
-        if (bits and GbaControls.DS_Y != 0) out = out or MgbaCore.Key.Y
-        return out
+        else -> controls[keyCode]   // remappable face/shoulder/menu buttons
     }
 
     companion object {
         private const val DEAD = 0.5f
+        /** A held-back tap's length: the Game Boy games miss shorter presses outside their menus (3 frames), and
+         * Crystal Clear's menus want 6. */
+        const val TAP_FRAMES = 6
 
         /** The D-pad directions a joystick event holds (its HAT, else the left stick); null = not a joystick's. */
         fun motionBits(event: MotionEvent): Int? {

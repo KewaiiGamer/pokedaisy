@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -34,7 +35,7 @@ import com.pokedaisy.app.companion.ui.OptionTextField
 import com.pokedaisy.app.companion.ui.OptionTitleWindow
 
 /**
- * First-time setup, on the library's screen: link a ROMs folder, pick where saves
+ * First-time setup, on the library's screen: link ROMs folders, pick where saves
  * go, check the buttons, sign in to ScreenScraper (game media), add a cover key - each one
  * skippable, each one also in Settings.
  * [LibraryActivity] owns the folder pickers and background work and feeds this.
@@ -55,11 +56,12 @@ internal class SetupState {
     /** The folder pick waiting on Android's All files access page, resumed on return. */
     var awaitingAccess: Step? = null
 
-    var romsFolder by mutableStateOf<String?>(null)
+    /** The linked ROMs folders, as [Prefs.romsFolders] has them. */
+    var romsFolders by mutableStateOf<List<String>>(emptyList())
     var scanning by mutableStateOf(false)
     var checked by mutableIntStateOf(0)
     var toCheck by mutableIntStateOf(0)
-    /** Names of the supported games in [romsFolder]; null until a scan finishes. */
+    /** Names of the supported games in [romsFolders]; null until a scan finishes. */
     var found by mutableStateOf<List<String>?>(null)
 
     /** Null = the app's own saves folder. */
@@ -86,6 +88,8 @@ internal fun SetupScreen(
     m: GbaTextMetrics,
     small: GbaTextMetrics,
     onChooseRoms: () -> Unit,
+    /** REMOVE on one of the ROMS step's folders. */
+    onRemoveRoms: (String) -> Unit = {},
     onChooseSaves: () -> Unit,
     onUseSaves: (String?) -> Unit,
     onOpenPage: (String) -> Unit,
@@ -110,7 +114,7 @@ internal fun SetupScreen(
             OptionListWindow(m, Modifier.fillMaxWidth().weight(1f)) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = m.u * 4)) {
                     when (s.step) {
-                        SetupState.Step.ROMS -> RomsStep(s, m, small, onChooseRoms)
+                        SetupState.Step.ROMS -> RomsStep(s, m, small, onChooseRoms, onRemoveRoms)
                         SetupState.Step.SAVES -> SavesStep(s, m, small, onChooseSaves, onUseSaves)
                         SetupState.Step.BUTTONS -> ButtonsStep(s, m, small, buttonRequest)
                         SetupState.Step.MEDIA -> ScreenScraperSetupStep(
@@ -130,7 +134,7 @@ internal fun SetupScreen(
                 Spacer(Modifier.weight(1f))
                 val last = s.step == steps.last()
                 val skipping = when (s.step) {
-                    SetupState.Step.ROMS -> s.romsFolder == null
+                    SetupState.Step.ROMS -> s.romsFolders.isEmpty()
                     SetupState.Step.SAVES -> false
                     SetupState.Step.BUTTONS -> false
                     SetupState.Step.MEDIA -> s.ssLogin.signedInAs == null
@@ -167,14 +171,14 @@ private fun Para(text: String, small: GbaTextMetrics, muted: Boolean = false) {
 }
 
 @Composable
-private fun RomsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics, onChoose: () -> Unit) {
-    Heading(tr("YOUR ROMS FOLDER"), m)
+private fun RomsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics, onChoose: () -> Unit, onRemove: (String) -> Unit) {
+    Heading(tr("YOUR ROMS FOLDERS"), m)
     Para(
-        tr("Pick the folder you keep your games in. PokéDaisy adds every game from it that the second screen supports, plays them right where they are (nothing is copied), and looks for new ones each time you open the app."),
+        tr("Pick the folders you keep your games in. PokéDaisy adds every game from them that the second screen supports, plays them right where they are (nothing is copied), and looks for new ones each time you open the app."),
         small,
     )
     Para(
-        tr("This is optional: skip it and add games one at a time with + in the library. You can link a folder later in SETTINGS > FOLDERS."),
+        tr("You can add several. Picking just the folders with your games (gba, gbc, nds) is quicker to look through than one big folder of everything."),
         small, muted = true,
     )
     if (!s.hasAccess) {
@@ -183,11 +187,28 @@ private fun RomsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics, on
             small, muted = true,
         )
     }
-    OptionButton(if (s.romsFolder == null) tr("CHOOSE FOLDER") else tr("CHANGE FOLDER"), m, emphasis = s.romsFolder == null, enabled = !s.scanning, onClick = onChoose)
-    val folder = s.romsFolder ?: return
+    s.romsFolders.forEach { folder ->
+        Row(Modifier.fillMaxWidth().padding(bottom = m.u * 3), verticalAlignment = Alignment.CenterVertically) {
+            GbaText(shortPath(folder), OptionColors.label, OptionColors.labelShadow, small, Modifier.weight(1f), maxLines = 2)
+            Spacer(Modifier.width(m.u * 4))
+            OptionButton(tr("REMOVE"), small, enabled = !s.scanning, onClick = { onRemove(folder) })
+        }
+    }
+    OptionButton(if (s.romsFolders.isEmpty()) tr("CHOOSE FOLDER") else tr("ADD FOLDER"), m, emphasis = s.romsFolders.isEmpty(), enabled = !s.scanning, onClick = onChoose)
     Spacer(Modifier.height(m.u * 4))
-    GbaText(folder, OptionColors.muted, OptionColors.mutedShadow, small, maxLines = 3)
-    Spacer(Modifier.height(m.u * 3))
+    if (s.romsFolders.isNotEmpty()) {
+        RomsFound(s, m, small)
+        Spacer(Modifier.height(m.u * 4))
+    }
+    Para(
+        tr("This is optional: skip it and add games one at a time with + in the library. You can add folders later with + or in SETTINGS > FOLDERS."),
+        small, muted = true,
+    )
+}
+
+/** The ROMS step's scan: its progress, then the games it found. */
+@Composable
+private fun RomsFound(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics) {
     val found = s.found
     when {
         s.scanning -> {
@@ -197,7 +218,7 @@ private fun RomsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics, on
         }
         found == null -> {}
         found.isEmpty() -> Para(
-            tr("No supported games in there. Pick another folder, or skip and add games with + later."), small,
+            tr("No supported games in there. Add another folder, or skip and add games with + later."), small,
         )
         else -> {
             GbaText(if (found.size == 1) tr("FOUND 1 GAME") else tr("FOUND {0} GAMES", found.size), OptionColors.value, OptionColors.valueShadow, m)
@@ -254,11 +275,14 @@ private fun ButtonsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics,
         small,
     )
     Para(tr("To change one, tap it and press the button you want for it. The D-pad and analog stick are fixed."), small, muted = true)
-    val btns = GbaControls.Btn.entries
-    btns.forEachIndexed { i, btn ->
-        KeyBindRow(
-            btn.title, s.buttons[btn], s.capture, m, small, divider = i < btns.lastIndex, subtitle = btn.subtitle,
-        ) { request(btn) }
+    GbaControls.Group.entries.forEach { group ->
+        com.pokedaisy.app.companion.ui.GroupTitleLine(group.title, m, first = group == GbaControls.Group.ALL)
+        val btns = GbaControls.Btn.entries.filter { it.group == group }
+        btns.forEachIndexed { i, btn ->
+            KeyBindRow(
+                btn.title, s.buttons[btn], s.capture, m, small, divider = i < btns.lastIndex, subtitle = btn.subtitle,
+            ) { request(btn) }
+        }
     }
     Spacer(Modifier.height(m.u * 4))
     Para(tr("You can change this later in SETTINGS > GAME BUTTONS."), small, muted = true)
@@ -302,7 +326,7 @@ private fun CoversStep(
 }
 
 /** A folder as the player knows it: internal storage's prefix dropped, an SD card named as one. */
-private fun shortPath(path: String): String = when {
+internal fun shortPath(path: String): String = when {
     path.startsWith("/storage/emulated/0/") -> path.removePrefix("/storage/emulated/0/")
     path.startsWith("/storage/") -> tr("SD CARD") + "/" + path.removePrefix("/storage/").substringAfter('/')
     else -> path

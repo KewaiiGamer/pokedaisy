@@ -25,3 +25,18 @@ add_executable(nds_dump
     ../../app/src/main/cpp/nds/pk_nds_music.cpp)
 target_include_directories(nds_dump PRIVATE ../../app/src/main/cpp/nds)
 target_link_libraries(nds_dump PRIVATE core ZLIB::ZLIB)
+
+# DS RESOLUTION's GPU renderer (nds/pk_nds_gl.cpp) through ANGLE: -DNDS_DUMP_GL=ON -DANGLE_DIR=<libEGL.dylib and
+# libGLESv2.dylib> -DGLES_INCLUDE=<the EGL, GLES2, GLES3 and KHR header folders, e.g. copied from the NDK's sysroot>.
+option(NDS_DUMP_GL "melonDS's OpenGL ES renderer and our compositor, through ANGLE" OFF)
+if (NDS_DUMP_GL)
+    target_sources(core PRIVATE
+        "${MELONDS_DIR}/src/GPU_OpenGL.cpp"
+        "${MELONDS_DIR}/src/GPU3D_OpenGL.cpp"
+        "${MELONDS_DIR}/src/OpenGLSupport.cpp")
+    target_compile_definitions(core PUBLIC OGLRENDERER_ENABLED MELONDS_GLES "MELONDS_GL_HEADER=<GLES3/gl32.h>")
+    target_include_directories(core PUBLIC "${GLES_INCLUDE}")
+    target_link_libraries(core PUBLIC "${ANGLE_DIR}/libEGL.dylib" "${ANGLE_DIR}/libGLESv2.dylib")
+    target_sources(nds_dump PRIVATE ../../app/src/main/cpp/nds/pk_nds_gl.cpp)
+    target_compile_definitions(nds_dump PRIVATE NDS_DUMP_GL)
+endif()

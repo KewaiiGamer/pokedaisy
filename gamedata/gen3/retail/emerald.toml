@@ -1,0 +1,167 @@
+# Gen 3 configs (retail). The format and the commands: gamedata/README.md.
+
+# Retail Emerald (BPEE). Same struct layouts as FireRed (gMain +0x439 inBattle,
+# +0x24 vblank counter both hold); only the global addresses differ. From
+# build/pokeemerald's linker map — see tools/telemetry-viewer/native.go's
+# cfgEmerald. NOTE: encryptionKey is at SaveBlock2 + 0xAC in Emerald, not 0xF20.
+# Location names still come from the FireRed (Kanto) mapsec table — a known gap.
+[config.emerald]
+itemDescs = { preset = 'vanilla', base = 0x085839A0 }
+playerParty = 0x020244EC
+playerPartyCount = 0x020244E9
+battleMons = 0x02024084
+battlerPositions = 0x02024076
+battlersCount = 0x0202406C
+battleTypeFlags = 0x02022FEC
+gMain = 0x030022C0
+saveBlock1Ptr = 0x03005D8C
+saveBlock2Ptr = 0x03005D90
+objectEvents = 0x02037350
+mapHeader = 0x02037318
+bagPockets = 0x02039DD8
+bagPocketCount = 5
+encryptionKeyOff = 0xAC
+moneyOff = 0x490
+bagPocketOrder = 'EMERALD_BAG_POCKET_ORDER'
+# From a vanilla pokeemerald ELF (ROM sha1 f3ae0881… == retail Emerald).
+monIconTable = 0x0857BCA8
+monIconPaletteIndices = 0x0857C388
+monIconPaletteTable = 0x0857C540
+itemIconTable = 0x08614410
+# From the same vanilla pokeemerald ELF (sha1 f3ae0881… == retail Emerald).
+battlerControllerFuncs = 0x03005d60
+handleInputChooseAction = 0x08057588
+handleInputChooseMove = 0x08057bfc
+completeWhenChoseItem = 0x080598e0
+waitForMonSelection = 0x08059828
+handleInputChooseTarget = 0x08057824
+
+# Retail Emerald only: the hacks below start from NATIVE_EMERALD, and its
+# Pokédex ROM addresses would be wrong for every one of them.
+[config.emerald_retail]
+base = 'emerald'
+# From the unpatched (byte-identical) build's map; headless on retail: presses land back to back.
+actionCursor = 0x020244AC
+moveCursor = 0x020244B0
+trainerCard = 'TRAINER_CARD_EMERALD'
+pokedex = 'POKEDEX_EMERALD'
+guideTables = 'GUIDE_TABLES_EMERALD'
+# The FOE TEAM: from the same byte-identical-to-retail pokeemerald ELF;
+# monToSwitchIntoId sits at 0x5C in Emerald's struct BattleStruct too
+# (offsetof, compiled with agbcc).
+enemyParty = 0x02024744
+battlerPartyIndexes = 0x0202406E
+battleStructPtr = 0x0202449C
+monToSwitchIntoOff = 0x5C
+
+# The European Emerald releases (BPES / BPED / BPEF / BPEI): every RAM address
+# is English's (literal pools matched in each ROM; English's save loads in all
+# four with the same party bytes, money and position - headless, the
+# emerald_es / _de / _fr / _it fixtures). The ROM data moved: icon tables, dex,
+# guide tables. German and Italian's battle code sits 4 bytes later. The
+# TRAINER CARD stays off: their cards are localized art, not matched yet.
+[config.emerald_es]
+base = 'emerald_retail'
+itemDescs = { preset = 'vanilla', base = 0x0858639C }
+language = 'S'
+gameCode = 'BPES'
+trainerCard = 'none'
+monIconTable = 0x0857E784
+monIconPaletteIndices = 0x0857EE64
+monIconPaletteTable = 0x0857F01C
+itemIconTable = 0x08617250
+pokedex = 'POKEDEX_EMERALD_ES'
+guideTables = 'GUIDE_TABLES_EMERALD_ES'
+
+[config.emerald_de]
+base = 'emerald_retail'
+itemDescs = { preset = 'vanilla', base = 0x085946DC }
+language = 'D'
+gameCode = 'BPED'
+trainerCard = 'none'
+monIconTable = 0x0858CAA8
+monIconPaletteIndices = 0x0858D188
+monIconPaletteTable = 0x0858D340
+itemIconTable = 0x086258D8
+handleInputChooseAction = 0x0805758C
+handleInputChooseMove = 0x08057C00
+completeWhenChoseItem = 0x080598E4
+waitForMonSelection = 0x0805982C
+handleInputChooseTarget = 0x08057828
+pokedex = 'POKEDEX_EMERALD_DE'
+guideTables = 'GUIDE_TABLES_EMERALD_DE'
+
+[config.emerald_fr]
+base = 'emerald_retail'
+itemDescs = { preset = 'vanilla', base = 0x08587D6C }
+language = 'F'
+gameCode = 'BPEF'
+trainerCard = 'none'
+monIconTable = 0x08580020
+monIconPaletteIndices = 0x08580700
+monIconPaletteTable = 0x085808B8
+itemIconTable = 0x08618798
+pokedex = 'POKEDEX_EMERALD_FR'
+guideTables = 'GUIDE_TABLES_EMERALD_FR'
+
+[config.emerald_it]
+base = 'emerald_retail'
+itemDescs = { preset = 'vanilla', base = 0x0858000C }
+language = 'I'
+gameCode = 'BPEI'
+trainerCard = 'none'
+monIconTable = 0x0857838C
+monIconPaletteIndices = 0x08578A6C
+monIconPaletteTable = 0x08578C24
+itemIconTable = 0x08610FAC
+handleInputChooseAction = 0x0805758C
+handleInputChooseMove = 0x08057C00
+completeWhenChoseItem = 0x080598E4
+waitForMonSelection = 0x0805982C
+handleInputChooseTarget = 0x08057828
+pokedex = 'POKEDEX_EMERALD_IT'
+guideTables = 'GUIDE_TABLES_EMERALD_IT'
+
+# Japanese Emerald (BPEJ): its own build - every RAM global and the battle code
+# moved (English's literal pools, matched word for word), the structs didn't:
+# English's save loads with the same party bytes, money and position, and a
+# scripted wild battle reads with English's BattlePokemon / gMain layouts
+# (emerald_ja / emerald_ja_battle, headless; the action / move / bag / party
+# handlers checked there). Its names are kana (EmeraldText 'J', Gen3Text's
+# Japanese table). No TRAINER CARD, and the party slot is the app's own (its
+# fonts aren't the Western ones the slot art is drawn with).
+[config.emerald_ja]
+base = 'emerald_retail'
+itemDescs = { preset = 'japanese', base = 0x0855CEE8 }
+actionCursor = 0
+moveCursor = 0  # its RAM moved; not located yet
+language = 'J'
+gameCode = 'BPEJ'
+trainerCard = 'none'
+playerParty = 0x02024190
+playerPartyCount = 0x0202418D
+battleMons = 0x02023D28
+battlerPositions = 0x02023D1A
+battlersCount = 0x02023D10
+battleTypeFlags = 0x02022C90
+battlerPartyIndexes = 0x02023D12
+battleStructPtr = 0x02024140
+enemyParty = 0x020243E8
+gMain = 0x03002360
+saveBlock1Ptr = 0x03005AEC
+saveBlock2Ptr = 0x03005AF0
+objectEvents = 0x02036FF0
+mapHeader = 0x02036FB8
+bagPockets = 0x02039A78
+battlerControllerFuncs = 0x03005AC0
+handleInputChooseAction = 0x08057198
+handleInputChooseMove = 0x0805780C
+completeWhenChoseItem = 0x080594F0
+waitForMonSelection = 0x08059438
+handleInputChooseTarget = 0x08057434
+monIconTable = 0x08556804
+monIconPaletteIndices = 0x08556EE4
+monIconPaletteTable = 0x0855709C
+itemIconTable = 0x085DFCC8
+pokedex = 'POKEDEX_EMERALD_JA'
+guideTables = 'GUIDE_TABLES_EMERALD_JA'

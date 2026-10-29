@@ -148,6 +148,12 @@ fun MapScreen(
                 snapshot.regionMapTile
                     ?: PlayerMapTile.of(model, snapshot.regionMapSectionId, snapshot.x, snapshot.y, snapshot.mapWidth, snapshot.mapHeight, snapshot.mapType)
             } else null
+            // A map of places with points (Black's): the player's place is the one at their cell (a house's or a cave's zone
+            // goes by its town's), and the head and the cursor sit on the place's own point, not a cell's middle.
+            val playerSection = if (model.points.isNotEmpty() && playerTile != null) {
+                model.pick(shown, playerTile.first, playerTile.second)?.mapsec?.takeIf { it >= 0 } ?: snapshot.regionMapSectionId
+            } else snapshot.regionMapSectionId
+            val headPoint = if (playerTile != null) model.points[playerSection] else null
             // Sprites the game draws over its map (Platinum's towns): grey until first arrived at, then the town's colour.
             // Every mark's two pictures are loaded each time (a fixed number of loads), then the one that applies kept.
             val visited = snapshot.townsVisited ?: 0L
@@ -213,12 +219,13 @@ fun MapScreen(
                         bitmap = bitmap,
                         style = style,
                         head = regionMapBitmap(
-                            if (snapshot.game.isHgss) (if (snapshot.playerGender == 1) com.pokedaisy.app.companion.data.PokegearMap.HEAD_F else com.pokedaisy.app.companion.data.PokegearMap.HEAD_M)
+                            if (snapshot.game == GameKind.BLACK) NdsArt.BLACK_PLAYER
+                            else if (snapshot.game.isHgss) (if (snapshot.playerGender == 1) com.pokedaisy.app.companion.data.PokegearMap.HEAD_F else com.pokedaisy.app.companion.data.PokegearMap.HEAD_M)
                             else if (snapshot.game.isDsGame) (if (snapshot.playerGender == 1) NdsArt.PLATINUM_HEAD_F else NdsArt.PLATINUM_HEAD_M)
                             else style.headAsset(snapshot.playerGender, snapshot.game),
                         ),
                         headTile = playerTile,
-                        cursor = sel?.tiles ?: if (playerRegion == shown) model.tilesOf(snapshot.regionMapSectionId) else emptyList(),
+                        cursor = sel?.tiles ?: if (playerRegion == shown) model.tilesOf(playerSection) else emptyList(),
                         label = gameCase(name),
                         dungeon = dungeon?.let(::gameCase),
                         onTap = { tx, ty ->
@@ -232,7 +239,14 @@ fun MapScreen(
                             val small = regionMapBitmap(com.pokedaisy.app.companion.data.PokegearMap.cursor(0))
                             val big = regionMapBitmap(com.pokedaisy.app.companion.data.PokegearMap.cursor(1))
                             if (small != null && big != null) small to big else null
+                        } else if (snapshot.game == GameKind.BLACK) {
+                            val small = regionMapBitmap(NdsArt.blackCursor(0))
+                            val big = regionMapBitmap(NdsArt.blackCursor(1))
+                            if (small != null && big != null) small to big else null
                         } else null,
+                        headAt = headPoint?.let { (x, y) -> IntOffset(x, y) },
+                        cursorAt = (if (sel != null) model.points[sel.mapsec] else if (playerRegion == shown) model.points[playerSection] else null)
+                            ?.let { (x, y) -> IntOffset(x, y) },
                     )
                     MapButtons(
                         bottomRow = bottomRow,
@@ -268,7 +282,7 @@ fun MapScreen(
                     onPick = { id ->
                         placesOpen = false
                         cursorTile = null
-                        selection = model.sections[id]?.let { MapSelection(it.region, model.tilesOf(id), it.name, null) }
+                        selection = model.sections[id]?.let { MapSelection(it.region, model.tilesOf(id), it.name, null, id) }
                     },
                     onMe = { placesOpen = false; selection = null; cursorTile = null; shownOverride = null },
                     onDismiss = { placesOpen = false },
@@ -279,7 +293,7 @@ fun MapScreen(
 }
 
 /** Where the cursor is when it's not on the player: an image, the tiles it frames, and the label's text. */
-private data class MapSelection(val region: Int, val tiles: List<MapTiles>, val name: String, val dungeon: String?)
+private data class MapSelection(val region: Int, val tiles: List<MapTiles>, val name: String, val dungeon: String?, val mapsec: Int = -1)
 
 /** What tile ([tx], [ty]) of image [region] is: its section's tiles (a dungeon: just that tile) and names; blank on empty map. */
 private fun RegionMapModel.select(region: Int, tx: Int, ty: Int): MapSelection {
@@ -287,7 +301,7 @@ private fun RegionMapModel.select(region: Int, tx: Int, ty: Int): MapSelection {
     val main = pick.mapsec.takeIf { it >= 0 } ?: pick.dungeon
     val dungeon = sections[pick.dungeon]?.name?.takeIf { pick.mapsec >= 0 && pick.dungeon >= 0 }
     val tiles = if (pick.dungeon >= 0) listOf(MapTiles(tx, ty, 1, 1)) else tilesOf(main).ifEmpty { listOf(MapTiles(tx, ty, 1, 1)) }
-    return MapSelection(region, tiles, sections[main]?.name.orEmpty(), dungeon)
+    return MapSelection(region, tiles, sections[main]?.name.orEmpty(), dungeon, main)
 }
 
 /**
@@ -318,7 +332,10 @@ internal enum class MapLabelStyle(val width: Int, val height: Int) {
         FIRERED -> if (gender == 1) "player_leaf" else "player_red"
         // Super Mariomon drew MARIO in Brendan's slot.
         // Recharged Emerald redrew both heads for its map.
-        EMERALD -> if (com.pokedaisy.app.companion.data.runningEmeraldHack != null) { if (gender == 1) "player_may_re" else "player_brendan_re" }
+        // Dreamstone Mysteries' player picks one of five looks at the start: no head of ours fits, so none is drawn.
+        // Wishes of Tomorrow's JOKAIM map keeps Emerald's Brendan / May heads (by gender, checked headless).
+        EMERALD -> if (game == GameKind.DREAMSTONE) null
+            else if (com.pokedaisy.app.companion.data.runningEmeraldHack != null) { if (gender == 1) "player_may_re" else "player_brendan_re" }
             else if (gender == 1) "player_may" else if (game == GameKind.MARIOMON) "player_mario" else "player_brendan"
         // Red's standing sprite (Gen1Art), Crystal's CHRIS / KRIS or Gold / Silver's boy (Gen2Art), from the ROM.
         // Crystal Clear's player is the player's own (model, skin, colours): none drawn.
@@ -327,6 +344,7 @@ internal enum class MapLabelStyle(val width: Int, val height: Int) {
             else if (game == GameKind.POLISHED_CRYSTAL) com.pokedaisy.app.companion.data.Gen2Art.POLISHED_PLAYERS.getOrNull(gender)
             else if (game == GameKind.GOLD || game == GameKind.SILVER) com.pokedaisy.app.companion.data.Gen2Art.GOLD_SILVER_PLAYER
             else if (game == GameKind.RED || game == GameKind.BLUE) "player_red_blue"
+            else if (game == GameKind.PURE_RED || game == GameKind.PURE_BLUE) "player_${com.pokedaisy.app.companion.data.Gen1Art.pureTownMapName(game)}"
             else if (game != GameKind.CRYSTAL) "player_yellow"
             else if (gender == 1) com.pokedaisy.app.companion.data.Gen2Art.CRYSTAL_PLAYER_F
             else com.pokedaisy.app.companion.data.Gen2Art.CRYSTAL_PLAYER
@@ -336,7 +354,9 @@ internal enum class MapLabelStyle(val width: Int, val height: Int) {
         private val EMERALD_FAMILY = setOf(
             GameKind.EMERALD, GameKind.EMERALD_SEAGLASS, GameKind.TMT2, GameKind.ROWE,
             GameKind.EMERALD_ROGUE, GameKind.HEART_AND_SOUL, GameKind.LAZARUS, GameKind.SOULGOLD,
-            GameKind.GLAZED, GameKind.IMPERIUM, GameKind.MARIOMON,
+            GameKind.GLAZED, GameKind.IMPERIUM, GameKind.MARIOMON, GameKind.WISHES,
+            // Dreamstone Mysteries' TOWN MAP: its place name in a framed window bottom right, like Emerald's.
+            GameKind.DREAMSTONE,
         )
 
         fun of(game: GameKind?) = when (game) {
@@ -399,6 +419,10 @@ private fun RegionMap(
     /** The game's own cursor sprite (HeartGold / SoulSilver's: small, big), centred on [cursorFrom]'s tile instead of
      * FireRed's corners around [cursor]; it pulses on the same beat. */
     cursorSprite: Pair<Bitmap, Bitmap>? = null,
+    /** The map pixel the head is centred on, at its own size (Black's places' points); null = [headTile]'s middle. */
+    headAt: IntOffset? = null,
+    /** The map pixel [cursorSprite] is centred on; null = [cursorFrom]'s tile's middle. */
+    cursorAt: IntOffset? = null,
 ) {
     // FireRed's region-map cursor (graphics/region_map/cursor.png) swaps
     // between its two frames every 20 game frames. Read only while drawing,
@@ -489,7 +513,29 @@ private fun RegionMap(
                     filterQuality = FilterQuality.None,
                 )
             }
-            if (headImage != null && headTile != null) {
+            // The game's own cursor sprite under the head (Black's ring: the player's figure stands over it); FireRed's
+            // corners over it.
+            val spriteAt = cursorFrom.takeIf { cursor.isNotEmpty() }
+            if (cursorImages != null && spriteAt != null) {
+                val img = if (bigCursor.value) cursorImages.second else cursorImages.first
+                val cx = (cursorAt?.x ?: (originX + spriteAt.first * tile + tile / 2)) - img.width / 2 - crop.left
+                val cy = (cursorAt?.y ?: (originY + spriteAt.second * tile + tile / 2)) - img.height / 2 - crop.top
+                drawImage(
+                    img,
+                    dstOffset = IntOffset((cx * sx).toInt(), (cy * sy).toInt()),
+                    dstSize = IntSize((img.width * sx).toInt(), (img.height * sy).toInt()),
+                    filterQuality = FilterQuality.None,
+                )
+            }
+            if (headImage != null && headTile != null && headAt != null) {
+                // Centred on the place's point, at its own size (Black's figure and arrow).
+                drawImage(
+                    headImage,
+                    dstOffset = IntOffset(((headAt.x - headImage.width / 2 - crop.left) * sx).toInt(), ((headAt.y - headImage.height / 2 - crop.top) * sy).toInt()),
+                    dstSize = IntSize((headImage.width * sx).toInt(), (headImage.height * sy).toInt()),
+                    filterQuality = FilterQuality.None,
+                )
+            } else if (headImage != null && headTile != null) {
                 // Centred on its tile, as the game's sprite is.
                 val hx = originX + headTile.first * tile + tile / 2 - HEAD / 2 - crop.left
                 val hy = originY + headTile.second * tile + tile / 2 - HEAD / 2 - crop.top
@@ -500,18 +546,7 @@ private fun RegionMap(
                     filterQuality = FilterQuality.None,
                 )
             }
-            val spriteAt = cursorFrom.takeIf { cursor.isNotEmpty() }
-            if (cursorImages != null && spriteAt != null) {
-                val img = if (bigCursor.value) cursorImages.second else cursorImages.first
-                val cx = originX + spriteAt.first * tile + tile / 2 - img.width / 2 - crop.left
-                val cy = originY + spriteAt.second * tile + tile / 2 - img.height / 2 - crop.top
-                drawImage(
-                    img,
-                    dstOffset = IntOffset((cx * sx).toInt(), (cy * sy).toInt()),
-                    dstSize = IntSize((img.width * sx).toInt(), (img.height * sy).toInt()),
-                    filterQuality = FilterQuality.None,
-                )
-            } else for (t in cursor) {
+            if (cursorImages == null || cursorFrom == null) for (t in cursor) {
                 drawMapCursor(
                     left = originX + t.x * tile - crop.left,
                     top = originY + t.y * tile - crop.top,

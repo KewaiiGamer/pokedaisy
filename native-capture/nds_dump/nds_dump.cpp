@@ -18,6 +18,9 @@
 #include "pk_nds_call.h"
 #include "pk_nds_wide.h"
 #include "pk_nds_music.h"
+#ifdef NDS_DUMP_GL
+#include "pk_nds_gl.h"
+#endif
 
 #include <zlib.h>
 
@@ -33,12 +36,80 @@ using namespace melonDS;
 
 static std::string savePath;
 static NDS* nds = nullptr;
+
+// watch LO HI [r|w|rw] [N]: the ARM9's own reads / writes of main RAM in [LO, HI) reported with its registers (the
+// interpreter only: the JIT's fast paths skip the bus). How the Gen 5 addresses were traced back to code.
+struct Watch { u32 lo, hi; bool r, w; int left; };
+static std::vector<Watch> watches;
+static bool inFrame = false;
+static u64 frameCount_();
+class WatchNDS : public NDS {
+public:
+    using NDS::NDS;
+    void hit(u32 addr, u32 v, int size, bool write)
+    {
+        if (!inFrame) return;
+        for (Watch& w : watches) {
+            if (addr + size <= w.lo || addr >= w.hi || !(write ? w.w : w.r) || w.left == 0) continue;
+            if (w.left > 0) w.left--;
+            const u32* R = ARM9.R;
+            printf("watch f%llu %s%d %08X = %08X  pc %08X lr %08X r0 %08X r1 %08X r2 %08X r3 %08X r4 %08X r5 %08X sp %08X%s\n",
+                (unsigned long long) frameCount_(), write ? "W" : "R", size * 8, addr, v, R[15], R[14], R[0], R[1], R[2],
+                R[3], R[4], R[5], R[13], ARM9.CPSR & 0x20 ? " T" : "");
+            // WATCH_STACK=N: N words from the stack too (return addresses: the callers)
+            static int stackWords = getenv("WATCH_STACK") ? atoi(getenv("WATCH_STACK")) : 0;
+            if (stackWords > 0) {
+                printf("    stack:");
+                for (int i = 0; i < stackWords; i++) {
+                    u32 sp = R[13] + 4 * i, v = 0;
+                    if ((sp & ARM9.DTCMMask) == ARM9.DTCMBase) memcpy(&v, &ARM9.DTCM[sp & (DTCMPhysicalSize - 1)], 4);
+                    else if ((sp & 0xFF000000u) == 0x02000000u) memcpy(&v, &MainRAM[sp & MainRAMMask], 4);
+                    printf(" %08X", v);
+                }
+                printf("\n");
+            }
+            fflush(stdout);
+        }
+    }
+    void ARM9Write8(u32 a, u8 v) override { if (!watches.empty()) hit(a, v, 1, true); NDS::ARM9Write8(a, v); }
+    void ARM9Write16(u32 a, u16 v) override { if (!watches.empty()) hit(a, v, 2, true); NDS::ARM9Write16(a, v); }
+    void ARM9Write32(u32 a, u32 v) override { if (!watches.empty()) hit(a, v, 4, true); NDS::ARM9Write32(a, v); }
+    u32 ARM9Read32(u32 a) override
+    {
+        u32 v = NDS::ARM9Read32(a);
+        if (!watches.empty()) hit(a, v, 4, false);
+        return v;
+    }
+    u16 ARM9Read16(u32 a) override
+    {
+        u16 v = NDS::ARM9Read16(a);
+        if (!watches.empty()) hit(a, v, 2, false);
+        return v;
+    }
+    u8 ARM9Read8(u32 a) override
+    {
+        u8 v = NDS::ARM9Read8(a);
+        if (!watches.empty()) hit(a, v, 1, false);
+        return v;
+    }
+};
 static u32 heldKeys = 0;     // pressed keys, bit = melonDS key index (A 0 .. L 9, X 10, Y 11)
 static bool touching = false;
 static u16 touchX = 0, touchY = 0;
 static u64 frameCount = 0;
+static u64 frameCount_() { return frameCount; }
 static int wideMargin = 0;   // wide MX [MY]: EXPAND drawn every frame (pk_nds_wide.cpp)
+static int wideMarginY = 0;
+// look DX DY: the window (wide's, at first) moved DX, DY DS pixels a frame, as the look-around moves it - set before
+// each frame as the app sets it (pk_nds_wide_need), the GPU path composing that frame's window
+static int lookX = 0, lookY = 0, lookDX = 0, lookDY = 0;
 static bool wideDrawn = false;
+// gpu N (NDS_DUMP_GL builds): DS RESOLUTION's GPU renderer at N, as pk_nds_run_frame drives it; the screens are then
+// its 1x copies (RGBA) and gpushot writes the composed window.
+static bool gpuOn = false;
+static std::vector<u32> gpuTop(256 * 192), gpuBottom(256 * 192), gpuTopArgb(256 * 192);
+
+static u32 rgbaToArgb(u32 p) { return 0xFF000000u | ((p & 0xFF) << 16) | (p & 0xFF00) | ((p >> 16) & 0xFF); }
 static u32 read32(u32 addr) { return nds->ARM9Read32(addr); }
 static void write32(u32 addr, u32 v) { nds->ARM9Write32(addr, v); }
 static int wildOff = 0;          // wildoff 1: WILD ENCOUNTERS OFF, the field read run every frame (pk_nds_field.cpp)
@@ -127,6 +198,13 @@ static bool writePng(const std::string& path, const u32* argb, int w, int h)
 static bool shot(const std::string& path)
 {
     std::vector<u32> px(256 * 384);
+    if (gpuOn) {
+        for (int i = 0; i < 256 * 192; i++) {
+            px[i] = rgbaToArgb(gpuTop[i]);
+            px[256 * 192 + i] = rgbaToArgb(gpuBottom[i]);
+        }
+        return writePng(path, px.data(), 256, 384);
+    }
     int fb = nds->GPU.FrontBuffer;
     for (int s = 0; s < 2; s++) {
         const u32* src = nds->GPU.Framebuffer[fb][s].get();
@@ -190,13 +268,23 @@ static void runFrames(int n, u32 keys)
         }
         nds->GPU.SkipDraw = !draw;
         nds->GPU.SkipDrawNext = !drawNext;
+        if (wideMargin && (lookDX || lookDY)) {
+            lookX += lookDX;
+            lookY += lookDY;
+            pk_nds_wide_need(wideMargin - lookX, wideMargin + lookX, wideMarginY - lookY, wideMarginY + lookY);
+        }
         nds->SetKeyMask(~keys & 0xFFF);
         if (touching) nds->TouchScreen(touchX, touchY);
         else nds->ReleaseScreen();
+#ifdef NDS_DUMP_GL
+        if (gpuOn) pk_nds_gl_begin_frame();
+#endif
+        inFrame = true;
         nds->RunFrame();
+        inFrame = false;
         frameCount++;
         static int wasBattle = 0;
-        int battle = 0;
+        int battle = 0, inBattle = 0, battle3d = 0;
         if (auto* cart = nds->NDSCartSlot.GetCart()) {
             if (const PkNdsFieldGame* g = pk_nds_field_game(cart->GetHeader().GameCode, cart->GetHeader().ROMVersion)) {
                 int bits = pk_nds_field_state(g, read32, write32, wildOff);
@@ -204,12 +292,25 @@ static void runFrames(int n, u32 keys)
                 battle = (bits & PK_NDS_FIELD_BATTLE) != 0;
                 if (battle && !wasBattle) battlesSeen++;
                 wasBattle = battle;
+                inBattle = battle;
+                if (!pk_nds_battle_margins(g)) battle = 0;   // as the app: no battle margins there
+                battle3d = inBattle && pk_nds_battle_3d(g);   // ... but the overworld's (Black)
             }
         }
-        // As the app: a battle's margins are its background, everything else the overworld's 3D.
-        if (wideMargin)
-            wideDrawn = pk_nds_wide_frame(nds, nds->GPU.Framebuffer[nds->GPU.FrontBuffer][0].get(), draw, !battle,
-                appPerTick > 0 ? drawNext : true, battle) || wideDrawn;
+        // As the app: a battle's margins are its background and its 3D, everything else the overworld's 3D.
+        if (wideMargin) {
+            pk_nds_wide_gpu_want(true);
+            wideDrawn = pk_nds_wide_frame(nds, gpuOn ? gpuTopArgb.data() : nds->GPU.Framebuffer[nds->GPU.FrontBuffer][0].get(),
+                draw, (!battle && !inBattle) || battle3d, appPerTick > 0 ? drawNext : true, battle) || wideDrawn;
+        }
+#ifdef NDS_DUMP_GL
+        if (gpuOn && draw) {
+            // As pk_nds_run_frame: the window is EXPAND's whole view here
+            pk_nds_gl_frame(nds, -wideMargin + lookX, -wideMarginY + lookY, 256 + 2 * wideMargin, 192 + 2 * wideMarginY,
+                gpuTop.data(), gpuBottom.data());
+            for (int k = 0; k < 256 * 192; k++) gpuTopArgb[k] = rgbaToArgb(gpuTop[k]);
+        }
+#endif
         if (!recordPrefix.empty() && draw) recordShown();
         if (musicPerFrame > 0) {
             static s16 musicBuf[4096];
@@ -229,8 +330,10 @@ static Shown grabShown()
     for (int k = 0; k < 2; k++)
         memcpy(s.screens.data() + k * 256 * 192, nds->GPU.Framebuffer[fb][k].get(), 256 * 192 * 4);
     if (wideMargin && wideDrawn) {
-        int x, y;
-        pk_nds_wide_rect(&x, &y, &s.ww, &s.wh);
+        // the window (wide's, moved by look)
+        int x = -wideMargin + lookX, y = -wideMarginY + lookY;
+        s.ww = 256 + 2 * wideMargin;
+        s.wh = 192 + 2 * wideMarginY;
         s.wide.resize((size_t) s.ww * s.wh);
         pk_nds_wide_view(s.wide.data(), x, y, s.ww, s.wh);
         for (u32& p : s.wide) p = 0xFF000000u | ((p & 0xFF) << 16) | (p & 0xFF00) | ((p >> 16) & 0xFF);
@@ -240,6 +343,20 @@ static Shown grabShown()
 
 static void recordShown()
 {
+#ifdef NDS_DUMP_GL
+    if (gpuOn) {
+        // The GPU path's window, composed this frame (its 1x copies lag a drawn frame: not comparable across patterns)
+        int w = 0, h = 0;
+        const u32* px = pk_nds_gl_captured(&w, &h);
+        if (!px) return;
+        std::vector<u32> argb((size_t) w * h);
+        for (size_t k = 0; k < argb.size(); k++) argb[k] = rgbaToArgb(px[k]);
+        char path[600];
+        snprintf(path, sizeof(path), "%s_%05d_gpu.png", recordPrefix.c_str(), (int) (frameCount - recordStart - 1));
+        writePng(path, argb.data(), w, h);
+        return;
+    }
+#endif
     Shown got = grabShown();
     char path[600];
     int f = (int) (frameCount - recordStart - 1);
@@ -295,6 +412,18 @@ static void fieldInfo()
     auto* cart = nds->NDSCartSlot.GetCart();
     const PkNdsFieldGame* g = cart ? pk_nds_field_game(cart->GetHeader().GameCode, cart->GetHeader().ROMVersion) : nullptr;
     if (!g) { printf("fieldinfo: no table for this cart\n"); fflush(stdout); return; }
+    if (g->gen == 5) {
+        u32 gs = read32(g->fieldSystemPtr);
+        u32 ps = gs ? read32(gs + g->offProcSys) : 0;
+        u32 proc = ps ? read32(ps + g->offCurrentProc) : 0;
+        printf("fieldinfo frame %llu: gs %08X proc %08X overlay %u fieldmap %08X event %08X bg tiles %d/%d/%d/%d battle %d"
+               " -> bits 0x%X\n", (unsigned long long) frameCount, gs, proc, proc ? read32(proc + g->offProcOverlay) : 0,
+               gs ? read32(gs + g->offFieldMap) : 0, gs ? read32(gs + g->offEvent) : 0, pk_nds_bg3_tiles(nds, 0),
+               pk_nds_bg3_tiles(nds, 1), pk_nds_bg3_tiles(nds, 2), pk_nds_bg3_tiles(nds, 3), pk_nds_battle_command(g, read32),
+               pk_nds_field_state(g, read32, write32, wildOff));
+        fflush(stdout);
+        return;
+    }
     u32 fs = read32(g->fieldSystemPtr);
     u32 pm = fs ? read32(fs + g->offProcessManager) : 0;
     u32 av = fs ? read32(fs + g->offPlayerAvatar) : 0;
@@ -326,7 +455,7 @@ int main(int argc, char** argv)
     // The app's JIT: no fast memory (pk_nds.cpp)
     if (jit) args.JIT = JITArgs {32, true, true, false};
     else args.JIT = std::nullopt;
-    nds = new NDS(std::move(args), &host);
+    nds = new WatchNDS(std::move(args), &host);
     nds->Reset();
 
     NDSCart::NDSCartArgs cartArgs;
@@ -407,13 +536,34 @@ int main(int argc, char** argv)
             if (!strcmp(cmd, "poke8")) nds->ARM9Write8(addr, (u8) v);
             else if (!strcmp(cmd, "poke16")) nds->ARM9Write16(addr, (u16) v);
             else nds->ARM9Write32(addr, v);
+        } else if (!strcmp(cmd, "look")) {
+            // look DX DY: from here on the window moves DX, DY DS pixels a frame (look 0 0 stops it where it is)
+            lookDX = (int) num(a);
+            lookDY = n > 2 ? (int) num(b) : 0;
         } else if (!strcmp(cmd, "wide")) {
             // wide MX [MY]: EXPAND with MX DS pixels left and right, MY above and below (0 = off; MY defaults to 0)
             wideMargin = (int) num(a);
             int my = n > 2 ? (int) num(b) : 0;
+            wideMarginY = my;
             pk_nds_wide_set(nds, wideMargin > 0);
             pk_nds_wide_need(wideMargin, wideMargin, my, my);
             wideDrawn = false;
+#ifdef NDS_DUMP_GL
+        } else if (!strcmp(cmd, "gpu")) {
+            // gpu N: DS RESOLUTION at N (1 = back to the software renderer)
+            pk_nds_gl_capture(true);
+            int s = pk_nds_gl_set_scale(nds, (int) num(a));
+            gpuOn = s > 1;
+            printf("gpu: scale %d\n", s);
+        } else if (!strcmp(cmd, "gpushot")) {
+            // gpushot FILE: the GPU path's last window (the screen, or EXPAND's view), at its scale
+            int w = 0, h = 0;
+            const u32* px = pk_nds_gl_captured(&w, &h);
+            if (!px) { fprintf(stderr, "gpushot: no frame\n"); continue; }
+            std::vector<u32> argb((size_t) w * h);
+            for (size_t k = 0; k < argb.size(); k++) argb[k] = rgbaToArgb(px[k]);
+            writePng(a, argb.data(), w, h);
+#endif
         } else if (!strcmp(cmd, "wideshot")) {
             // wideshot FILE: the last wide frame (RGBA words -> PNG)
             if (!wideDrawn) { fprintf(stderr, "wideshot: no wide frame\n"); continue; }
@@ -663,6 +813,13 @@ int main(int argc, char** argv)
             double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             printf("bench %d frames: %.3f ms a frame (wide %d)\n", frames, ms / frames, wideMargin);
             fflush(stdout);
+        } else if (!strcmp(cmd, "watch")) {
+            // watch LO HI [r|w|rw] [N]: report the game's accesses to [LO, HI) (at most N, default 20); watch off clears
+            if (!strcmp(a, "off")) watches.clear();
+            else {
+                bool reads = c[0] && strchr(c, 'r'), writes = !c[0] || strchr(c, 'w');   // writes only by default
+                watches.push_back({num(a), num(b), reads, writes, d[0] ? (int) num(d) : 20});
+            }
         } else if (!strcmp(cmd, "itcm32")) {
             // itcm32 ADDR VALUE: a word into the hook's spare ITCM (an argument a call points at)
             u32 val = num(b);

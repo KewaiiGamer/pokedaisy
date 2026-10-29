@@ -44,6 +44,8 @@ object GameTitles {
         "0862ec35b24de5c7e2dcb88c9eea0873110d755c" to "Pokémon Platinum",
         "4fcded0e2713dc03929845de631d0932ea2b5a37" to "Pokémon HeartGold",
         "f8dc38ea20c17541a43b58c5e6d18c1732c7e582" to "Pokémon SoulSilver",
+        // Black (USA, Europe): the No-Intro dump (no decomp builds it).
+        "26ad0b9967aa279c4a266ee69f52b9b2332399a5" to "Pokémon Black",
         // The other Emeralds, by their own titles (No-Intro's dumps; no decomp builds them).
         "fe1558a3dcb0360ab558969e09b690888b846dd9" to "Pokémon Edición Esmeralda",
         "61c2eb2b380b1a75f0c94b767a2d4c26cd7ce4e3" to "Pokémon Smaragd-Edition",
@@ -116,6 +118,8 @@ object GameTitles {
         "5b38a681b6924ef3e0bb9f6cfbf22426c4c4e523" to "Pokémon Elite Redux",
         "2f3e17e55c6afe23da97ec0f96a067eeb142ad15" to "Pokémon Elite Redux",
         "40780347d0b4df6bf491eaf12603e5422caee677" to "Pokémon Team Rocket Edition: Dragonsden Version",
+        "60182b934d2e8eb3eef226a9bbc25e5df6becd4f" to "Pokémon Wishes of Tomorrow",
+        "20e91aecb3243eea7cd610659846f37062f5d709" to "Pokémon Dreamstone Mysteries",
         "20dfaea1d5317cf95fe0b493208edce7d50b865f" to "Pokémon Ghost Grey",
         "74337272566a74625d6dedefe47d2d153eb48ec1" to "Pokémon Ghost Grey",
         "0dafc0116b74406a2df491e26ccb40dd362fb0b7" to "Pokémon Ghost Grey",
@@ -160,10 +164,13 @@ object GameTitles {
         "772858dd5a3e66dea4454d5f83b48c83d732ca69" to "Pokémon Polished Crystal",
         "c4bd263e58325c6c04c34462c1b4a37fba085e9c" to "Pokémon Polished Crystal",
         "c0a2c70d73ce68830a891ddd292300c90766acdd" to "Pokémon Polished Crystal",
+        // PureRed / PureBlue v2.7.6 (Vortyne/pureRGB builds both byte for byte).
+        "2e94d09c1e16a57eb079404c030f26fdeeac949d" to "Pokémon PureRed",
+        "d419fe244fa17196f7df46ddab47c840e7573652" to "Pokémon PureBlue",
     )
 
     /** DS carts worth hashing (128 MB each, once per file): the DS games above. */
-    private val NDS_CODES = setOf("CPUE", "IPKE", "IPGE")
+    private val NDS_CODES = setOf("CPUE", "IPKE", "IPGE", "IRBO")
 
     /** Only these games' ROMs (and Game Boy carts) are worth hashing: every entry above is one of them. */
     private val CODES = setOf("BPRE", "BPGE", "BPEE", "AXVE", "AXPE") + EMERALD_LOCALIZED_CODES +
@@ -190,17 +197,39 @@ object GameTitles {
     fun platform(context: Context, rom: File): RomCategory? =
         cache(context)[rom.absolutePath]?.takeIf { it.matches(rom) }?.platform
 
-    /** [rom]'s console from its header: [categoryOf] without the hack check. A dual-mode Game Boy cart (0x143 = 0x80)
-     * is GB, unless it's a Color game whose header says otherwise ([COLOR_ONLY], by [sha1]: hashed only for those). */
+    /** [rom]'s console from its header: [categoryOf] without the hack check. */
     internal fun platformOf(rom: File, sha1: () -> String?): RomCategory = when {
         RomIdentity.isNds(rom) -> RomCategory.NDS
-        RomIdentity.isGameBoy(rom) ->
-            if (RomIdentity.isGameBoyColor(rom) || sha1() in COLOR_ONLY) RomCategory.GBC else RomCategory.GB
+        RomIdentity.isGameBoy(rom) -> gameBoyPlatform(rom, sha1)
         else -> RomCategory.GBA
     }
 
-    /** Color games with a dual-mode header: Polished Crystal sets 0x80 but only runs on a Color (GitHub #237). */
-    private val COLOR_ONLY: Set<String> get() = com.pokedaisy.app.companion.data.TelemetrySampler.POLISHED_CRYSTAL_SHA1S
+    /**
+     * GB or GBC. The header's 0x143 says Color-only (0xC0: Crystal) or not at all (0x00: Red / Blue), but a dual-mode cart
+     * (0x80) can be either: Yellow is a Game Boy game with colours added, Gold / Silver are Color games that also run on
+     * the Game Boy (GitHub #271), and Polished Crystal sets 0x80 but only runs on a Color (#237). Known carts go by
+     * [sha1] ([COLOR_DUAL]); any other dual-mode cart by its file's extension, as the dump sets name them (No-Intro's
+     * "(GB Compatible).gbc" vs "(CGB+SGB Enhanced).gb").
+     */
+    private fun gameBoyPlatform(rom: File, sha1: () -> String?): RomCategory {
+        val flag = RomArchive.readAt(rom, 0x143L, 1)?.firstOrNull()?.toInt()?.and(0xFF)
+        return when {
+            flag == 0xC0 -> RomCategory.GBC
+            flag != 0x80 -> RomCategory.GB
+            sha1().let { it in COLOR_DUAL || it !in TelemetrySampler.SUPPORTED_GB_SHA1S && romExtension(rom) == "gbc" } ->
+                RomCategory.GBC
+            else -> RomCategory.GB
+        }
+    }
+
+    /** [rom]'s extension, or its ROM's inside an archive. */
+    private fun romExtension(rom: File): String =
+        (if (RomArchive.isArchive(rom)) RomArchive.romEntry(rom)?.name?.substringAfterLast('/') else rom.name)
+            ?.substringAfterLast('.', "")?.lowercase().orEmpty()
+
+    /** Color games with a dual-mode header (0x80) that the companion knows. Yellow says the same but is a GB game. */
+    private val COLOR_DUAL: Set<String>
+        get() = TelemetrySampler.POLISHED_CRYSTAL_SHA1S + TelemetrySampler.GOLD_SHA1 + TelemetrySampler.SILVER_SHA1
 
     /** [rom]'s [RomCategory] (reads its header; [sha1] when [identify] hashed it). A Pokémon cart hashed but known as
      * neither retail nor a hack is a hack too (an unsupported one); a cart nobody hashes is its platform's. */
@@ -208,8 +237,7 @@ object GameTitles {
         RomIdentity.isNds(rom) -> RomCategory.NDS
         sha1 != null && sha1 in HACKS -> RomCategory.HACK
         hashed && sha1 != null && sha1 !in RETAIL && sha1 !in RETAIL_PORT_TITLES -> RomCategory.HACK
-        RomIdentity.isGameBoy(rom) ->
-            if (RomIdentity.isGameBoyColor(rom) || sha1 in COLOR_ONLY) RomCategory.GBC else RomCategory.GB
+        RomIdentity.isGameBoy(rom) -> gameBoyPlatform(rom) { sha1 }
         else -> RomCategory.GBA
     }
 
@@ -217,33 +245,41 @@ object GameTitles {
      * Recognises every ROM in [roms] not already cached (or changed since). Blocking
      * (hashes) - never on the UI thread. True when a new answer was cached, i.e. a
      * name may have changed and the list should redraw.
+     *
+     * The hashing (up to 512 MB a DS cart) runs outside the cache's lock, which the UI thread's
+     * [label] / [category] / [platform] take: a pass holds it only to copy the cache and to put
+     * each answer in. Passes run one at a time ([passLock]), so no file is hashed twice and the
+     * cache file has one writer.
      */
-    @Synchronized
-    fun identify(context: Context, roms: List<File>): Boolean {
-        val cache = cache(context)
+    fun identify(context: Context, roms: List<File>): Boolean = synchronized(passLock) {
+        val snapshot = synchronized(this) { HashMap(cache(context)) }
         var changed = false
         for (rom in roms) {
-            val known = cache[rom.absolutePath]?.takeIf { it.matches(rom) && it.category != null }
+            val known = snapshot[rom.absolutePath]?.takeIf { it.matches(rom) && it.category != null }
             if (!rom.isFile || known?.platform != null) continue
             // Named before platforms were kept: only the header to read, no hash.
-            if (known != null) {
-                cache[rom.absolutePath] = Entry(known.size, known.modified, known.title, known.category, platformOf(rom) { RomIdentity.sha1(rom) })
-                changed = true
-                continue
+            val entry = if (known != null) {
+                Entry(known.size, known.modified, known.title, known.category, platformOf(rom) { RomIdentity.sha1(rom) })
+            } else {
+                val nds = RomIdentity.isNds(rom)
+                val worthHashing = if (nds) RomIdentity.ndsGameCode(rom) in NDS_CODES
+                    else RomIdentity.gameCode(rom) in CODES || RomIdentity.isGameBoy(rom)
+                val sha1 = if (worthHashing) RomIdentity.sha1(rom) else null
+                val title = sha1?.let { BY_SHA1[it] }
+                Entry(rom.length(), rom.lastModified(), title, categoryOf(rom, sha1, worthHashing), platformOf(rom) { sha1 })
             }
-            val nds = RomIdentity.isNds(rom)
-            val worthHashing = if (nds) RomIdentity.ndsGameCode(rom) in NDS_CODES
-                else RomIdentity.gameCode(rom) in CODES || RomIdentity.isGameBoy(rom)
-            val sha1 = if (worthHashing) RomIdentity.sha1(rom) else null
-            val title = sha1?.let { BY_SHA1[it] }
-            cache[rom.absolutePath] = Entry(rom.length(), rom.lastModified(), title, categoryOf(rom, sha1, worthHashing), platformOf(rom) { sha1 })
+            synchronized(this) { cache(context)[rom.absolutePath] = entry }
             changed = true
         }
         // Forget files that are gone, so the cache doesn't grow forever.
-        val pruned = cache.keys.removeAll { !File(it).isFile }
-        if (changed || pruned) save(context, cache)
-        return changed
+        val gone = snapshot.keys.filter { !File(it).isFile }
+        val pruned = gone.isNotEmpty() && synchronized(this) { cache(context).keys.removeAll(gone.toSet()) }
+        if (changed || pruned) save(context, synchronized(this) { HashMap(cache(context)) })
+        changed
     }
+
+    /** Held for a whole [identify] pass (never by the UI thread's lookups). */
+    private val passLock = Any()
 
     private val TAGS = Regex("""\s*[(\[][^)\]]*[)\]]""")
     private val NUMBERING = Regex("""^\d{1,5}\s*-\s+""")
@@ -282,9 +318,9 @@ object GameTitles {
     private val KNOWN = "#known\t" + Integer.toHexString(BY_SHA1.keys.sorted().hashCode())
 
     /** How [RomCategory] was decided when the cache was written: a cache from before asks every file again. */
-    private const val CATEGORIES = "#categories\t3"
-    /** The one before: only its GB platforms are asked again (Polished Crystal is GBC since 3). */
-    private const val CATEGORIES_2 = "#categories\t2"
+    private const val CATEGORIES = "#categories\t4"
+    /** The ones before: only their GB games are asked again (Polished Crystal is GBC since 3, Gold / Silver since 4). */
+    private val CATEGORIES_GB_STALE = setOf("#categories\t2", "#categories\t3")
 
     private fun load(context: Context): MutableMap<String, Entry> {
         val map = java.util.concurrent.ConcurrentHashMap<String, Entry>()
@@ -297,7 +333,7 @@ object GameTitles {
             f.forEachLine { line ->
                 if (line == KNOWN) stale = false
                 if (line == CATEGORIES) categoriesStale = false
-                if (line == CATEGORIES_2) { categoriesStale = false; gbStale = true }
+                if (line in CATEGORIES_GB_STALE) { categoriesStale = false; gbStale = true }
                 val p = line.split('\t')
                 // A 4-column line is from before categories: no category, so identify() reads it again. A 5-column
                 // one from before platforms: a hack's is read again (the others' platform is their category).
@@ -313,8 +349,11 @@ object GameTitles {
             if (stale) map.values.removeAll { it.title == null }
             // Categories decided another way (Yellow was GBC once): every file's is asked again.
             if (categoriesStale) map.replaceAll { _, e -> Entry(e.size, e.modified, e.title, null, null) }
-            // A GB platform from before Color games were known by hash: identify() reads its header (and hash) again.
-            else if (gbStale) map.replaceAll { _, e -> if (e.platform == RomCategory.GB) Entry(e.size, e.modified, e.title, e.category, null) else e }
+            // A GB game from before these Color games were known: identify() reads it again (a retail one's category
+            // is its platform, so both go).
+            else if (gbStale) map.replaceAll { _, e ->
+                if (e.platform == RomCategory.GB) Entry(e.size, e.modified, e.title, e.category.takeIf { it == RomCategory.HACK }, null) else e
+            }
         }
         return map
     }

@@ -20,8 +20,9 @@ no config of their own), it
   4. reads the game's names (species, moves, items, natures, map sections) and
      the strings the configs probe (dex category, trainer); item descriptions
      aren't written (the app reads them from the player's ROM: itemDescs),
-  5. writes app/.../companion/data/RetailPortsGen.kt (one NativeConfig per
-     ROM, by game code + revision; titles by SHA1) and GameText<CODE>Gen.kt
+  5. writes gamedata/gen3/ports/<game>.toml (one config per ROM, by game code +
+     revision) and runs scripts/gen_gamedata.py, app/.../companion/data/
+     RetailPortsGen.kt (titles by SHA1, names by code) and GameText<CODE>Gen.kt
      per game code, plus build/ports/ports.json for scripts/verify_ports.py,
      which boots each ROM headlessly with the English save and checks it.
 
@@ -34,6 +35,7 @@ import json
 import os
 import re
 import struct
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -112,9 +114,10 @@ DEX_WORDING = {
 # --- Kotlin configs ---------------------------------------------------------------
 def kotlin_blocks():
     out = {}
-    for f in ("NativeReader.kt", "Pokedex.kt", "GuideRom.kt"):
+    for f in ("NativeConfigsGen.kt", "GameDataRecordsGen.kt", "Pokedex.kt", "GuideRom.kt"):
         s = open(os.path.join(DATA, f), encoding="utf-8").read()
-        for m in re.finditer(r"^val (\w+) = (?:(\w+)\.copy\(|\w+\()\n(.*?)^\)", s, re.S | re.M):  # one-line vals have no block
+        # `val X = Cls(` ... `)`, or the records' `val X: Cls by lazy {` + the same, indented (one-line vals have no block)
+        for m in re.finditer(r"^val (\w+)(?:: \w+ by lazy \{\n    | = )(?:(\w+)\.copy\(|\w+\()\n(.*?)^(?:    )?\)", s, re.S | re.M):
             body = re.sub(r"//[^\n]*", "", m.group(3))
             out[m.group(1)] = (m.group(2), {k: int(v, 16) for k, v in re.findall(r"(\w+) = (0x[0-9A-Fa-f]+)L?", body)},
                                {k: int(v) for k, v in re.findall(r"(\w+) = (\d+)\b,", body)})
@@ -670,22 +673,35 @@ def write_text(p):
     return sfx
 
 
-def kotlin_config(p):
+def tstr(s):
+    """A TOML string (JSON's escapes are TOML's)."""
+    return json.dumps(s, ensure_ascii=False)
+
+
+def config_key(native):
+    """NATIVE_SAPPHIRE -> sapphire, its key in gamedata/."""
+    return native[len("NATIVE_"):].lower()
+
+
+def toml_config(p):
+    """The port as a gamedata/ config: English's config + every address mapped, its dex / guide tables spelled out."""
     lang = p["code"][3]
-    out = [f"language = '{lang}'", "trainerCard = null"]
+    out = [f"[config.port_{p['key'].lower()}]", f"base = '{config_key(p['native'])}'", "private = true", "lazy = true",
+           f"port = '{p['key']}'", f"language = '{lang}'"]
     if lang != "E":  # English rev 0 has no names of its own
-        out.insert(1, f"gameCode = \"{p['code']}\"")
+        out.append(f"gameCode = '{p['code']}'")
+    out.append("trainerCard = 'none'")
     for k, (v, _) in sorted(p["fields"].items()):
-        out.append(f"{k} = 0x{v:X}" if k == "inBattleOff" else f"{k} = 0x{v:08X}L")
+        out.append(f"{k} = 0x{v:X}" if k == "inBattleOff" else f"{k} = 0x{v:08X}")
     items_base, item_stride, _ = p["layout"]["items"]
     if items_base:  # the item descriptions (RomItemText): Japanese records are 40 bytes
-        count = ", RUBY_SAPPHIRE_ITEMS" if p["family"] == "RS" else ""
-        out.append(f"itemDescs = {'japaneseItems' if item_stride == 40 else 'vanillaItems'}(0x{items_base:08X}L{count})")
+        count = ", count = { ref = 'RUBY_SAPPHIRE_ITEMS' }" if p["family"] == "RS" else ""
+        out.append(f"itemDescs = {{ preset = '{'japanese' if item_stride == 40 else 'vanilla'}', base = 0x{items_base:08X}{count} }}")
     else:
-        out.append("itemDescs = null")
+        out.append("itemDescs = 'none'")
     if p["anchors"].get("party_menu", [None])[0]:
-        out.append(f"partyMenu = 0x{p['anchors']['party_menu'][0]:08X}L")
-    dex = [f"{k.split('.')[1]} = 0x{v:08X}L" for k, (v, m) in sorted(p["tables"].items()) if k.startswith(p["dex"] + ".") and v]
+        out.append(f"partyMenu = 0x{p['anchors']['party_menu'][0]:08X}")
+    dex = [f"{k.split('.')[1]} = 0x{v:08X}" for k, (v, m) in sorted(p["tables"].items()) if k.startswith(p["dex"] + ".") and v]
     if p["dex_layout"]:
         st, cl, ho, do = p["dex_layout"]
         dex += [f"entryStride = 0x{st:X}", f"entryCategoryLen = {cl}", f"entryHeightOff = {ho}", f"entryDescOff = 0x{do:X}"]
@@ -694,37 +710,44 @@ def kotlin_config(p):
     if p["ability_len"]:
         dex.append(f"abilityNameLength = {p['ability_len']}")
     if p["probe_category"]:
-        dex.append(f"probeCategory = {kstr(p['probe_category'])}")
+        dex.append(f"probeCategory = {tstr(p['probe_category'])}")
     for k, v in DEX_WORDING[lang].items():
-        dex.append(f"{k} = " + (kstr(v) if isinstance(v, str) and len(v) != 1 else f"'{v}'" if isinstance(v, str) else str(v).lower()))
-    guide = [f"{k.split('.')[1]} = 0x{v:08X}L" for k, (v, m) in sorted(p["tables"].items()) if k.startswith(p["guide"] + ".") and v]
+        dex.append(f"{k} = " + (tstr(v) if isinstance(v, str) else str(v).lower()))
+    guide = [f"{k.split('.')[1]} = 0x{v:08X}" for k, (v, m) in sorted(p["tables"].items()) if k.startswith(p["guide"] + ".") and v]
     if p["trainer_layout"]:
         st, nl, so, po = p["trainer_layout"]
         guide += [f"trainerStride = 0x{st:X}", f"trainerNameLen = {nl}", f"trainerSizeOff = 0x{so:X}", f"trainerPartyOff = 0x{po:X}"]
     if p["probe_name"]:
-        guide.append(f"probeName = {kstr(p['probe_name'])}")
-    out.append(f"pokedex = {p['dex']}.copy(\n        " + ",\n        ".join(dex) + ",\n    )")
-    out.append(f"guideTables = {p['guide']}.copy(\n        " + ",\n        ".join(guide) + ",\n    )")
-    return f"{p['native']}.copy(\n    " + ",\n    ".join(out) + ",\n)"
+        guide.append(f"probeName = {tstr(p['probe_name'])}")
+    out += ["", f"[config.port_{p['key'].lower()}.pokedex]", f"base = '{p['dex']}'"] + dex
+    out += ["", f"[config.port_{p['key'].lower()}.guideTables]", f"base = '{p['guide']}'"] + guide
+    return "\n".join(out)
+
+
+# One gamedata/ file per game, by the game code's first three letters.
+PORT_FILES = {"BPR": "firered", "BPG": "leafgreen", "AXV": "ruby", "AXP": "sapphire"}
 
 
 def write_ports(ports):
-    path = os.path.join(DATA, "RetailPortsGen.kt")
-    body = []
+    by_file = collections.defaultdict(list)
     for p in sorted(ports, key=lambda p: p["key"]):
-        body.append(f"// {p['file']} (sha1 {p['sha1'][:8]}...): English {p['english']}'s config, mapped.\n"
-                    f"private val PORT_{p['key']} by lazy {{\n    " + kotlin_config(p).replace("\n", "\n    ") + "\n}\n")
+        by_file[PORT_FILES[p["code"][:3]]].append(p)
+    ports_dir = os.path.join(ROOT, "gamedata", "gen3", "ports")
+    os.makedirs(ports_dir, exist_ok=True)
+    for name, ps in by_file.items():
+        with open(os.path.join(ports_dir, name + ".toml"), "w", encoding="utf-8") as f:
+            f.write("# Generated by scripts/port_retail.py from the other-language ROMs - don't edit by hand; rerun it.\n"
+                    "# Each config is English's with every address mapped into that ROM (build/ports/ports.json says\n"
+                    "# how each one was found), checked by scripts/verify_ports.py. RETAIL_PORTS lists them by `port`.\n" +
+                    "".join(f"\n# {p['file']} (sha1 {p['sha1'][:8]}...): English {p['english']}'s config, mapped.\n"
+                            + toml_config(p) + "\n" for p in ps))
+    path = os.path.join(DATA, "RetailPortsGen.kt")
     texts = sorted({p["code"] for p in ports if p["code"][3] != "E"})
     with open(path, "w", encoding="utf-8") as f:
         f.write("package com.pokedaisy.app.companion.data\n\n"
                 "// Generated by scripts/port_retail.py from the other-language FireRed / LeafGreen /\n"
-                "// Ruby / Sapphire ROMs - do not hand-edit; rerun the script instead. Each config is\n"
-                "// English's with every address mapped into that ROM (see the script; build/ports/\n"
-                "// ports.json says how each one was found) and checked by scripts/verify_ports.py.\n\n" +
-                "\n".join(body) + "\n"
-                "/** The ported configs, by game code + revision (\"BPRD0\"). */\n"
-                "val RETAIL_PORTS: Map<String, () -> NativeConfig> = mapOf(\n" +
-                "".join(f"    \"{p['key']}\" to {{ PORT_{p['key']} }},\n" for p in sorted(ports, key=lambda p: p["key"])) + ")\n\n"
+                "// Ruby / Sapphire ROMs - do not hand-edit; rerun the script instead. The ported configs\n"
+                "// themselves are in gamedata/gen3/ports/ (RETAIL_PORTS: NativeConfigsGen.kt).\n\n"
                 "/** Their games' own titles, by SHA1 (GameTitles). */\n"
                 "val RETAIL_PORT_TITLES: Map<String, String> = mapOf(\n" +
                 "".join(f"    \"{p['sha1']}\" to {kstr(TITLES[p['code']])},\n" for p in sorted(ports, key=lambda p: p["key"])) + ")\n\n"
@@ -808,7 +831,8 @@ def main():
             if p["code"][3] != "E":
                 write_text(p)
         write_ports(ports)
-        print("wrote RetailPortsGen.kt +", len({p['code'] for p in ports}), "GameText files;", OUT_JSON)
+        subprocess.run([sys.executable, os.path.join(HERE, "gen_gamedata.py")], check=True)
+        print("wrote gamedata/gen3/ports/ + RetailPortsGen.kt +", len({p['code'] for p in ports}), "GameText files;", OUT_JSON)
 
 
 if __name__ == "__main__":

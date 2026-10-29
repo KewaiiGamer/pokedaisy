@@ -46,6 +46,8 @@ data class AchievementsState(
     val leaderboards: List<Leaderboard> = emptyList(),
     /** A cheat is on: nothing is checked or unlocked until every cheat is off. */
     val cheatsPaused: Boolean = false,
+    /** SHINY ODDS is raised: paused the same way until it's NORMAL again. */
+    val shinyOddsPaused: Boolean = false,
 )
 
 data class Leaderboard(

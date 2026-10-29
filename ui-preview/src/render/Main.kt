@@ -204,6 +204,12 @@ class FakeSettings(showHintsInitially: Boolean = true, initialTabs: List<String>
     override val reusableTms get() = reusableTmsOn
     override fun setReusableTms(on: Boolean) { reusableTmsOn = on }
     override val reusableTmsSupported get() = true
+    private var shinyOddsValue = com.pokedaisy.app.companion.data.ShinyOdds.NORMAL
+    override val shinyOdds get() = shinyOddsValue
+    override fun setShinyOdds(odds: Int) { shinyOddsValue = odds }
+    override val shinyOddsChoices get() = com.pokedaisy.app.companion.data.ShinyOdds.DEBUG_CHOICES
+    override val shinyOddsSupported get() = com.pokedaisy.app.companion.data.activeGame == com.pokedaisy.app.companion.data.GameKind.FIRERED ||
+        com.pokedaisy.app.companion.data.activeGame == com.pokedaisy.app.companion.data.GameKind.EMERALD
     override val reusableTmsBuiltIn get() = com.pokedaisy.app.companion.data.activeGame in com.pokedaisy.app.companion.data.ReusableTms.BUILT_IN
     // PLAYER LOOK: the other games' heroes kept, the player in their own.
     private var lookWorn: String? = null
@@ -235,9 +241,11 @@ class FakeSettings(showHintsInitially: Boolean = true, initialTabs: List<String>
     override val textLook get() = textOn
     override fun setTextLook(style: String?) { textOn = style }
     override fun gbaControlBindings() = GbaControls.Btn.entries.associateWith {
-        listOf(when (it) { GbaControls.Btn.X -> "BUTTON_X"; GbaControls.Btn.Y -> "BUTTON_Y"; else -> "BUTTON_${it.name}" })
+        listOf(when (it) { GbaControls.Btn.X, GbaControls.Btn.START_2, GbaControls.Btn.TO_COMPANION -> "BUTTON_X"; GbaControls.Btn.Y, GbaControls.Btn.SELECT_2 -> "BUTTON_Y"; else -> "BUTTON_${it.name}" })
     }
     override fun setGbaControlBinding(btn: GbaControls.Btn, keyName: String) {}
+    // The shots' games are GBA ones (a DS game's rows: X / Y).
+    override val buttonGroup get() = GbaControls.Group.GBA
     override val keyCapture get() = previewCapture
     private var hotkeysOn = true
     override val hotkeysEnabled get() = hotkeysOn
@@ -517,6 +525,24 @@ fun battle(state: Int): SnapshotView {
         party = s.party.mapIndexed { i, m -> m.copy(personality = 0x1000L + i) },
     )
 }
+
+/** A real shiny battle, read the way the app reads it: the <game>_shiny_battle fixture (a foe SHINY ODDS made shiny,
+ * headless) through the retail config the Poller marks (shinyBelow 8). */
+fun realShinyBattle(state: Int): SnapshotView {
+    val (cfg, fixture) = if (activeGame == GameKind.EMERALD) NATIVE_EMERALD_RETAIL to "emerald_shiny_battle"
+        else NATIVE_FIRERED_REV1 to "firered_shiny_battle"
+    // The render task runs in app/src/main/assets.
+    val t = com.pokedaisy.app.companion.data.readNativeTelemetry(RamFixture(File("../../test/resources/fixtures/$fixture")), cfg.copy(shinyBelow = 8))
+    // buildSnapshotView points the icon loader at the ROM's tables (read through the core): keep the preview's own.
+    val icons = com.pokedaisy.app.companion.data.DecompIconSource.tables
+    val real = com.pokedaisy.app.companion.data.buildSnapshotView(t)
+    com.pokedaisy.app.companion.data.DecompIconSource.tables = icons
+    // The preview's own battle (connected, its game, its party) with the real battlers in it.
+    return battle(state).copy(battlePlayer = real.battlePlayer, battleOpponent = real.battleOpponent)
+}
+
+/** The wild foe shiny (SHINY ODDS' marks). */
+fun SnapshotView.shinyFoe(): SnapshotView = copy(battleOpponent = battleOpponent.map { it.copy(shiny = true) })
 
 /** A trainer battle (Brock-like): the party's lead against an Onix, a fainted
  * Geodude and a third, unseen Pokémon behind it - move verdicts computed for real. */
@@ -844,6 +870,12 @@ fun trade(setup: com.pokedaisy.app.companion.ui.TradeState.() -> Unit = {}): () 
     content
 }
 
+/** The Library just after an update, its WHAT'S NEW up with 1.3.2's notes. */
+fun whatsNewLibrary() = LibraryActivity().apply { whatsNew = com.pokedaisy.app.companion.WhatsNew.notesFor("1.3.3") }
+
+/** The Library after 5 hours of play: the support window up. */
+fun supportLibrary() = LibraryActivity().apply { supportAsk = true }
+
 /** The activity [activity] made last (a shot's action presses its keys). */
 var lastActivity: androidx.activity.ComponentActivity? = null
 
@@ -884,7 +916,7 @@ fun activity(expandIntro: Boolean = false, start: Boolean = false, make: () -> a
     File(ctx.filesDir, "media").deleteRecursively()
     prefs.steamGridDbApiKey = null
     prefs.libraryViewMode = 0
-    prefs.romsFolder = null
+    prefs.romsFolders = emptyList()
     prefs.hiddenRoms = emptySet()
     prefs.hotkeysEnabled = true
     prefs.savesDirOverride = null
@@ -1136,7 +1168,11 @@ fun homeMapsec(game: GameKind) = when (game) {
 }
 
 /** A Pokémon in the game's regional Dex, for the DEX entry shots: Sinnoh's opens on TURTWIG. */
-fun ndsFirstMon(game: GameKind) = if (game == GameKind.PLATINUM) "TURTWIG" else "BULBASAUR"
+fun ndsFirstMon(game: GameKind) = when (game) {
+    GameKind.PLATINUM -> "TURTWIG"
+    GameKind.BLACK -> "Snivy"
+    else -> "BULBASAUR"
+}
 
 /** A DS game's real snapshot (-PndsFixture): the fixture's main RAM read the way the app reads it. */
 fun ndsSnapshot(): SnapshotView {
@@ -1147,10 +1183,10 @@ fun ndsSnapshot(): SnapshotView {
             return if (o < 0 || o + size > main.size) ByteArray(size) else main.copyOfRange(o, o + size)
         }
     }
-    val cfg = com.pokedaisy.app.companion.data.gen4ConfigFor(activeGame) ?: error("not a DS game: $activeGame")
     // connected / game: what the Poller adds once it has detected the cart
-    return com.pokedaisy.app.companion.data.buildSnapshotView(com.pokedaisy.app.companion.data.readGen4Telemetry(reader, cfg))
-        .copy(connected = true, game = activeGame)
+    val telemetry = if (activeGame == GameKind.BLACK) com.pokedaisy.app.companion.data.readGen5Telemetry(reader, com.pokedaisy.app.companion.data.GEN5_BLACK)
+        else com.pokedaisy.app.companion.data.readGen4Telemetry(reader, com.pokedaisy.app.companion.data.gen4ConfigFor(activeGame) ?: error("not a DS game: $activeGame"))
+    return com.pokedaisy.app.companion.data.buildSnapshotView(telemetry).copy(connected = true, game = activeGame)
 }
 
 fun main(args: Array<String>) {
@@ -1213,6 +1249,17 @@ fun main(args: Array<String>) {
             onNodeWithContentDescription("FAVORITE").performClick()
         },
         Shot("$g-real-map", bw, bh, bd, companion("MAP", snap = ::ndsSnapshot)),
+        // Black's Town Map: PLACES, a place picked from it, and a tap by a town's point (the cursor snaps to it).
+        *(if (game == GameKind.BLACK) arrayOf(
+            Shot("$g-real-map-places", bw, bh, bd, companion("MAP", snap = ::ndsSnapshot)) { onNodeWithText("PLACES").performClick() },
+            Shot("$g-real-map-pick", bw, bh, bd, companion("MAP", snap = ::ndsSnapshot)) {
+                onNodeWithText("PLACES").performClick()
+                onNodeWithText("Castelia City", ignoreCase = true).performClick()
+            },
+            Shot("$g-real-map-tap", bw, bh, bd, companion("MAP", snap = ::ndsSnapshot)) {
+                onRoot().performTouchInput { click(Offset(37 + 1166 * (136f / 256), 37 + 886 * (46f / 168))) }
+            },
+        ) else emptyArray()),
         Shot("$g-real-dex", bw, bh, bd, companion("DEX", snap = ::ndsSnapshot)),
         Shot("$g-real-dex-entry", bw, bh, bd, companion("DEX", snap = ::ndsSnapshot)) {
             onAllNodesWithText(ndsFirstMon(game), substring = true, ignoreCase = true).onFirst().performClick()
@@ -1232,12 +1279,22 @@ fun main(args: Array<String>) {
             onNodeWithContentDescription("ZOOM").performSemanticsAction(SemanticsActions.OnClick)
         },
         Shot("$g-real-guide", bw, bh, bd, companion("GUIDE", snap = ::ndsSnapshot)),
-        // HERE on a route: the fixture's save moved to its first route's grass (Platinum's ROUTE 201, HG / SS's ROUTE 29).
+        // With a battle fixture (-PndsFixture=black_battle, platinum_battle): the companion opens on the battle, as in game.
+        Shot("$g-real-battle", bw, bh, bd, companion("PARTY", snap = ::ndsSnapshot)),
+        Shot("$g-real-battle-info", bw, bh, bd, companion("PARTY", snap = ::ndsSnapshot)) { onNodeWithText("INFO").performClick() },
+        Shot("$g-real-battle-suggestions", bw, bh, bd, companion("PARTY", snap = ::ndsSnapshot)) {
+            onNodeWithText("SUGGESTIONS").performClick()
+        },
+        // HERE on a route: the fixture's save moved to its first route's grass (Platinum's ROUTE 201, HG / SS's ROUTE 29,
+        // Black's Route 1).
         Shot("$g-real-guide-route", bw, bh, bd, companion("GUIDE", snap = {
             ndsSnapshot().let { s ->
-                val header = if (game == GameKind.PLATINUM) 342 else 33
-                val name = (if (game == GameKind.PLATINUM) com.pokedaisy.app.companion.data.mapPlacesPlatinum
-                    else com.pokedaisy.app.companion.data.mapPlacesHeartGold)[header].orEmpty()
+                val header = when (game) { GameKind.PLATINUM -> 342; GameKind.BLACK -> 317; else -> 33 }
+                val name = when (game) {
+                    GameKind.PLATINUM -> com.pokedaisy.app.companion.data.mapPlacesPlatinum
+                    GameKind.BLACK -> com.pokedaisy.app.companion.data.mapPlacesBlack
+                    else -> com.pokedaisy.app.companion.data.mapPlacesHeartGold
+                }[header].orEmpty()
                 s.copy(mapNum = header, location = s.location.copy(mapSecName = name))
             }
         })),
@@ -1275,6 +1332,8 @@ fun main(args: Array<String>) {
         // In the game's home town, which its own region map shows (Emerald has no Pallet Town rect).
         // After SWAP SCREENS: SETTINGS again, on that row and scrolled to it.
         Shot("$g-settings-after-swap", bw, bh, bd, companion("SETTINGS", settingsRow = "SWAP SCREENS")),
+        // APP > TIPS, with its NEW tag.
+        Shot("$g-settings-tips", bw, bh, bd, companion("SETTINGS", settingsRow = "TIPS")),
         Shot("$g-settings-battery-low", bw, bh, bd, companion("SETTINGS", battery = BatteryStatus(9, charging = false))),
         Shot("$g-settings-battery-charging", bw, bh, bd, companion("SETTINGS", battery = BatteryStatus(100, charging = true))),
         Shot("$g-card", bw, bh, bd, companion("CARD", snap = ::card)),
@@ -1391,13 +1450,34 @@ fun main(args: Array<String>) {
         },
         Shot("$g-battle-party-open", bw, bh, bd, companion("PARTY") { battle(BATTLE_INPUT_PARTY_OPEN) }),
         Shot("$g-battle-busy", bw, bh, bd, companion("PARTY", busy = true) { battle(BATTLE_INPUT_ACTION_SELECT) }),
+        // A shiny wild foe: the battle screen's SHINY plate, INFO's SHINY pill and a double battle's sparkle.
+        Shot("$g-battle-shiny", bw, bh, bd, companion("PARTY") { battle(BATTLE_INPUT_ACTION_SELECT).shinyFoe() }),
+        Shot("$g-battle-info-shiny", bw, bh, bd, companion("PARTY") { battle(BATTLE_INPUT_ACTION_SELECT).shinyFoe() }) {
+            onNodeWithText("INFO").performClick()
+        },
+        Shot("$g-battle-info-shiny-double", bw, bh, bd, companion("PARTY") {
+            val t = trainerBattle(BATTLE_INPUT_ACTION_SELECT)
+            val foes = t.enemyParty.drop(1).mapIndexed { i, f -> f.copy(shiny = i == 0) }
+            t.copy(isDoubleBattle = true, battlePlayer = listOf(t.party[0], t.party[1]), battleOpponent = foes, enemyParty = emptyList(), enemyActive = -1)
+        }),
         Shot("$g-battle-info", bw, bh, bd, companion("PARTY") { battle(BATTLE_INPUT_ACTION_SELECT) }) {
             onNodeWithText("INFO").performClick()
         },
         Shot("$g-battle-info-trainer", bw, bh, bd, companion("PARTY") { trainerBattle(BATTLE_INPUT_ACTION_SELECT) }) {
             onNodeWithText("INFO").performClick()
         },
-        Shot("$g-battle-info-trainer6", bw, bh, bd, companion("PARTY") { trainerBattle(BATTLE_INPUT_ACTION_SELECT, six = true) }) {
+        // The real thing: a headless battle's shiny foe, read from its RAM (FireRed / Emerald).
+        Shot("$g-battle-shiny-real", bw, bh, bd, companion("PARTY") { realShinyBattle(BATTLE_INPUT_ACTION_SELECT) }),
+        Shot("$g-battle-info-shiny-real", bw, bh, bd, companion("PARTY") { realShinyBattle(BATTLE_INPUT_ACTION_SELECT) }) {
+            onNodeWithText("INFO").performClick()
+        },
+        // SHINY beside a ten-letter name and a status.
+        Shot("$g-battle-info-shiny-long", bw, bh, bd, companion("PARTY") {
+            battle(BATTLE_INPUT_ACTION_SELECT).shinyFoe().let { t -> t.copy(battleOpponent = t.battleOpponent.map { it.copy(name = "MASQUERAIN") }) }
+        }) {
+            onNodeWithText("INFO").performClick()
+        },
+        Shot("$g-battle-info-trainer6",bw, bh, bd, companion("PARTY") { trainerBattle(BATTLE_INPUT_ACTION_SELECT, six = true) }) {
             onNodeWithText("INFO").performClick()
         },
         Shot("$g-battle-info-trainer6-tapped", bw, bh, bd, companion("PARTY") { trainerBattle(BATTLE_INPUT_ACTION_SELECT, six = true) }) {
@@ -1567,6 +1647,13 @@ fun main(args: Array<String>) {
         },
         Shot("$g-settings-player-look-pick", bw, bh, bd, companion("SETTINGS")) {
             onNodeWithText(com.pokedaisy.app.companion.i18n.tr("PLAYER LOOK")).performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+        },
+        // SHINY ODDS under REUSABLE TMS, then its pick-list (the debug build's, with 1 IN 4 and 1 IN 1).
+        Shot("$g-settings-shiny-odds", bw, bh, bd, companion("SETTINGS")) {
+            onNodeWithText(com.pokedaisy.app.companion.i18n.tr("CHEATS")).performScrollTo()
+        },
+        Shot("$g-settings-shiny-odds-pick", bw, bh, bd, companion("SETTINGS")) {
+            onNodeWithText(com.pokedaisy.app.companion.i18n.tr("SHINY ODDS")).performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
         },
         Shot("$g-settings-wild", bw, bh, bd, companion("SETTINGS")) {
             onNodeWithText("WILD ENCOUNTERS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
@@ -1813,6 +1900,19 @@ fun main(args: Array<String>) {
         Shot("library-expand-intro", tw, th, td, activity(expandIntro = true) { LibraryActivity() }),
         // A phone held upright (a Galaxy S9's 1080x2220 at 3x): the smaller text, the picture over the words, the buttons on screen.
         Shot("library-expand-intro-phone", 1080, 2220, 3f, activity(expandIntro = true) { LibraryActivity() }),
+        // WHAT'S NEW after an update (1.3.2's notes): the Thor's top screen, phones both ways, the Duo Lite's and the RG DS's
+        // 4:3 screens, a tablet.
+        Shot("library-whats-new", tw, th, td, activity { whatsNewLibrary() }),
+        Shot("library-support", tw, th, td, activity { supportLibrary() }),
+        Shot("library-support-phone", 1080, 2400, 2.625f, activity { supportLibrary() }),
+        Shot("library-support-phone-side", 2400, 1080, 2.625f, activity { supportLibrary() }),
+        Shot("library-support-4x3", 1280, 960, 2f, activity { supportLibrary() }),
+        Shot("library-support-rgds", 640, 480, 1.5f, activity { supportLibrary() }),
+        Shot("library-whats-new-phone", 1080, 2400, 2.625f, activity { whatsNewLibrary() }),
+        Shot("library-whats-new-phone-side", 2400, 1080, 2.625f, activity { whatsNewLibrary() }),
+        Shot("library-whats-new-4x3", 1280, 960, 2f, activity { whatsNewLibrary() }),
+        Shot("library-whats-new-rgds", 640, 480, 1.5f, activity { whatsNewLibrary() }),
+        Shot("library-whats-new-tablet", 2560, 1600, 2f, activity { whatsNewLibrary() }),
         Shot("settings-phone", 1080, 2220, 3f, activity { SettingsActivity() }),
         // TOUCH CONTROLS: the page with its preview, on a phone both ways, and EDIT LAYOUT over the stand-in.
         Shot("settings-touch", tw, th, td, activity { SettingsActivity() }) {
@@ -1904,6 +2004,10 @@ fun main(args: Array<String>) {
         },
         Shot("library-sort", tw, th, td, activity { LibraryActivity().also { datedLibrary() } }) {
             onNodeWithContentDescription("Sort").performClick()
+        },
+        // The header's +: ADD A ROM FILE / ADD A ROMS FOLDER / MANAGE ROMS FOLDERS.
+        Shot("library-add-menu", tw, th, td, activity { LibraryActivity() }) {
+            onNodeWithContentDescription("Add games").performClick()
         },
         Shot("library-sorted-added", tw, th, td, activity {
             datedLibrary()
@@ -2015,19 +2119,19 @@ fun main(args: Array<String>) {
         Shot("setup-roms-noaccess", tw, th, td, activity { LibraryActivity().apply { setup = SetupState().apply { hasAccess = false } } }),
         Shot("setup-roms-scanning", tw, th, td, activity {
             LibraryActivity().apply {
-                setup = SetupState().apply { romsFolder = "/storage/XXXX-XXXX/ROMs/GBA"; scanning = true; checked = 14; toCheck = 41 }
+                setup = SetupState().apply { romsFolders = listOf("/storage/XXXX-XXXX/ROMs/GBA", "/storage/XXXX-XXXX/ROMs/NDS"); scanning = true; checked = 14; toCheck = 41 }
             }
         }),
         Shot("setup-roms-found", tw, th, td, activity {
             LibraryActivity().apply {
                 setup = SetupState().apply {
-                    romsFolder = "/storage/XXXX-XXXX/ROMs/GBA"
+                    romsFolders = listOf("/storage/XXXX-XXXX/ROMs/GBA", "/storage/emulated/0/ROMs/GBC")
                     found = listOf("Pokémon FireRed", "Pokémon Emerald", "Pokémon Unbound", "Pokémon Radical Red", "Pokemon Emerald Imperium")
                 }
             }
         }),
         Shot("setup-roms-none", tw, th, td, activity {
-            LibraryActivity().apply { setup = SetupState().apply { romsFolder = "/storage/emulated/0/Download"; found = emptyList() } }
+            LibraryActivity().apply { setup = SetupState().apply { romsFolders = listOf("/storage/emulated/0/Download"); found = emptyList() } }
         }),
         Shot("setup-saves", tw, th, td, activity {
             LibraryActivity().apply {
@@ -2258,7 +2362,7 @@ fun main(args: Array<String>) {
         },
         // The list's end: LIBRARY / ONLINE (RetroAchievements' BETA tag) / APP.
         Shot("settings-home-bottom", tw, th, td, activity { SettingsActivity() }) { onNodeWithText("RUN SETUP").performScrollTo() },
-        Shot("settings-buttons", tw, th * 2, td, activity { SettingsActivity() }) { onNodeWithText("GAME BUTTONS").performScrollTo().performClick() },
+        Shot("settings-buttons", tw, th * 2, td, activity { SettingsActivity() }) { onNodeWithText("GAME BUTTONS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick) },
         // A GBA button waiting for its button, in place.
         Shot("settings-buttons-capture", tw, th * 2, td, activity { SettingsActivity() }) {
             onNodeWithText("GAME BUTTONS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
@@ -2272,7 +2376,44 @@ fun main(args: Array<String>) {
         Shot("settings-search", tw, th, td, activity { SettingsActivity() }) {
             onNode(hasSetTextAction()).performTextInput("rebind")
         },
-        Shot("settings-folders", tw, th * 2, td, activity { SettingsActivity() }) { onNodeWithText("FOLDERS").performScrollTo().performClick() },
+        // DS RESOLUTION: found by "upscale" (its keywords), and its pick-list.
+        Shot("settings-ds-resolution", tw, th, td, activity { SettingsActivity() }) {
+            onNode(hasSetTextAction()).performTextInput("upscale")
+        },
+        Shot("settings-ds-resolution-pick", tw, th, td, activity { SettingsActivity() }) {
+            onNodeWithText("DS RESOLUTION").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+        },
+        // Search: "hints" finds TIPS (its keywords), with its NEW tag.
+        Shot("settings-search-tips", tw, th, td, activity { SettingsActivity() }) {
+            onNode(hasSetTextAction()).performTextInput("hints")
+        },
+        Shot("settings-folders", tw, th, td, activity { SettingsActivity() }) {
+            onNodeWithText("FOLDERS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+        },
+        // FOLDERS > ROMS FOLDERS with two folders linked, then empty.
+        Shot("settings-folders-roms", tw, th, td, activity {
+            Prefs(android.content.Context()).romsFolders = listOf("/storage/XXXX-XXXX/ROMs/gba", "/storage/emulated/0/ROMs/nds")
+            SettingsActivity()
+        }) {
+            onNodeWithText("FOLDERS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+            waitForIdle()
+            onNodeWithText("ROMS FOLDERS").performSemanticsAction(SemanticsActions.OnClick)
+        },
+        Shot("settings-folders-roms-empty", tw, th, td, activity { SettingsActivity() }) {
+            onNodeWithText("FOLDERS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+            waitForIdle()
+            onNodeWithText("ROMS FOLDERS").performSemanticsAction(SemanticsActions.OnClick)
+        },
+        Shot("settings-folders-saves", tw, th, td, activity { SettingsActivity() }) {
+            onNodeWithText("FOLDERS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+            waitForIdle()
+            onNodeWithText("GAME SAVES").performSemanticsAction(SemanticsActions.OnClick)
+        },
+        Shot("settings-folders-also", tw, th, td, activity { SettingsActivity() }) {
+            onNodeWithText("FOLDERS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+            waitForIdle()
+            onNodeWithText("ALSO LOOK IN").performSemanticsAction(SemanticsActions.OnClick)
+        },
         // CHEATS from the hub (no cheats yet), then as a game's library menu opens it.
         Shot("settings-cheats-empty", tw, th, td, activity { SettingsActivity() }) {
             onNodeWithText("CHEATS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
@@ -2444,7 +2585,8 @@ val PREVIEW_BUTTONS: Map<GbaControls.Btn, List<String>> = GbaControls.Btn.entrie
         GbaControls.Btn.A -> listOf("BUTTON_A", "Z"); GbaControls.Btn.B -> listOf("BUTTON_B", "X")
         GbaControls.Btn.L -> listOf("BUTTON_L1", "A"); GbaControls.Btn.R -> listOf("BUTTON_R1", "S")
         GbaControls.Btn.START -> listOf("BUTTON_START", "ENTER"); GbaControls.Btn.SELECT -> listOf("BUTTON_SELECT")
-        GbaControls.Btn.X -> listOf("BUTTON_X"); GbaControls.Btn.Y -> listOf("BUTTON_Y")
+        GbaControls.Btn.X, GbaControls.Btn.START_2, GbaControls.Btn.TO_COMPANION -> listOf("BUTTON_X")
+        GbaControls.Btn.Y, GbaControls.Btn.SELECT_2 -> listOf("BUTTON_Y")
         GbaControls.Btn.TURBO_A, GbaControls.Btn.TURBO_B -> emptyList()
     }
 }

@@ -1,0 +1,23 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon GS Chronicles v2.7.6 (Ruki Studios; 32 MB, sha1 25f8840e…): Johto and Kanto on CFRU,
+# FireRed 1.0's code and RAM with its data repointed. Every RAM global's literal-pool word is rev
+# 0's (gPlayerParty 745 of 745, gSaveBlock1Ptr 444 of 452, gMain 585 of 586, gBagPockets 15 of 15,
+# the battle globals all of theirs); the tables' words hold the hack's: gItems 0x08F70000 (indexed
+# by slot), gMonIconTable 0x097DA810, gMonIconPaletteIndices 0x097DA2EE (the palettes stay
+# vanilla's), sItemIconTable 0x08F78000. No save of the user's: the `gs_chronicles*` fixtures are
+# a new game played headless (CYNDAQUIL / TOTODILE / CHIKORITA in NEW BARK TOWN; the READMEs).
+[config.gs_chronicles]
+base = 'firered_rev0'
+actionCursor = 0x02023FF8
+moveCursor = 0x02023FFC
+itemDescs = { preset = 'vanilla', base = 0x08F70000 }
+monIconTable = 0x097DA810
+monIconPaletteIndices = 0x097DA2EE
+itemIconTable = 0x08F78000
+pokedex = 'POKEDEX_GS_CHRONICLES'
+guideTables = 'GUIDE_TABLES_GS_CHRONICLES'
+enemyParty = { from = 'firered_rev1' }
+battlerPartyIndexes = { from = 'firered_rev1' }
+battleStructPtr = { from = 'firered_rev1' }
+monToSwitchIntoOff = { from = 'firered_rev1' }

@@ -15,6 +15,7 @@ struct pd_menu {
     int scroll;
     bool touching;
     int pressed; // row the stylus went down on, -1 = none
+    bool overlay; // just the windows, over whatever is behind (a host's menu over the game)
 };
 
 void pd_menu_init(struct pd_menu* m, const char* title, const char* const* items, int count);

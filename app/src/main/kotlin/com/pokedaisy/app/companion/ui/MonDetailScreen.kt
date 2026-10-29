@@ -363,18 +363,16 @@ internal fun InfoSection(mon: MonView, m: GbaTextMetrics, small: GbaTextMetrics,
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GbaText(mon.shownName, optionLook.label, optionLook.labelShadow, m, modifier = Modifier.weight(1f, fill = false))
                 GenderMark(mon.genderSymbol, m, Modifier.padding(start = u * 3))
+                if (mon.shiny) ShinySparkle(m, Modifier.padding(start = u * 3))
                 // A nickname of the player's own: the species after it, like the game's summary.
                 if (mon.renamed) GbaText("/" + mon.name, optionLook.label, optionLook.labelShadow, small, Modifier.padding(start = u * 3))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // The 32px icon at a whole multiple of the frame's GBA pixel, so it stays crisp.
-                Box(
-                    Modifier
-                        .size(u * 36)
-                        .clip(PixelRoundedShape(u * 4))
-                        .background(optionLook.listFill),
-                    contentAlignment = Alignment.Center,
-                ) { SpeciesIcon(mon.iconAsset, size = u * 32) }
+                // A shiny one: in a gold frame, as on battle INFO.
+                Box(Modifier.monIconBox(u * 36, u, mon.shiny, optionLook.listFill), contentAlignment = Alignment.Center) {
+                    SpeciesIcon(mon.iconAsset, size = u * 32)
+                }
                 Spacer(Modifier.width(u * 5))
                 if (!mon.isEgg) {
                     Column(verticalArrangement = Arrangement.spacedBy(u * 3)) {

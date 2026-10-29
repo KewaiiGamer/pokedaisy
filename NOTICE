@@ -85,9 +85,10 @@ The app shows every license below in full under Settings > LICENSES.
   encoding for co-op invites.
 - Some decoders and layouts follow the community decompilations of the games
   (pret's pokered / pokeyellow / pokegold / pokecrystal / pokefirered /
-  pokeemerald / pokeruby / pokeplatinum / pokeheartgold, pokeemerald-expansion
-  and Rangi42's polishedcrystal), which publish no license of their own: the
-  Gen 1 picture decompressor, the Gen 2 LZ decompressor (with Polished
+  pokeemerald / pokeruby / pokeplatinum / pokeheartgold, pokeemerald-expansion,
+  Rangi42's polishedcrystal and Vortyne's pureRGB), which publish no license of
+  their own: the Gen 1 picture decompressor (and PureRGB's icon and Pokedex
+  layouts), the Gen 2 LZ decompressor (with Polished
   Crystal's variant and its text compression), expansion's "smol"
   decompressor, the DS games' text, archive and picture decoding and the
   trainer card's layout are re-implemented from them in Kotlin.

@@ -58,12 +58,12 @@ A DS has two screens, and so does a dual-screen handheld, so a DS game uses both
 
 The companion is still there:
 
-- **On the bottom screen:** tap `COMPANION` in the bar under the touch screen and the companion takes the touch screen's place. Tap `GAME SCREEN` in the same spot to bring the touch screen back. `BACK` with nothing left to go back from also returns to the touch screen. PokeDaisy remembers which of the two you had.
+- **On the bottom screen:** tap `COMPANION` in the bar under the touch screen and the companion takes the touch screen's place. The bar takes a little of its height, so its text is a size smaller there, as on a small screen. Tap `GAME SCREEN` in the same spot to bring the touch screen back. `BACK` with nothing left to go back from also returns to the touch screen. PokeDaisy remembers which of the two you had.
 - **Over the game:** tap `BACK` and the companion opens over the top screen, as on a one-screen handheld (see [The window](#the-window)).
 
 `SWAP SCREENS` trades a DS game's two screens too: the top screen goes on your bottom screen, and the touch screen, with its `COMPANION` button, on the top one. The touch screen stays up whatever `CLOSE COMPANION` says. `REWIND` isn't available in DS games.
 
-On a handheld or phone with one screen, a DS game shows both of its screens on it. Held sideways, the touch screen sits beside the game, the two side by side like an open DS; held upright, it sits under the game, where the companion would be. Its `COMPANION` button swaps it for the companion (and `GAME SCREEN` brings the touch screen back), the same switch as on a dual-screen device.
+On a handheld or phone with one screen, a DS game shows both of its screens on it. Held sideways, the touch screen sits beside the game, the two side by side like an open DS; held upright, it sits under the game, where the companion would be. Its `COMPANION` button swaps it for the companion (and `GAME SCREEN` brings the touch screen back), the same switch as on a dual-screen device. Held sideways, the touch controls lie over the two screens: the D-pad in the bottom left corner and A, B, X and Y in the bottom right, with `SELECT` and `START` along the bottom just inside them, and the touch screen's `COMPANION` button moves above it. A tap anywhere that isn't a button reaches the touch screen.
 
 ## Single-screen handhelds
 
@@ -108,16 +108,16 @@ Hold `BACK` to leave the game, as always.
 
 ## Phones held upright
 
-Hold a phone upright and the game sits across the top of the screen, with the companion docked below it. It's always open: there's nothing to slide in.
+Hold a phone upright and the game sits across the top of the screen, with the companion docked below it and the touch controls under that. It's always open: there's nothing to slide in. In a DS game the touch screen takes the companion's place, between the top screen and the buttons.
 
 - **Change its height:** drag the grip on the companion's top edge up or down. It snaps to the default size (the shape of the Thor's bottom screen) and to the largest size (everything under the game).
 - **Step through sizes:** tap the grip to go from small, to the default, to everything under the game, and round again.
-- **Touch controls:** when there's enough room between the game and the companion, the on-screen buttons go in that gap. When there isn't, they lie over the game as usual. The phone held upright has its own layout, and `POSITION` on the `TOUCH CONTROLS` page puts the buttons at the top, middle or bottom of their space; see [Touch controls](controls.md#touch-controls).
+- **Touch controls:** they get the space at the bottom of the screen, under the companion. With the companion `AT BOTTOM` (below) they go in the gap between the game and the companion when there's room, and lie over the game when there isn't. The phone held upright has its own layout, and `POSITION` on the `TOUCH CONTROLS` page puts the buttons at the top, middle or bottom of their space; see [Touch controls](controls.md#touch-controls).
 
 The `COMPANION` setting (on the `DISPLAY OPTIONS` page of the `SCREEN` group, on single-screen devices) picks where the companion sits on a phone held upright:
 
-- `AT BOTTOM` (the default): along the bottom of the screen, with the touch controls in any gap above it.
-- `UNDER GAME`: right under the game, with the touch controls at the bottom of the screen.
+- `UNDER GAME` (the default): right under the game, with the touch controls at the bottom of the screen.
+- `AT BOTTOM`: along the bottom of the screen, with the touch controls in any gap above it.
 
 With `ASPECT` set to `EXPAND`, the game fills everything above the companion, so both would look the same. There `UNDER GAME` gives the touch controls a strip of their own along the bottom of the screen, under the companion, so they don't lie over the game. When the touch controls aren't showing (you're using a controller), the setting is greyed out.
 

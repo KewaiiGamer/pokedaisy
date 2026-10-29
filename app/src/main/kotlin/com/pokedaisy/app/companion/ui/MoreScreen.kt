@@ -33,7 +33,7 @@ import com.pokedaisy.app.companion.i18n.tk
 import com.pokedaisy.app.companion.ui.theme.gbaFocusRing
 import com.pokedaisy.app.companion.i18n.tr
 
-/** Tiles a row on the MORE grid: every tab can be off the bar (8), so two rows at most. */
+/** Tiles a row on the MORE grid: every tab can be off the bar (9), so three rows at most. */
 private const val MORE_COLUMNS = 4
 
 /** A tile's width in its column (it's square): a little smaller than the column. */
@@ -136,7 +136,8 @@ private fun AppTile(id: String, m: GbaTextMetrics, enabled: Boolean, modifier: M
                 PixelArt(icon.bitmap, icon.palette, Modifier.size(with(density) { iconPx.toDp() }))
             }
             Spacer(Modifier.height(u * 4))
-            GbaText(label, OptionColors.label, OptionColors.labelShadow, m, bold = gameBoldLabels(), maxLines = 1)
+            // Narrowed letters rather than cut short: NUZLOCKE is the longest name.
+            GbaText(label, OptionColors.label, OptionColors.labelShadow, m, bold = gameBoldLabels(), maxLines = 1, modifier = Modifier.narrowToFit(m))
         }
     }
 }

@@ -302,8 +302,11 @@ private const val HEARTGOLD_SAVE_DATA_PTR = 0x021D2228L
 val GEN4_HEARTGOLD_US = gen4HeartGoldFamily(saveDataPtr = HEARTGOLD_SAVE_DATA_PTR)
 val GEN4_SOULSILVER_US = gen4HeartGoldFamily(saveDataPtr = HEARTGOLD_SAVE_DATA_PTR)
 
-/** A DS game ([readGen4Telemetry]): two screens, its own look and tables. */
-val GameKind?.isDsGame: Boolean get() = this == GameKind.PLATINUM || isHgss
+/** A DS game ([readGen4Telemetry], [readGen5Telemetry]): two screens, its own look and tables. */
+val GameKind?.isDsGame: Boolean get() = this == GameKind.PLATINUM || isHgss || isGen5
+
+/** Gen 5 (Black): [readGen5Telemetry], its own tables. */
+val GameKind?.isGen5: Boolean get() = this == GameKind.BLACK
 
 /** The Gen 4 config for [kind], or null. */
 fun gen4ConfigFor(kind: GameKind?): Gen4Config? = when (kind) {
@@ -352,8 +355,9 @@ private fun gen4Crypt(raw: ByteArray, off: Int, len: Int, seed: Long): ByteArray
  * after the personality - bit 0 the party fields, bit 1 the four blocks - so those are taken as they are. (Reading them
  * as encrypted dropped the lead every few seconds: the game looks at it that often on the field.) HeartGold / SoulSilver
  * also hold one party Pokémon's blocks in plaintext between frames with the flags clear (slot 1 on both players' saves,
- * on the field), so whichever way the checksum adds up is taken, and likewise the party fields that make sense. */
-fun decodeGen4PartyMon(raw: ByteArray, off: Int): Mon? {
+ * on the field), so whichever way the checksum adds up is taken, and likewise the party fields that make sense.
+ * Gen 5 keeps the same struct (Black: [maxSpecies] 649). */
+fun decodeGen4PartyMon(raw: ByteArray, off: Int, maxSpecies: Int = 493): Mon? {
     val personality = u32(raw, off)
     val decrypted = u16(raw, off + 4)
     val checksum = u16(raw, off + 6)
@@ -371,7 +375,7 @@ fun decodeGen4PartyMon(raw: ByteArray, off: Int): Mon? {
     val a = block('A')
     val b = block('B')
     val species = u16(blocks, a)
-    if (species == 0 || species > 493) return null
+    if (species == 0 || species > maxSpecies) return null
     val ivWord = u32(blocks, b + 0x10)
     val flags = u8(blocks, b + 0x18)
     // The party fields carry no checksum: a level or HP no Pokémon has is a read gone wrong.

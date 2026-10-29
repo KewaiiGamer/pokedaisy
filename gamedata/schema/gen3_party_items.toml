@@ -1,0 +1,107 @@
+# PartyItemFns's fields (FieldItems.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | int_set | long_set |
+# int_map | ref (a Kotlin val's name, or a record in gamedata/gen3/records/); record names the schema of the
+# record a ref names (its defaults stand in where there is none).
+
+version = 1
+kotlin_class = 'PartyItemFns'
+kotlin_file = 'FieldItems.kt'
+
+# GetMonData(mon, field, NULL) (GetMonData3: the 2-argument GetMonData is the same code).
+[field.getMonData]
+kotlin = 'Long'
+type = 'long'
+
+[field.setMonData]
+kotlin = 'Long'
+type = 'long'
+
+# PokemonItemUseNoEffect(mon, item, partyIndex, moveIndex): TRUE = it wouldn't do anything. FireRed has
+# it; Emerald doesn't (its party menu just runs the effect): null = ask [itemEffect] itself on the Pokémon,
+# then put its 100 bytes back - the same answer, nothing kept.
+[field.itemNoEffect]
+kotlin = 'Long?'
+type = 'long'
+
+# ExecuteTableBasedItemEffect(mon, item, partyIndex, moveIndex): FALSE = it did something.
+[field.itemEffect]
+kotlin = 'Long'
+type = 'long'
+
+[field.addBagItem]
+kotlin = 'Long'
+type = 'long'
+
+# gPlayerParty (struct Pokemon, 100 bytes each) and gPlayerPartyCount (a byte).
+[field.party]
+kotlin = 'Long'
+type = 'long'
+
+[field.partyCount]
+kotlin = 'Long'
+type = 'long'
+
+# Two bytes of RAM the game never uses, for SetMonData's argument (restored after).
+[field.scratch]
+kotlin = 'Long'
+type = 'long'
+
+# gItems' length and struct Item's pocket ids no Pokémon can hold (key items, TMs / HMs).
+[field.itemCount]
+kotlin = 'Int'
+type = 'int'
+
+[field.unholdablePockets]
+kotlin = 'Set<Int>'
+type = 'int_set'
+
+# CRC32 of each function's first 32 bytes (getMonData, setMonData, itemNoEffect where there is one, itemEffect, addBagItem).
+[field.codeCrcs]
+kotlin = 'List<Long>'
+type = 'long_list'
+
+# What USE works on: medicine (one Pokémon), PP items for one move / for all of them.
+[field.medicine]
+kotlin = 'Set<Int>'
+type = 'ref'
+default = 'MEDICINE_ITEMS'
+
+[field.ppOneMove]
+kotlin = 'Set<Int>'
+type = 'ref'
+default = 'PP_ONE_MOVE_ITEMS'
+
+[field.ppAllMoves]
+kotlin = 'Set<Int>'
+type = 'ref'
+default = 'PP_ALL_MOVES_ITEMS'
+
+[field.mail]
+kotlin = 'Set<Int>'
+type = 'ref'
+default = 'MAIL_ITEMS'
+
+[field.hpUp]
+kotlin = 'Int'
+type = 'int'
+default = 63
+
+[field.shedinja]
+kotlin = 'Int'
+type = 'int'
+default = 303
+
+# The game's own field-use routines for medicine, PP items and Repels (FieldUseFunc_Medicine / _Ether /
+# _PpUp / _Repel, Emerald's ItemUseOutOfBattle_*): an item is offered only if its gItems entry points at one
+# of them - a hack that turned an id into something else keeps it off. Empty = the id sets alone.
+[field.useFuncs]
+kotlin = 'Set<Long>'
+type = 'long_set'
+default = []
+
+# How far GetMonData's field ids from MON_DATA_SPECIES on sit past pokeemerald's: Recharged Emerald put 9 fields of
+# its own before MON_DATA_ENCRYPT_SEPARATOR (SPECIES 20, HELD_ITEM 21, MOVE1 22, IS_EGG 54). PERSONALITY stays 0.
+[field.monFieldShift]
+kotlin = 'Int'
+type = 'int'
+default = 0

@@ -27,9 +27,32 @@ typedef struct PkNdsFieldGame {
     uint32_t currentBgm;       // sSoundSystem.currentBGM (u16): the song playing (STEADY FF music starts again on a new one)
     uint32_t seqPlayers;       // NitroSystem's sSeqPlayer[16] (NNSSndSeqPlayer, 0x44 bytes): a volume fade running (STEADY waits it out)
     int rateBytes;             // the encounter rates are u8s (HeartGold / SoulSilver's EncounterData), not Platinum's u32s
-    int callSet;               // pk_nds_call's functions for this game: 0 none, 1 Platinum's, 2 HeartGold / SoulSilver's
+    int callSet;               // pk_nds_call's functions for this game: 0 none, 1 Platinum's, 2 HeartGold / SoulSilver's, 3 Black's
     int offBattleContext;      // BattleSystem.ctx (the battle process's data is the BattleSystem), 0 = unknown
     int offCommand;            // BattleContext.command: the battle controller's step (constants/battle.h's CONTROLLER_COMMAND_*)
+    // Gen 5 (Black): no FieldSystem. fieldSystemPtr is then the static GameSystem pointer, and the scene comes from it:
+    // its proc system's running proc (whose overlay says field / battle / an app), its field map and its event.
+    int gen;                   // 5 for Gen 5; 0 = Gen 4
+    int offProcSys;            // GameSystem's GFL proc system; its running proc at offCurrentProc
+    int offCurrentProc;
+    int offProcOverlay;        // the proc's overlay id: fieldOverlay / battleOverlay, anything else an app (the party, the bag, ...)
+    int fieldOverlay;
+    int battleOverlay;
+    int offFieldMap;           // GameSystem's field map work: NULL while a full-screen app or a battle runs
+    int offEvent;              // GameSystem's running GMEVENT: NULL when the field is free (a script, a menu, a warp hold one)
+    int offProcWork;           // the battle proc's work: the battle's main module
+    int offClient;             // main module -> client 0 (the player's)
+    int offAdapter;            // client -> its adapter
+    int offAdapterCommand;     // adapter's command byte (BTL_ACMD_*)
+    int battleSelecting;       // the command while the player chooses (Gen 4: PK_NDS_BATTLE_SELECTING)
+    int textBg;                // engine A's BG the field text box is drawn on (0 = Gen 4's BG3)
+    int offGameData;           // GameSystem -> GameData
+    int offZone;               // GameData's player record: the zone (u16) the player is on, live
+    int offMoveForm;           // GameData: the player's form (0 walking, 1 cycling, 2 surfing)
+    int offEventData;          // GameData -> the zone's event data, which holds the zone's encounter table inline
+    int offEncounterRates;     // the event data's encounter table: 7 rate bytes (grass, dark grass, rustling grass,
+                               // surf, rippling surf, fishing, rippling fishing)
+    uint32_t bgmDepth;         // the BGM stack's depth (u32); currentBgm is its first entry's song, 0x1C an entry
 } PkNdsFieldGame;
 
 // pk_wide.h's PK_FIELD_* bits, which the engine already reads, plus two the DS sets:
@@ -54,7 +77,7 @@ namespace melonDS { class NDS; }
 /** How many of the top screen's BG3 map entries show a tile (tile number not 0) in its 24 visible rows: Platinum's
  * field text box, sign and yes / no windows (field_message.c: BG_LAYER_MAIN_3). PK_NDS_FIELD_TEXT needs some: a field
  * task alone (a warp, a door) isn't a text box. */
-int pk_nds_bg3_tiles(melonDS::NDS* nds);
+int pk_nds_bg3_tiles(melonDS::NDS* nds, int bg = 3);
 extern "C" {
 #endif
 
@@ -67,6 +90,17 @@ int pk_nds_battle_command(const PkNdsFieldGame* game, uint32_t (*read32)(uint32_
 /** CONTROLLER_COMMAND_SELECTION_SCREEN_INPUT: the battle waits for the player's command (FIGHT / BAG / POKéMON / RUN, a
  * move, a target - and the bag or party opened from there). */
 #define PK_NDS_BATTLE_SELECTING 5
+
+/** EXPAND carries [game]'s battles into the margins (its background, 3D, HP boxes and text box: tuned on HG/SS). Not
+ * Black's: its battle is all 3D (pk_nds_battle_3d) and the carried HP boxes streaked across the margins. */
+int pk_nds_battle_margins(const PkNdsFieldGame* game);
+
+/** [game]'s battle is all 3D - sky, ground, platforms and the Pokemon (Black) - so EXPAND draws its margins as it does
+ * the overworld's: the 3D past the screen, the 2D over it carried where it crosses the screen's edge. */
+int pk_nds_battle_3d(const PkNdsFieldGame* game);
+
+/** [game]'s battle command while the player chooses (Gen 4's PK_NDS_BATTLE_SELECTING; Gen 5's adapter has its own). */
+int pk_nds_battle_selecting(const PkNdsFieldGame* game);
 
 /** The cart's own grass / surf rates by map header id: [map, grass, surf] triples (n triples; the app's generated tables,
  * Gen4World.wildRates). WILD ENCOUNTERS back on puts a map's rates back from here when they're still 0 - a hold this

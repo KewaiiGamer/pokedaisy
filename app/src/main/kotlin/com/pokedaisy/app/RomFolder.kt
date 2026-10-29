@@ -5,7 +5,7 @@ import com.pokedaisy.app.companion.data.TelemetrySampler
 import java.io.File
 
 /**
- * The player's linked ROMs folder ([Prefs.romsFolder]): every ROM in it that the
+ * The player's linked ROMs folders ([Prefs.romsFolders]): every ROM in them that the
  * second screen supports ([CompanionSupport]) joins the library and plays from
  * where it is - nothing is copied. Checking a ROM can mean hashing 32 MB, so each
  * file's verdict is cached by path + size + modified time and a rescan (every
@@ -21,6 +21,10 @@ object RomFolder {
     private const val MAX_DS_ROM_BYTES = 512L shl 20
     /** The folder itself plus a few levels: a frontend's tree nests (`ROMs/gba/Pokemon/Retail/`, GitHub #233). */
     private const val MAX_DEPTH = 6
+
+    /** A DS cart or an archive (which may hold one: GitHub #315, zipped DS games went missing) up to a DS cart's size. */
+    private fun maxBytes(f: File): Long =
+        if (f.name.endsWith(".nds", ignoreCase = true) || RomArchive.isArchive(f)) MAX_DS_ROM_BYTES else MAX_ROM_BYTES
 
     /** [partial]: read through a PARTIAL best-effort match ([CompanionSupport.Verdict.PARTIAL]) - listed, tagged. */
     /** [tryable]: unsupported but a Gen 3 Pokémon base game - listed, tagged NOT SUPPORTED, so TRY BEST EFFORT is reachable. */
@@ -42,7 +46,7 @@ object RomFolder {
             CompanionSupport.Verdict.UNSUPPORTED -> Entry(size, modified, false)
         }
 
-    /** The library: imported ROMs (`files/roms/`), then the linked folder's supported
+    /** The library: imported ROMs (`files/roms/`), then the linked folders' supported
      * ones from the last scan - minus hidden ones ([Prefs.hiddenRoms]) and any whose
      * file name an imported ROM already has (covers and names are keyed by file
      * name). Cheap: reads the cache, never a ROM. */
@@ -56,7 +60,7 @@ object RomFolder {
             .sortedWith(byLabel(context, prefs))
     }
 
-    /** The hidden ROMs that are still there to show again (imported or in the linked folder). */
+    /** The hidden ROMs that are still there to show again (imported or in a linked folder). */
     fun hiddenRoms(context: Context, prefs: Prefs): List<File> =
         prefs.hiddenRoms.map(::File).filter { it.isFile }.sortedWith(byLabel(context, prefs))
 
@@ -71,41 +75,63 @@ object RomFolder {
             f.isFile && f.name.substringAfterLast('.', "").lowercase() in EXTENSIONS
         }?.toList().orEmpty()
 
-    /** Supported, not hidden, still-present ROMs of the linked folder, per the last scan. */
-    fun found(context: Context, prefs: Prefs): List<File> {
-        val root = prefs.romsFolder ?: return emptyList()
+    /** Supported, not hidden, still-present ROMs of the linked folders (or of [folder] alone), per the last scan. */
+    fun found(context: Context, prefs: Prefs, folder: String? = null): List<File> {
+        val roots = folder?.let(::listOf) ?: prefs.romsFolders
+        if (roots.isEmpty()) return emptyList()
         val hidden = prefs.hiddenRoms
-        return load(context).filter { (path, e) -> e.listed && path.startsWith("$root/") && path !in hidden }
+        return load(context).filter { (path, e) -> e.listed && roots.any { under(path, it) } && path !in hidden }
             .map { File(it.key) }.filter { it.isFile }
     }
 
-    /** Whether [rom] came from the linked folder (the player's own file: HIDE only, no DELETE). */
+    /** Whether [rom] came from a linked folder (the player's own file: HIDE only, no DELETE). */
     fun isLinked(prefs: Prefs, rom: File): Boolean =
-        prefs.romsFolder?.let { rom.absolutePath.startsWith("$it/") } == true
+        prefs.romsFolders.any { under(rom.absolutePath, it) }
+
+    private fun under(path: String, root: String) = path.startsWith("$root/")
+
+    /** The linked folder [path] is already part of (itself, or one it sits in), else null: linking it again
+     * would only look through the same files twice. */
+    fun coveredBy(folders: List<String>, path: String): String? {
+        val p = File(path).absolutePath
+        return folders.firstOrNull { p == it || under(p, it) }
+    }
+
+    /** [folders] with [path] linked too (not [coveredBy] one of them): the folders inside it go, it covers them now. */
+    fun withFolder(folders: List<String>, path: String): List<String> {
+        val p = File(path).absolutePath
+        return folders.filterNot { under(it, p) } + p
+    }
 
     /** What a [scan] saw: the supported ROMs it found that the previous one didn't
      * have, how many ROM files it looked at and how many of those are supported;
-     * [readable] is false when the folder couldn't be read at all. */
-    class ScanResult(val added: List<File>, val files: Int, val supported: Int, val readable: Boolean = true)
+     * [unreadable] are the folders it couldn't read at all, [readable] is false while there's one. */
+    class ScanResult(val added: List<File>, val files: Int, val supported: Int, val unreadable: List<String> = emptyList()) {
+        val readable get() = unreadable.isEmpty()
+    }
 
     /**
-     * Walks the linked folder and checks every new or changed ROM file. Blocking
+     * Walks the linked folders and checks every new or changed ROM file. Blocking
      * (may hash several 32 MB files) - never on the UI thread. [onProgress] gets
      * (checked, total) as it goes. A folder that can't be read (no All files
-     * access, SD card out) leaves the cache alone.
+     * access, SD card out) keeps its games from the scan before.
      */
     @Synchronized
     fun scan(context: Context, prefs: Prefs, onProgress: (Int, Int) -> Unit = { _, _ -> }): ScanResult {
-        val unreadable = ScanResult(emptyList(), 0, 0, readable = false)
-        val root = prefs.romsFolder?.let(::File) ?: return unreadable
-        if (root.listFiles() == null) return unreadable
-        val candidates = root.walkTopDown().maxDepth(MAX_DEPTH)
-            .onEnter { it == root || !it.name.startsWith(".") }
-            .filter { f ->
-                f.isFile && f.name.substringAfterLast('.', "").lowercase() in EXTENSIONS &&
-                    f.length() in 0x200L..(if (f.name.endsWith(".nds", ignoreCase = true)) MAX_DS_ROM_BYTES else MAX_ROM_BYTES)
-            }
-            .toList()
+        val folders = prefs.romsFolders
+        if (folders.isEmpty()) return ScanResult(emptyList(), 0, 0)
+        val (roots, unreadable) = folders.map(::File).partition { it.listFiles() != null }
+        val unread = unreadable.map { it.path }
+        if (roots.isEmpty()) return ScanResult(emptyList(), 0, 0, unread)
+        val candidates = roots.flatMap { root ->
+            root.walkTopDown().maxDepth(MAX_DEPTH)
+                .onEnter { it == root || !it.name.startsWith(".") }
+                .filter { f ->
+                    f.isFile && f.name.substringAfterLast('.', "").lowercase() in EXTENSIONS &&
+                        f.length() in 0x200L..maxBytes(f)
+                }
+                .toList()
+        }.distinctBy { it.absolutePath }
         val old = load(context)
         val fresh = LinkedHashMap<String, Entry>()
         candidates.forEachIndexed { i, f ->
@@ -116,13 +142,14 @@ object RomFolder {
                 ?: entryOf(size, modified, f)
             onProgress(i + 1, candidates.size)
         }
-        // Imported ROMs' verdicts ([checkImported]) live in the same cache.
-        for ((path, e) in old) if (!path.startsWith("$root/")) fresh.putIfAbsent(path, e)
+        // Imported ROMs' verdicts ([checkImported]) live in the same cache, and so do an unreadable folder's.
+        for ((path, e) in old) if (roots.none { under(path, it.path) }) fresh.putIfAbsent(path, e)
         save(context, fresh)
         return ScanResult(
             added = fresh.filter { (path, e) -> e.listed && old[path]?.listed != true }.map { File(it.key) },
             files = fresh.size,
             supported = fresh.values.count { it.supported },
+            unreadable = unread,
         )
     }
 
@@ -172,18 +199,23 @@ object RomFolder {
         com.pokedaisy.app.companion.data.BestEffortStore.onChanged = { forgetUnsupported(app) }
     }
 
-    /** Forgets every cached verdict (a newly linked folder starts from scratch). */
-    fun clearCache(context: Context) {
-        cacheFile(context).delete()
+    /** Forgets [folder]'s cached verdicts (it was unlinked): linked again, it is read from scratch. */
+    @Synchronized
+    fun forget(context: Context, folder: String) {
+        val old = load(context)
+        val kept = old.filterKeys { !under(it, folder) }
+        if (kept.size != old.size) save(context, kept)
     }
 
     private fun cacheFile(context: Context) = File(context.filesDir, "rom-folder-scan.tsv")
 
-    /** Which games the companion supported when the cache was written ([CompanionSupport]'s sets, and the
-     * retail dumps it takes as retail: a ROM it turned away before is checked again). */
+    /** Which games the companion supported when the cache was written ([CompanionSupport]'s sets, the retail dumps it
+     * takes as retail and the DS carts by code and revision: a ROM it turned away before is checked again - a Black cart
+     * linked before Black was supported stayed out of the library). */
     private val SUPPORTED = "#supported\t" + Integer.toHexString(
         (TelemetrySampler.SUPPORTED_HACK_SHA1S.sorted() + TelemetrySampler.SUPPORTED_GB_SHA1S.sorted() +
-            com.pokedaisy.app.companion.data.RETAIL_DUMPS.map { it.sha1 }).hashCode(),
+            com.pokedaisy.app.companion.data.RETAIL_DUMPS.map { it.sha1 } +
+            TelemetrySampler.NDS_GAMES.map { (code, rev) -> "$code:$rev" }.sorted()).hashCode(),
     )
 
     private fun load(context: Context): Map<String, Entry> {

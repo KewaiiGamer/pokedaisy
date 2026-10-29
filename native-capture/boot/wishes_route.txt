@@ -1,0 +1,15 @@
+# Pokémon Wishes of Tomorrow: warped to map 0.59 (MELTING MILE: SHINX, FLETCHLING, SEWADDLE, SENTRET...) - warp 0 59
+# warp 0xFF to the map's own spawn, waitstate (newer expansion asserts without one), end.
+wait 600
+press START
+wait 300
+# the main menu takes the second A (the first only wakes it)
+press A
+wait 60
+press A
+wait 400
+poke32 0x0203FC00 0x003B0039
+poke32 0x0203FC04 0xFFFFFFFF
+poke32 0x0203FC08 0x00000227
+call 0x081FDCC9 0x0203FC00
+wait 300

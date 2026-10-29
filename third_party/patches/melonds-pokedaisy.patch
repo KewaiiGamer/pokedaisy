@@ -1,5 +1,5 @@
 diff --git a/src/GPU.cpp b/src/GPU.cpp
-index e1c7ddc4..b9599b2b 100644
+index e1c7ddc4..95a6b4e2 100644
 --- a/src/GPU.cpp
 +++ b/src/GPU.cpp
 @@ -884,14 +884,16 @@ void GPU::StartHBlank(u32 line) noexcept
@@ -33,11 +33,22 @@ index e1c7ddc4..b9599b2b 100644
      {
          GPU2D_Renderer->DrawSprites(0, &GPU2D_A);
          GPU2D_Renderer->DrawSprites(0, &GPU2D_B);
+@@ -1014,6 +1017,10 @@ void GPU::StartScanline(u32 line) noexcept
+     {
+         if (VCount == 192)
+         {
++            // PokeDaisy: the frame's drawing state, before VBlank changes it
++            if (VisibleEndHook)
++                VisibleEndHook(*this, VisibleEndHookUser);
++
+             // in reality rendering already finishes at line 144
+             // and games might already start to modify texture memory.
+             // That doesn't matter for us because we cache the entire
 diff --git a/src/GPU.h b/src/GPU.h
-index fd5ad820..6f9a210f 100644
+index fd5ad820..0dd4f3ce 100644
 --- a/src/GPU.h
 +++ b/src/GPU.h
-@@ -698,6 +698,19 @@ private:
+@@ -698,6 +698,23 @@ private:
  
      bool RunFIFO = false;
  
@@ -52,6 +63,10 @@ index fd5ad820..6f9a210f 100644
 +    bool SkipDraw = false;
 +    bool SkipDrawNext = false;
 +    bool SkippingFrame = false;
++    // PokeDaisy (pk_nds_wide.cpp): called as line 192 starts, before VBlank's IRQ and DMAs - the game's VBlank handler
++    // then sets the next frame's registers, palettes and sprites - so the host reads what this frame was drawn with.
++    void (*VisibleEndHook)(GPU& gpu, void* user) = nullptr;
++    void* VisibleEndHookUser = nullptr;
 +private:
 +
      u16 VMatch[2] {};
@@ -127,10 +142,10 @@ index 1204741d..89b06922 100644
              CurVertexRAM = &VertexRAM[CurRAMBank ? 6144 : 0];
              CurPolygonRAM = &PolygonRAM[CurRAMBank ? 2048 : 0];
 diff --git a/src/GPU3D.h b/src/GPU3D.h
-index 08c2208c..d28c6f8b 100644
+index 08c2208c..6819ede1 100644
 --- a/src/GPU3D.h
 +++ b/src/GPU3D.h
-@@ -327,6 +327,18 @@ public:
+@@ -327,6 +327,35 @@ public:
      u32 FlushRequest = 0;
      u32 FlushAttributes = 0;
      u32 ScrolledLine[256]; // not part of the hardware state, don't serialize
@@ -146,9 +161,877 @@ index 08c2208c..d28c6f8b 100644
 +    void* WideHookUser = nullptr;
 +    // The clipper the polygons go through (Z, Y, then X planes), for the hook's own copies.
 +    int ClipPolygonForHook(Vertex* vertices, int nverts) noexcept;
++};
++
++// PokeDaisy (app/src/main/cpp/nds/pk_nds_wide.cpp, pk_nds_gl.cpp): EXPAND on the GPU renderer. A polygon list of
++// the host's drawn in place of the game's - the game's 3D seen past the screen's edges, one picture - into a view
++// ViewW x ViewH DS pixels with the screen's (0, 0) at (OffX, OffY), Scale texels a DS pixel. Its vertices'
++// Hires/FinalPosition are in the view's pixels, unmasked. Read when the next frame's 3D is drawn (line 215);
++// !Active = the game's own list. Not part of the hardware state.
++struct WidePolygonList
++{
++    bool Active = false;
++    Polygon* const* Polygons = nullptr;
++    int NumPolygons = 0;
++    int ViewW = 256, ViewH = 192, OffX = 0, OffY = 0;
++    int Scale = 1;
++    // The part of the view drawn, in its pixels (CropW 0: all of it): the list is built wider than the window, which
++    // moves on before the list is drawn, and only what the window needs then is.
++    int CropX = 0, CropY = 0, CropW = 0, CropH = 0;
  };
  
  class Renderer3D
+diff --git a/src/GPU3D_OpenGL.cpp b/src/GPU3D_OpenGL.cpp
+index 706c75e2..9f010af0 100644
+--- a/src/GPU3D_OpenGL.cpp
++++ b/src/GPU3D_OpenGL.cpp
+@@ -18,6 +18,8 @@
+ 
+ #include "GPU3D_OpenGL.h"
+ 
++#include <algorithm>
++#include <cmath>
+ #include <assert.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -110,8 +112,13 @@ std::unique_ptr<GLRenderer> GLRenderer::New() noexcept
+     glEnable(GL_DEPTH_TEST);
+     glEnable(GL_STENCIL_TEST);
+ 
++#ifdef MELONDS_GLES
++    glDepthRangef(0, 1);
++    glClearDepthf(1.0f);
++#else
+     glDepthRange(0, 1);
+     glClearDepth(1.0);
++#endif
+ 
+     if (!OpenGL::CompileVertexFragmentProgram(result->ClearShaderPlain,
+             kClearVS, kClearFS,
+@@ -234,10 +241,12 @@ std::unique_ptr<GLRenderer> GLRenderer::New() noexcept
+ 
+     glGenFramebuffers(1, &result->MainFramebuffer);
+     glGenFramebuffers(1, &result->DownscaleFramebuffer);
++    glGenFramebuffers(1, &result->FinalPassFramebuffer);
+ 
+     // color buffers
+-    glGenTextures(1, &result->ColorBufferTex);
+-    SetupDefaultTexParams(result->ColorBufferTex);
++    glGenTextures(2, result->ColorBufferTex);
++    SetupDefaultTexParams(result->ColorBufferTex[0]);
++    SetupDefaultTexParams(result->ColorBufferTex[1]);
+ 
+     // depth/stencil buffer
+     glGenTextures(1, &result->DepthBufferTex);
+@@ -253,7 +262,7 @@ std::unique_ptr<GLRenderer> GLRenderer::New() noexcept
+     // downscale framebuffer for display capture (always 256x192)
+     glGenTextures(1, &result->DownScaleBufferTex);
+     SetupDefaultTexParams(result->DownScaleBufferTex);
+-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 256, 192, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 192, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+ 
+     glEnable(GL_BLEND);
+     glBlendEquationSeparate(GL_FUNC_ADD, GL_MAX);
+@@ -276,7 +285,8 @@ std::unique_ptr<GLRenderer> GLRenderer::New() noexcept
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB5_A1, 1024, 48, 0, GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, NULL);
++    // PokeDaisy: raw BGR555 halfwords, decoded in the shader (PalFetch): OpenGL ES has no 1_5_5_5_REV upload.
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16UI, 1024, 48, 0, GL_RED_INTEGER, GL_UNSIGNED_SHORT, NULL);
+ 
+     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+ 
+@@ -292,7 +302,10 @@ GLRenderer::~GLRenderer()
+ 
+     glDeleteFramebuffers(1, &MainFramebuffer);
+     glDeleteFramebuffers(1, &DownscaleFramebuffer);
+-    glDeleteTextures(1, &ColorBufferTex);
++    glDeleteFramebuffers(1, &FinalPassFramebuffer);
++    glDeleteBuffers(1, &PixelbufferID);
++    glDeleteBuffers(1, &IndexBufferID);
++    glDeleteTextures(2, ColorBufferTex);
+     glDeleteTextures(1, &DepthBufferTex);
+     glDeleteTextures(1, &AttrBufferTex);
+     glDeleteTextures(1, &DownScaleBufferTex);
+@@ -339,28 +352,15 @@ void GLRenderer::SetRenderSettings(bool betterpolygons, int scale) noexcept
+ 
+     ScreenW = 256 * scale;
+     ScreenH = 192 * scale;
+-
+-    glBindTexture(GL_TEXTURE_2D, ColorBufferTex);
+-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ScreenW, ScreenH, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+-
+-    glBindTexture(GL_TEXTURE_2D, DepthBufferTex);
+-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, ScreenW, ScreenH, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
+-    glBindTexture(GL_TEXTURE_2D, AttrBufferTex);
+-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, ScreenW, ScreenH, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
++    CurScale = scale;
++    EnsureTarget(ScreenW, ScreenH);
+ 
+     glBindFramebuffer(GL_FRAMEBUFFER, DownscaleFramebuffer);
+     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, DownScaleBufferTex, 0);
+ 
+-    GLenum fbassign[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+-
+-    glBindFramebuffer(GL_FRAMEBUFFER, MainFramebuffer);
+-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, ColorBufferTex, 0);
+-    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, DepthBufferTex, 0);
+-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, AttrBufferTex, 0);
+-    glDrawBuffers(2, fbassign);
+-
+     glBindBuffer(GL_PIXEL_PACK_BUFFER, PixelbufferID);
+     glBufferData(GL_PIXEL_PACK_BUFFER, 256*192*4, NULL, GL_DYNAMIC_READ);
++    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+ 
+     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+ 
+@@ -369,6 +369,68 @@ void GLRenderer::SetRenderSettings(bool betterpolygons, int scale) noexcept
+ }
+ 
+ 
++// PokeDaisy: the depth / attribute textures and this frame's colour texture at least w x h (EXPAND's views come and go
++// with the camera): grown to fit with room to spare, shrunk only when far too big. The other colour texture keeps its
++// size and picture - the frame shown draws from it.
++static bool NeedsResize(int haveW, int haveH, int w, int h)
++{
++    return w > haveW || h > haveH || (s64)w * h * 4 < (s64)haveW * haveH;
++}
++
++static void GrowSize(int& w, int& h)
++{
++    // A camera easing out grows the view a little each frame: an eighth more each way, in steps of 64.
++    w = ((w + w / 8) + 63) & ~63;
++    h = ((h + h / 8) + 63) & ~63;
++}
++
++void GLRenderer::EnsureTarget(int w, int h) noexcept
++{
++    if (NeedsResize(TargetW, TargetH, w, h))
++    {
++        int tw = w, th = h;
++        if (w > 256 * ScaleFactor || h > 192 * ScaleFactor) GrowSize(tw, th);
++        TargetW = tw;
++        TargetH = th;
++        glBindTexture(GL_TEXTURE_2D, DepthBufferTex);
++        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, TargetW, TargetH, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
++        glBindTexture(GL_TEXTURE_2D, AttrBufferTex);
++        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TargetW, TargetH, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
++
++        GLenum fbassign[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
++
++        glBindFramebuffer(GL_FRAMEBUFFER, MainFramebuffer);
++        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, DepthBufferTex, 0);
++        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, AttrBufferTex, 0);
++        glDrawBuffers(2, fbassign);
++
++        glBindFramebuffer(GL_FRAMEBUFFER, FinalPassFramebuffer);
++        glDrawBuffers(1, fbassign);
++    }
++    for (int i = 0; i < 2; i++)
++    {
++        // this frame's to fit; the other only before it has any storage (sampled before its first frame is drawn)
++        int c = CurColor ^ i;
++        if (i == 0 ? !NeedsResize(ColorW[c], ColorH[c], w, h) : ColorW[c] > 0)
++            continue;
++        ColorW[c] = TargetW;
++        ColorH[c] = TargetH;
++        glBindTexture(GL_TEXTURE_2D, ColorBufferTex[c]);
++        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TargetW, TargetH, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
++    }
++    AttachColor();
++}
++
++// PokeDaisy: the colour texture this frame's 3D is drawn into, on both framebuffers.
++void GLRenderer::AttachColor() noexcept
++{
++    glBindFramebuffer(GL_FRAMEBUFFER, MainFramebuffer);
++    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, ColorBufferTex[CurColor], 0);
++    glBindFramebuffer(GL_FRAMEBUFFER, FinalPassFramebuffer);
++    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, ColorBufferTex[CurColor], 0);
++    glBindFramebuffer(GL_FRAMEBUFFER, 0);
++}
++
+ void GLRenderer::SetupPolygon(GLRenderer::RendererPolygon* rp, Polygon* polygon) const
+ {
+     rp->PolyData = polygon;
+@@ -427,10 +489,10 @@ u32* GLRenderer::SetupVertex(const Polygon* poly, int vid, const Vertex* vtx, u3
+     while (z > 0xFFFF) { z >>= 1; zshift++; }
+ 
+     u32 x, y;
+-    if (ScaleFactor > 1)
++    if (CurScale > 1)
+     {
+-        x = (vtx->HiresPosition[0] * ScaleFactor) >> 4;
+-        y = (vtx->HiresPosition[1] * ScaleFactor) >> 4;
++        x = (vtx->HiresPosition[0] * CurScale) >> 4;
++        y = (vtx->HiresPosition[1] * CurScale) >> 4;
+     }
+     else
+     {
+@@ -476,6 +538,45 @@ u32* GLRenderer::SetupVertex(const Polygon* poly, int vid, const Vertex* vtx, u3
+     return vptr;
+ }
+ 
++// PokeDaisy: a convex polygon's n vertices (7 words each, x | y << 16 in the first) moved so that every edge lies [d]
++// texels further out, square to itself.
++static void GrowPolygon(u32* v, u32 n, float d)
++{
++    float x[11], y[11], cx = 0, cy = 0;
++    for (u32 i = 0; i < n; i++)
++    {
++        x[i] = (float)(v[i * 7] & 0xFFFF);
++        y[i] = (float)(v[i * 7] >> 16);
++        cx += x[i];
++        cy += y[i];
++    }
++    cx /= n;
++    cy /= n;
++    // each edge's outward normal (from vertex i to i + 1), zero for a degenerate one
++    float nx[11], ny[11];
++    for (u32 i = 0; i < n; i++)
++    {
++        u32 j = (i + 1) % n;
++        float ex = x[j] - x[i], ey = y[j] - y[i];
++        float len = std::sqrt(ex * ex + ey * ey);
++        if (len < 0.5f) { nx[i] = ny[i] = 0; continue; }
++        nx[i] = ey / len;
++        ny[i] = -ex / len;
++        if (nx[i] * ((x[i] + x[j]) * 0.5f - cx) + ny[i] * ((y[i] + y[j]) * 0.5f - cy) < 0) { nx[i] = -nx[i]; ny[i] = -ny[i]; }
++    }
++    for (u32 i = 0; i < n; i++)
++    {
++        // the corner between edge i - 1 and edge i, mitred (at most twice d out, for a sharp corner)
++        u32 p = (i + n - 1) % n;
++        float mx = nx[p] + nx[i], my = ny[p] + ny[i];
++        float k = 1.0f + nx[p] * nx[i] + ny[p] * ny[i];
++        if (k < 0.5f) k = 0.5f;
++        float ox = d * mx / k, oy = d * my / k;
++        s32 gx = (s32)std::lround(x[i] + ox), gy = (s32)std::lround(y[i] + oy);
++        v[i * 7] = (u32)std::clamp(gx, 0, 0xFFFF) | ((u32)std::clamp(gy, 0, 0xFFFF) << 16);
++    }
++}
++
+ void GLRenderer::BuildPolygons(GLRenderer::RendererPolygon* polygons, int npolys)
+ {
+     u32* vptr = &VertexBuffer[0];
+@@ -489,6 +590,15 @@ void GLRenderer::BuildPolygons(GLRenderer::RendererPolygon* polygons, int npolys
+         RendererPolygon* rp = &polygons[i];
+         Polygon* poly = rp->PolyData;
+ 
++        // PokeDaisy: no room for another polygon's vertices (one more for 'better' splitting's centre): the rest
++        // are left out.
++        if (vidx + poly->NumVertices + 1 > MaxVertices)
++        {
++            NumFinalPolys = i;
++            if (NumOpaqueFinalPolys >= i) NumOpaqueFinalPolys = -1;
++            break;
++        }
++
+         rp->IndicesOffset = iidx;
+         rp->NumIndices = 0;
+ 
+@@ -625,8 +735,8 @@ void GLRenderer::BuildPolygons(GLRenderer::RendererPolygon* polygons, int npolys
+                 cS *= cW;
+                 cT *= cW;
+ 
+-                cX = (cX * ScaleFactor) >> 4;
+-                cY = (cY * ScaleFactor) >> 4;
++                cX = (cX * CurScale) >> 4;
++                cY = (cY * CurScale) >> 4;
+ 
+                 u32 w = (u32)cW;
+ 
+@@ -677,6 +787,14 @@ void GLRenderer::BuildPolygons(GLRenderer::RendererPolygon* polygons, int npolys
+             }
+         }
+ 
++        // PokeDaisy: at 2x and up, where a polygon's corner sits on its neighbour's side (Gen 4's map blocks), the two
++        // edges round apart and the clear colour shows through between them, a black line. Opaque polygons grow: each edge
++        // moves out by a texel or two, square to itself, the corners mitred (pushing the corners away from the centre
++        // left long thin strips as thin). Translucent ones are left alone: they'd blend twice where they overlap.
++        if (CurScale > 1 && poly->Type != 1 && !poly->Translucent && !poly->IsShadowMask && vidx - vidx_first >= 3 &&
++            (!BetterPolygons || poly->NumVertices == 3))   // (better splitting adds a centre vertex)
++            GrowPolygon(&VertexBuffer[vidx_first * 7], vidx - vidx_first, CurScale >= 5 ? 2.0f : 1.0f);
++
+         rp->EdgeIndicesOffset = eidx;
+         rp->NumEdgeIndices = 0;
+ 
+@@ -752,9 +870,9 @@ int GLRenderer::RenderPolygonEdgeBatch(int i) const
+ void GLRenderer::RenderSceneChunk(const GPU3D& gpu3d, int y, int h)
+ {
+     u32 flags = 0;
+-    if (gpu3d.RenderPolygonRAM[0]->WBuffer) flags |= RenderFlag_WBuffer;
++    if (PolygonList[0].PolyData->WBuffer) flags |= RenderFlag_WBuffer;
+ 
+-    if (h != 192) glScissor(0, y<<ScaleFactor, 256<<ScaleFactor, h<<ScaleFactor);
++    if (h != 192) glScissor(0, y*CurScale, ScreenW, h*CurScale);
+ 
+     GLboolean fogenable = (gpu3d.RenderDispCnt & (1<<7)) ? GL_TRUE : GL_FALSE;
+ 
+@@ -1054,6 +1172,7 @@ void GLRenderer::RenderSceneChunk(const GPU3D& gpu3d, int y, int h)
+ 
+     if (gpu3d.RenderDispCnt & 0x00A0) // fog/edge enabled
+     {
++        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, FinalPassFramebuffer);
+         glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+         glColorMaski(1, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+ 
+@@ -1115,13 +1234,39 @@ void GLRenderer::RenderSceneChunk(const GPU3D& gpu3d, int y, int h)
+ 
+ void GLRenderer::RenderFrame(GPU& gpu)
+ {
++    // PokeDaisy: a frame no one will see (fast-forward's skip) isn't drawn.
++    if (gpu.SkippingFrame)
++        return;
++
+     CurShaderID = -1;
+ 
++    // PokeDaisy: EXPAND's list and view, else the game's own.
++    const WidePolygonList* wide = (Wide && Wide->Active) ? Wide : nullptr;
++    Polygon* const* polygonRAM = wide ? wide->Polygons : gpu.GPU3D.RenderPolygonRAM.data();
++    u32 numPolygons = wide ? (u32)wide->NumPolygons : gpu.GPU3D.RenderNumPolygons;
++    if (numPolygons > (u32)MaxPolygons) numPolygons = MaxPolygons;
++    CurScale = wide ? wide->Scale : ScaleFactor;
++    CurColor ^= 1;
++    View& view = Rendered[CurColor];
++    // The list's whole view, and the part of it drawn (the colour texture holds that part only; the viewport is the
++    // whole view, moved so the part lands at (0, 0)).
++    int fullW = wide ? wide->ViewW : 256, fullH = wide ? wide->ViewH : 192;
++    bool crop = wide && wide->CropW > 0 && wide->CropH > 0;
++    int cropX = crop ? wide->CropX : 0, cropY = crop ? wide->CropY : 0;
++    view.ViewW = crop ? wide->CropW : fullW;
++    view.ViewH = crop ? wide->CropH : fullH;
++    view.OffX = (wide ? wide->OffX : 0) - cropX;
++    view.OffY = (wide ? wide->OffY : 0) - cropY;
++    view.Scale = CurScale;
++    ScreenW = view.ViewW * CurScale;
++    ScreenH = view.ViewH * CurScale;
++    EnsureTarget(ScreenW, ScreenH);
++
+     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, MainFramebuffer);
+ 
+-    ShaderConfig.uScreenSize[0] = ScreenW;
+-    ShaderConfig.uScreenSize[1] = ScreenH;
++    ShaderConfig.uScreenSize[0] = fullW * CurScale;
++    ShaderConfig.uScreenSize[1] = fullH * CurScale;
+     ShaderConfig.uDispCnt = gpu.GPU3D.RenderDispCnt;
+ 
+     for (int i = 0; i < 32; i++)
+@@ -1171,9 +1316,7 @@ void GLRenderer::RenderFrame(GPU& gpu)
+     ShaderConfig.uFogShift = gpu.GPU3D.RenderFogShift;
+ 
+     glBindBuffer(GL_UNIFORM_BUFFER, ShaderConfigUBO);
+-    void* unibuf = glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
+-    if (unibuf) memcpy(unibuf, &ShaderConfig, sizeof(ShaderConfig));
+-    glUnmapBuffer(GL_UNIFORM_BUFFER);
++    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(ShaderConfig), &ShaderConfig);
+ 
+     // SUCKY!!!!!!!!!!!!!!!!!!
+     // TODO: detect when VRAM blocks are modified!
+@@ -1204,14 +1347,14 @@ void GLRenderer::RenderFrame(GPU& gpu)
+         else if (mask & (1<<5)) vram = gpu.VRAM_F;
+         else if (mask & (1<<6)) vram = gpu.VRAM_G;
+ 
+-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i*8, 1024, 8, GL_RGBA, GL_UNSIGNED_SHORT_1_5_5_5_REV, vram);
++        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i*8, 1024, 8, GL_RED_INTEGER, GL_UNSIGNED_SHORT, vram);
+     }
+ 
+     glDisable(GL_SCISSOR_TEST);
+     glEnable(GL_DEPTH_TEST);
+     glEnable(GL_STENCIL_TEST);
+ 
+-    glViewport(0, 0, ScreenW, ScreenH);
++    glViewport(-cropX * CurScale, -cropY * CurScale, fullW * CurScale, fullH * CurScale);
+ 
+     glDisable(GL_BLEND);
+     glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+@@ -1252,20 +1395,17 @@ void GLRenderer::RenderFrame(GPU& gpu)
+         glDrawArrays(GL_TRIANGLES, 0, 2*3);
+     }
+ 
+-    if (gpu.GPU3D.RenderNumPolygons)
++    if (numPolygons)
+     {
+         // render shit here
+-        u32 flags = 0;
+-        if (gpu.GPU3D.RenderPolygonRAM[0]->WBuffer) flags |= RenderFlag_WBuffer;
+-
+         int npolys = 0;
+         int firsttrans = -1;
+-        for (u32 i = 0; i < gpu.GPU3D.RenderNumPolygons; i++)
++        for (u32 i = 0; i < numPolygons; i++)
+         {
+-            if (gpu.GPU3D.RenderPolygonRAM[i]->Degenerate) continue;
++            if (polygonRAM[i]->Degenerate) continue;
+ 
+-            SetupPolygon(&PolygonList[npolys], gpu.GPU3D.RenderPolygonRAM[i]);
+-            if (firsttrans < 0 && gpu.GPU3D.RenderPolygonRAM[i]->Translucent)
++            SetupPolygon(&PolygonList[npolys], polygonRAM[i]);
++            if (firsttrans < 0 && polygonRAM[i]->Translucent)
+                 firsttrans = npolys;
+ 
+             npolys++;
+@@ -1282,7 +1422,8 @@ void GLRenderer::RenderFrame(GPU& gpu)
+         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, NumIndices * 2, IndexBuffer);
+         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, EdgeIndicesOffset * 2, NumEdgeIndices * 2, IndexBuffer + EdgeIndicesOffset);
+ 
+-        RenderSceneChunk(gpu.GPU3D, 0, 192);
++        if (NumFinalPolys > 0)
++            RenderSceneChunk(gpu.GPU3D, 0, 192);
+     }
+ }
+ 
+@@ -1296,16 +1437,30 @@ void GLRenderer::PrepareCaptureFrame()
+     glBindFramebuffer(GL_READ_FRAMEBUFFER, MainFramebuffer);
+     glReadBuffer(GL_COLOR_ATTACHMENT0);
+     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, DownscaleFramebuffer);
+-    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+-    glBlitFramebuffer(0, 0, ScreenW, ScreenH, 0, 0, 256, 192, GL_COLOR_BUFFER_BIT, GL_NEAREST);
++    GLenum bufferAttachment = GL_COLOR_ATTACHMENT0;
++    glDrawBuffers(1, &bufferAttachment);
++    // PokeDaisy: the game's own screen out of an EXPAND view
++    const View& view = Rendered[CurColor];
++    int s = view.Scale, x0 = view.OffX * s, y0 = view.OffY * s;
++    glBlitFramebuffer(x0, y0, x0 + 256 * s, y0 + 192 * s, 0, 0, 256, 192, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+ 
+     glBindBuffer(GL_PIXEL_PACK_BUFFER, PixelbufferID);
+     glBindFramebuffer(GL_READ_FRAMEBUFFER, DownscaleFramebuffer);
++#ifdef MELONDS_GLES
++    glReadPixels(0, 0, 256, 192, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
++#else
+     glReadPixels(0, 0, 256, 192, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
++#endif
++    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+ }
+ 
+ void GLRenderer::Blit(const GPU& gpu)
+ {
++    if (BlitHook)
++    {
++        BlitHook(gpu, *this, BlitHookUser);
++        return;
++    }
+     CurGLCompositor.RenderFrame(gpu, *this);
+ }
+ 
+@@ -1321,9 +1476,24 @@ u32* GLRenderer::GetLine(int line)
+     if (line == 0)
+     {
+         glBindBuffer(GL_PIXEL_PACK_BUFFER, PixelbufferID);
++#ifdef MELONDS_GLES
++        u8* data = (u8*)glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, 4*stride*192, GL_MAP_READ_BIT);
++        if (data)
++        {
++            // read as RGBA: the colour texture holds B, G, R, A (the shaders write .bgra)
++            u32* src = (u32*)data;
++            for (int i = 0; i < stride*192; i++)
++            {
++                u32 c = src[i];
++                Framebuffer[i] = (c & 0xFF00FF00) | ((c & 0xFF) << 16) | ((c >> 16) & 0xFF);
++            }
++        }
++#else
+         u8* data = (u8*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+         if (data) memcpy(&Framebuffer[stride*0], data, 4*stride*192);
++#endif
+         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
++        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+     }
+ 
+     u64* ptr = (u64*)&Framebuffer[stride * line];
+@@ -1340,7 +1510,7 @@ u32* GLRenderer::GetLine(int line)
+ 
+ void GLRenderer::SetupAccelFrame()
+ {
+-    glBindTexture(GL_TEXTURE_2D, ColorBufferTex);
++    glBindTexture(GL_TEXTURE_2D, ColorBufferTex[CurColor]);
+ }
+ 
+ }
+diff --git a/src/GPU3D_OpenGL.h b/src/GPU3D_OpenGL.h
+index b7805223..23407a77 100644
+--- a/src/GPU3D_OpenGL.h
++++ b/src/GPU3D_OpenGL.h
+@@ -51,6 +51,24 @@ public:
+     void BindOutputTexture(int buffer) override;
+ 
+     static std::unique_ptr<GLRenderer> New() noexcept;
++
++    // PokeDaisy (app/src/main/cpp/nds/pk_nds_gl.cpp): EXPAND on the GPU and our own compositor.
++    // EXPAND's list (GPU3D.h's WidePolygonList), drawn in place of the game's while it's Active.
++    const WidePolygonList* Wide = nullptr;
++    // The colour textures are two, drawn in turn: the 3D a frame shows stays whole after the next frame's is drawn
++    // (at line 215, before the frame's done), so the host composes the frame once it has run. The one drawn last,
++    // and what it holds.
++    struct View
++    {
++        int ViewW = 256, ViewH = 192, OffX = 0, OffY = 0;
++        int Scale = 1;
++    };
++    [[nodiscard]] GLuint GetColorTexture(int i) const noexcept { return ColorBufferTex[i & 1]; }
++    [[nodiscard]] const View& GetView(int i) const noexcept { return Rendered[i & 1]; }
++    [[nodiscard]] int GetCurrentColor() const noexcept { return CurColor; }
++    // At VBlank (GPU::Blit), in place of melonDS's compositor.
++    void (*BlitHook)(const GPU& gpu, GLRenderer& renderer, void* user) = nullptr;
++    void* BlitHookUser = nullptr;
+ private:
+     // Used by New()
+     GLRenderer(GLCompositor&& compositor) noexcept;
+@@ -74,7 +92,10 @@ private:
+     };
+ 
+     GLCompositor CurGLCompositor;
+-    RendererPolygon PolygonList[2048] {};
++    // PokeDaisy: room for EXPAND's list too (the game's is 2048 polygons, 6144 vertices at most).
++    static constexpr int MaxPolygons = 4096;
++    static constexpr u32 MaxVertices = 24576;
++    RendererPolygon PolygonList[MaxPolygons] {};
+ 
+     bool BuildRenderShader(u32 flags, const std::string& vs, const std::string& fs);
+     void UseRenderShader(u32 flags);
+@@ -137,15 +158,15 @@ private:
+     // * bit9: W-buffering (?)
+ 
+     GLuint VertexBufferID {};
+-    u32 VertexBuffer[10240 * 7] {};
++    u32 VertexBuffer[MaxVertices * 7] {};
+     u32 NumVertices {};
+ 
+     GLuint VertexArrayID {};
+     GLuint IndexBufferID {};
+-    u16 IndexBuffer[2048 * 40] {};
++    u16 IndexBuffer[MaxPolygons * 40] {};
+     u32 NumIndices {}, NumEdgeIndices {};
+ 
+-    const u32 EdgeIndicesOffset = 2048 * 30;
++    const u32 EdgeIndicesOffset = MaxPolygons * 30;
+ 
+     GLuint TexMemID {};
+     GLuint TexPalMemID {};
+@@ -153,12 +174,24 @@ private:
+     int ScaleFactor {};
+     bool BetterPolygons {};
+     int ScreenW {}, ScreenH {};
+-
+-    GLuint ColorBufferTex {}, DepthBufferTex {}, AttrBufferTex {};
++    // PokeDaisy: the scale this frame's vertices are set up at (ScaleFactor, or EXPAND's), the textures' size, and
++    // what they were last drawn with.
++    int CurScale = 1;
++    int TargetW = 0, TargetH = 0;
++    int ColorW[2] {}, ColorH[2] {};
++    View Rendered[2] {};
++    int CurColor = 0;
++    void EnsureTarget(int w, int h) noexcept;
++    void AttachColor() noexcept;
++
++    GLuint ColorBufferTex[2] {}, DepthBufferTex {}, AttrBufferTex {};
+     GLuint DownScaleBufferTex {};
+     GLuint PixelbufferID {};
+ 
+     GLuint MainFramebuffer {}, DownscaleFramebuffer {};
++    // PokeDaisy: the fog / edge passes draw here, the colour texture alone: they read the depth and attribute
++    // textures, which mustn't be attached while they're read (a feedback loop on OpenGL ES).
++    GLuint FinalPassFramebuffer {};
+     u32 Framebuffer[256*192] {};
+ };
+ }
+diff --git a/src/GPU3D_OpenGL_shaders.h b/src/GPU3D_OpenGL_shaders.h
+index ab9985ce..15ef82b8 100644
+--- a/src/GPU3D_OpenGL_shaders.h
++++ b/src/GPU3D_OpenGL_shaders.h
+@@ -49,9 +49,9 @@ void main()
+ {
+     oColor = vec4(uColor).bgra / 31.0;
+     oAttr.r = float(uOpaquePolyID) / 63.0;
+-    oAttr.g = 0;
++    oAttr.g = 0.0;
+     oAttr.b = float(uFogFlag);
+-    oAttr.a = 1;
++    oAttr.a = 1.0;
+ }
+ )";
+ 
+@@ -118,7 +118,7 @@ void main()
+ 
+     int polyid = int(attr.r * 63.0);
+ 
+-    if (attr.g != 0)
++    if (attr.g != 0.0)
+     {
+         vec4 depthU = texelFetch(DepthBuffer, coord + ivec2(0,-scale), 0);
+         vec4 attrU = texelFetch(AttrBuffer, coord + ivec2(0,-scale), 0);
+@@ -142,7 +142,7 @@ void main()
+             if ((uDispCnt & (1<<4)) != 0)
+                 ret.a = 0.5;
+             else
+-                ret.a = 1;
++                ret.a = 1.0;
+         }
+     }
+ 
+@@ -208,7 +208,7 @@ void main()
+     vec4 depth = texelFetch(DepthBuffer, coord, 0);
+     vec4 attr = texelFetch(AttrBuffer, coord, 0);
+ 
+-    if (attr.b != 0) ret = CalculateFog(depth.r);
++    if (attr.b != 0.0) ret = CalculateFog(depth.r);
+ 
+     oColor = ret;
+ }
+@@ -243,7 +243,7 @@ flat out ivec3 fPolygonAttr;
+ const char* kRenderFSCommon = R"(
+ 
+ uniform usampler2D TexMem;
+-uniform sampler2D TexPalMem;
++uniform usampler2D TexPalMem;
+ 
+ layout(std140) uniform uConfig
+ {
+@@ -264,6 +264,13 @@ flat in ivec3 fPolygonAttr;
+ out vec4 oColor;
+ out vec4 oAttr;
+ 
++// PokeDaisy: the palette as raw BGR555 halfwords (OpenGL ES has no 1_5_5_5_REV upload).
++vec4 PalFetch(ivec2 coord, int lod)
++{
++    uint c = texelFetch(TexPalMem, coord, lod).r;
++    return vec4(float(c & 31u), float((c >> 5) & 31u), float((c >> 10) & 31u), 31.0) / 31.0;
++}
++
+ int TexcoordWrap(int c, int maxc, int mode)
+ {
+     if ((mode & (1<<0)) != 0)
+@@ -290,7 +297,7 @@ vec4 TextureFetch_A3I5(ivec2 addr, ivec4 st, int wrapmode)
+     pixel.r &= 0x1F;
+ 
+     addr.y = (addr.y << 3) + pixel.r;
+-    vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++    vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+ 
+     return vec4(color.rgb, float(pixel.a)/31.0);
+ }
+@@ -306,9 +313,9 @@ vec4 TextureFetch_I2(ivec2 addr, ivec4 st, int wrapmode, float alpha0)
+     pixel.r &= 0x03;
+ 
+     addr.y = (addr.y << 2) + pixel.r;
+-    vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++    vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+ 
+-    return vec4(color.rgb, (pixel.r>0)?1:alpha0);
++    return vec4(color.rgb, (pixel.r>0)?1.0:alpha0);
+ }
+ 
+ vec4 TextureFetch_I4(ivec2 addr, ivec4 st, int wrapmode, float alpha0)
+@@ -322,9 +329,9 @@ vec4 TextureFetch_I4(ivec2 addr, ivec4 st, int wrapmode, float alpha0)
+     else                 pixel.r &= 0x0F;
+ 
+     addr.y = (addr.y << 3) + pixel.r;
+-    vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++    vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+ 
+-    return vec4(color.rgb, (pixel.r>0)?1:alpha0);
++    return vec4(color.rgb, (pixel.r>0)?1.0:alpha0);
+ }
+ 
+ vec4 TextureFetch_I8(ivec2 addr, ivec4 st, int wrapmode, float alpha0)
+@@ -336,9 +343,9 @@ vec4 TextureFetch_I8(ivec2 addr, ivec4 st, int wrapmode, float alpha0)
+     ivec4 pixel = ivec4(texelFetch(TexMem, ivec2(addr.x&0x3FF, addr.x>>10), 0));
+ 
+     addr.y = (addr.y << 3) + pixel.r;
+-    vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++    vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+ 
+-    return vec4(color.rgb, (pixel.r>0)?1:alpha0);
++    return vec4(color.rgb, (pixel.r>0)?1.0:alpha0);
+ }
+ 
+ vec4 TextureFetch_Compressed(ivec2 addr, ivec4 st, int wrapmode)
+@@ -365,35 +372,35 @@ vec4 TextureFetch_Compressed(ivec2 addr, ivec4 st, int wrapmode)
+ 
+     if (val == 0)
+     {
+-        vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++        vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+         return vec4(color.rgb, 1.0);
+     }
+     else if (val == 1)
+     {
+         addr.y++;
+-        vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++        vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+         return vec4(color.rgb, 1.0);
+     }
+     else if (val == 2)
+     {
+         if (palinfo == 1)
+         {
+-            vec4 color0 = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color0 = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             addr.y++;
+-            vec4 color1 = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color1 = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             return vec4((color0.rgb + color1.rgb) / 2.0, 1.0);
+         }
+         else if (palinfo == 3)
+         {
+-            vec4 color0 = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color0 = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             addr.y++;
+-            vec4 color1 = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color1 = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             return vec4((color0.rgb*5.0 + color1.rgb*3.0) / 8.0, 1.0);
+         }
+         else
+         {
+             addr.y += 2;
+-            vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             return vec4(color.rgb, 1.0);
+         }
+     }
+@@ -402,14 +409,14 @@ vec4 TextureFetch_Compressed(ivec2 addr, ivec4 st, int wrapmode)
+         if (palinfo == 2)
+         {
+             addr.y += 3;
+-            vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             return vec4(color.rgb, 1.0);
+         }
+         else if (palinfo == 3)
+         {
+-            vec4 color0 = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color0 = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             addr.y++;
+-            vec4 color1 = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++            vec4 color1 = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+             return vec4((color0.rgb*3.0 + color1.rgb*5.0) / 8.0, 1.0);
+         }
+         else
+@@ -431,7 +438,7 @@ vec4 TextureFetch_A5I3(ivec2 addr, ivec4 st, int wrapmode)
+     pixel.r &= 0x07;
+ 
+     addr.y = (addr.y << 3) + pixel.r;
+-    vec4 color = texelFetch(TexPalMem, ivec2(addr.y&0x3FF, addr.y>>10), 0);
++    vec4 color = PalFetch(ivec2(addr.y&0x3FF, addr.y>>10), 0);
+ 
+     return vec4(color.rgb, float(pixel.a)/31.0);
+ }
+@@ -602,7 +609,7 @@ vec4 FinalColor()
+         if ((uDispCnt & (1<<1)) == 0)
+         {
+             // toon
+-            vec3 tooncolor = uToonColors[int(vcol.r * 31)].rgb;
++            vec3 tooncolor = uToonColors[int(vcol.r * 31.0)].rgb;
+             vcol.rgb = tooncolor;
+         }
+         else
+@@ -639,7 +646,7 @@ vec4 FinalColor()
+     {
+         if ((uDispCnt & (1<<1)) != 0)
+         {
+-            vec3 tooncolor = uToonColors[int(vcol.r * 31)].rgb;
++            vec3 tooncolor = uToonColors[int(vcol.r * 31.0)].rgb;
+             col.rgb = min(col.rgb + tooncolor, 1.0);
+         }
+     }
+@@ -700,13 +707,13 @@ const char* kRenderFS_ZO = R"(
+ void main()
+ {
+     vec4 col = FinalColor();
+-    if (col.a < 30.5/31) discard;
++    if (col.a < 30.5/31.0) discard;
+ 
+     oColor = col;
+     oAttr.r = float((fPolygonAttr.x >> 24) & 0x3F) / 63.0;
+-    oAttr.g = 0;
++    oAttr.g = 0.0;
+     oAttr.b = float((fPolygonAttr.x >> 15) & 0x1);
+-    oAttr.a = 1;
++    oAttr.a = 1.0;
+ }
+ )";
+ 
+@@ -717,13 +724,13 @@ smooth in float fZ;
+ void main()
+ {
+     vec4 col = FinalColor();
+-    if (col.a < 30.5/31) discard;
++    if (col.a < 30.5/31.0) discard;
+ 
+     oColor = col;
+     oAttr.r = float((fPolygonAttr.x >> 24) & 0x3F) / 63.0;
+-    oAttr.g = 0;
++    oAttr.g = 0.0;
+     oAttr.b = float((fPolygonAttr.x >> 15) & 0x1);
+-    oAttr.a = 1;
++    oAttr.a = 1.0;
+     gl_FragDepth = fZ;
+ }
+ )";
+@@ -733,10 +740,10 @@ const char* kRenderFS_ZE = R"(
+ void main()
+ {
+     vec4 col = FinalColor();
+-    if (col.a < 30.5/31) discard;
++    if (col.a < 30.5/31.0) discard;
+ 
+-    oAttr.g = 1;
+-    oAttr.a = 1;
++    oAttr.g = 1.0;
++    oAttr.a = 1.0;
+ }
+ )";
+ 
+@@ -747,10 +754,10 @@ smooth in float fZ;
+ void main()
+ {
+     vec4 col = FinalColor();
+-    if (col.a < 30.5/31) discard;
++    if (col.a < 30.5/31.0) discard;
+ 
+-    oAttr.g = 1;
+-    oAttr.a = 1;
++    oAttr.g = 1.0;
++    oAttr.a = 1.0;
+     gl_FragDepth = fZ;
+ }
+ )";
+@@ -760,12 +767,12 @@ const char* kRenderFS_ZT = R"(
+ void main()
+ {
+     vec4 col = FinalColor();
+-    if (col.a < 0.5/31) discard;
+-    if (col.a >= 30.5/31) discard;
++    if (col.a < 0.5/31.0) discard;
++    if (col.a >= 30.5/31.0) discard;
+ 
+     oColor = col;
+-    oAttr.b = 0;
+-    oAttr.a = 1;
++    oAttr.b = 0.0;
++    oAttr.a = 1.0;
+ }
+ )";
+ 
+@@ -776,12 +783,12 @@ smooth in float fZ;
+ void main()
+ {
+     vec4 col = FinalColor();
+-    if (col.a < 0.5/31) discard;
+-    if (col.a >= 30.5/31) discard;
++    if (col.a < 0.5/31.0) discard;
++    if (col.a >= 30.5/31.0) discard;
+ 
+     oColor = col;
+-    oAttr.b = 0;
+-    oAttr.a = 1;
++    oAttr.b = 0.0;
++    oAttr.a = 1.0;
+     gl_FragDepth = fZ;
+ }
+ )";
 diff --git a/src/GPU3D_Soft.cpp b/src/GPU3D_Soft.cpp
 index 9f6e2d73..729a452c 100644
 --- a/src/GPU3D_Soft.cpp
@@ -432,6 +1315,43 @@ index a201c6a6..b48d1e81 100644
  
      // threading
  
+diff --git a/src/GPU_OpenGL_shaders.h b/src/GPU_OpenGL_shaders.h
+index 04af221d..2f12af45 100644
+--- a/src/GPU_OpenGL_shaders.h
++++ b/src/GPU_OpenGL_shaders.h
+@@ -76,8 +76,8 @@ void main()
+             // 3D on top, blending
+ 
+             float xpos = fTexcoord.x + _3dxpos;
+-            float ypos = mod(fTexcoord.y, 192);
+-            ivec4 _3dpix = ivec4(texelFetch(_3DTex, ivec2(vec2(xpos, ypos)*u3DScale), 0).bgra
++            float ypos = mod(fTexcoord.y, 192.0);
++            ivec4 _3dpix = ivec4(texelFetch(_3DTex, ivec2(vec2(xpos, ypos)*float(u3DScale)), 0).bgra
+                          * vec4(63,63,63,31));
+ 
+             if (_3dpix.a > 0)
+@@ -96,8 +96,8 @@ void main()
+             // 3D on bottom, blending
+ 
+             float xpos = fTexcoord.x + _3dxpos;
+-            float ypos = mod(fTexcoord.y, 192);
+-            ivec4 _3dpix = ivec4(texelFetch(_3DTex, ivec2(vec2(xpos, ypos)*u3DScale), 0).bgra
++            float ypos = mod(fTexcoord.y, 192.0);
++            ivec4 _3dpix = ivec4(texelFetch(_3DTex, ivec2(vec2(xpos, ypos)*float(u3DScale)), 0).bgra
+                          * vec4(63,63,63,31));
+ 
+             if (_3dpix.a > 0)
+@@ -116,8 +116,8 @@ void main()
+             // 3D on top, normal/fade
+ 
+             float xpos = fTexcoord.x + _3dxpos;
+-            float ypos = mod(fTexcoord.y, 192);
+-            ivec4 _3dpix = ivec4(texelFetch(_3DTex, ivec2(vec2(xpos, ypos)*u3DScale), 0).bgra
++            float ypos = mod(fTexcoord.y, 192.0);
++            ivec4 _3dpix = ivec4(texelFetch(_3DTex, ivec2(vec2(xpos, ypos)*float(u3DScale)), 0).bgra
+                          * vec4(63,63,63,31));
+ 
+             if (_3dpix.a > 0)
 diff --git a/src/NDS.cpp b/src/NDS.cpp
 index f45051e2..9c4e9983 100644
 --- a/src/NDS.cpp
@@ -482,3 +1402,141 @@ index 17e656e9..9cc810a5 100644
  protected:
      explicit NDS(NDSArgs&& args, int type, void* userdata) noexcept;
      virtual u32 GetSavestateConfig();
+diff --git a/src/OpenGLSupport.cpp b/src/OpenGLSupport.cpp
+index 4cdff2c0..f383894d 100644
+--- a/src/OpenGLSupport.cpp
++++ b/src/OpenGLSupport.cpp
+@@ -35,6 +35,10 @@ using Platform::LogLevel;
+ namespace OpenGL
+ {
+ 
++#ifdef MELONDS_GLES
++PFNGLCOLORMASKIPROC ColorMaski = nullptr;
++#endif
++
+ struct ShaderCacheEntry
+ {
+     u32 Length;
+@@ -185,15 +189,41 @@ writeError:
+     NewShaders.clear();
+ }
+ 
+-bool CompilerShader(GLuint& id, const std::string& source, const std::string& name, const std::string& type)
++#ifdef MELONDS_GLES
++// PokeDaisy: the shaders are written for desktop GLSL 1.40; OpenGL ES 3 takes them with its own version line, default
++// precisions, and the fragment outputs' locations in the source (ES has no glBindFragDataLocation).
++static std::string ToGLES(const std::string& source, const std::initializer_list<AttributeTarget>& fragmentOutAttrs)
+ {
+-    int res;
+-
+-    if (!glCreateShader)
++    std::string out = source;
++    size_t v = out.find("#version");
++    if (v != std::string::npos)
+     {
+-        Log(LogLevel::Error, "OpenGL: Cannot build shader program, OpenGL hasn't been loaded\n");
+-        return false;
++        size_t eol = out.find('\n', v);
++        out.replace(v, eol == std::string::npos ? std::string::npos : eol - v,
++            "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n"
++            "precision highp usampler2D;\nprecision highp isampler2D;");
++    }
++    for (const AttributeTarget& target : fragmentOutAttrs)
++    {
++        // "out vec4 oColor;" -> "layout(location = N) out vec4 oColor;"
++        std::string name = std::string(" ") + target.Name + ";";
++        for (size_t at = out.find(name); at != std::string::npos; at = out.find(name, at + 1))
++        {
++            size_t lineStart = out.rfind('\n', at);
++            lineStart = lineStart == std::string::npos ? 0 : lineStart + 1;
++            if (out.compare(lineStart, 4, "out ") != 0) continue;
++            std::string layout = "layout(location = " + std::to_string(target.Location) + ") ";
++            out.insert(lineStart, layout);
++            break;
++        }
+     }
++    return out;
++}
++#endif
++
++bool CompilerShader(GLuint& id, const std::string& source, const std::string& name, const std::string& type)
++{
++    int res;
+ 
+     const char* sourceC = source.c_str();
+     int len = source.length();
+@@ -224,12 +254,6 @@ bool LinkProgram(GLuint& result, GLuint* ids, int numIds)
+ {
+     int res;
+ 
+-    if (!glLinkProgram)
+-    {
+-        Log(LogLevel::Error, "OpenGL: Cannot link shader program, OpenGL hasn't been loaded\n");
+-        return false;
+-    }
+-
+     for (int i = 0; i < numIds; i++)
+     {
+         glAttachShader(result, ids[i]);
+@@ -282,9 +306,6 @@ bool CompileComputeProgram(GLuint& result, const std::string& source, const std:
+     GLuint shader;
+     bool linkingSucess = false;
+ 
+-    if (!glCreateShader || !glDeleteShader)
+-        goto error;
+-
+     shader = glCreateShader(GL_COMPUTE_SHADER);
+ 
+     if (!CompilerShader(shader, source, name, "compute"))
+@@ -330,21 +351,31 @@ bool CompileVertexFragmentProgram(GLuint& result,
+ 
+     bool linkingSucess = false;
+ 
++#ifdef MELONDS_GLES
++    if (!CompilerShader(shaders[0], ToGLES(vs, {}), name, "vertex"))
++        goto error;
++
++    if (!CompilerShader(shaders[1], ToGLES(fs, fragmentOutAttrs), name, "fragment"))
++        goto error;
++#else
+     if (!CompilerShader(shaders[0], vs, name, "vertex"))
+         goto error;
+ 
+     if (!CompilerShader(shaders[1], fs, name, "fragment"))
+         goto error;
++#endif
+ 
+ 
+     for (const AttributeTarget& target : vertexInAttrs)
+     {
+         glBindAttribLocation(result, target.Location, target.Name);
+     }
++#ifndef MELONDS_GLES
+     for (const AttributeTarget& target : fragmentOutAttrs)
+     {
+         glBindFragDataLocation(result, target.Location, target.Name);
+     }
++#endif
+ 
+     linkingSucess = LinkProgram(result, shaders, 2);
+ 
+diff --git a/src/OpenGLSupport.h b/src/OpenGLSupport.h
+index add3130a..a6b68760 100644
+--- a/src/OpenGLSupport.h
++++ b/src/OpenGLSupport.h
+@@ -25,6 +25,15 @@
+ #include "Platform.h"
+ #include "PlatformOGL.h"
+ 
++#ifdef MELONDS_GLES
++// PokeDaisy: OpenGL ES 3.0 and up. glColorMaski is ES 3.2's or OES / EXT_draw_buffers_indexed's: the host loads it into
++// OpenGL::ColorMaski before a renderer starts. glFramebufferTexture (ES 3.2) is glFramebufferTexture2D here.
++namespace melonDS::OpenGL { extern PFNGLCOLORMASKIPROC ColorMaski; }
++#define glColorMaski melonDS::OpenGL::ColorMaski
++#define glFramebufferTexture(target, attachment, texture, level) \
++    glFramebufferTexture2D(target, attachment, GL_TEXTURE_2D, texture, level)
++#endif
++
+ namespace melonDS::OpenGL
+ {
+ 

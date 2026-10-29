@@ -1,0 +1,21 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokemon Odyssey (English) v4.1.1 - a 32 MB BPRE hack like the others above.
+# UNTESTED GUESS, same starting point as Radical Red's first pass: inheriting
+# rev-0's addresses unchanged rather than blocking basic display on a full
+# static-analysis pass up front. Live-bus sha1 (Poller.kt's detect(), NOT a
+# plain file hash - see RADICAL_RED_V4_1_SHA1's comment on why those can
+# differ) happened to equal a plain `shasum` on the file this time
+# (8745ddbdbfadf6abaf66de4e9055923b62eb4668 both ways) - so unlike Radical
+# Red, no RTC/GPIO-in-ROM-space quirk here. If party/items/battle come out
+# wrong live, re-derive the specific broken field the same way Gaia's icon
+# tables were (find a still-byte-identical helper function, read its literal
+# pool) rather than guessing again.
+[config.odyssey]
+base = 'firered_rev0'
+pokedex = 'POKEDEX_ODYSSEY'
+guideTables = 'GUIDE_TABLES_ODYSSEY'
+itemDescs = { preset = 'vanilla', base = 0x083DB028 }
+# FireRed's battle menu cursors (CFRU), checked headless like Unbound's (odyssey_battle's README).
+actionCursor = 0x02023FF8
+moveCursor = 0x02023FFC

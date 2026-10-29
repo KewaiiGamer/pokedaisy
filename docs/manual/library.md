@@ -3,7 +3,7 @@ title: Your game library
 summary: Add games, sort and favorite them, set covers, and use each game's menu for saves, info, cheats and more.
 section: start
 order: 4
-keywords: [games list, add rom, import, folder, zip, 7z, archive, cover, box art, artwork, icon, steamgriddb, rename, delete, hide, favourite, star, sort, grid, list view, frontend, es-de, esde, iisu, cocoon, launcher, filter, tabs, recently played, history, hacks, game boy, gbc, gba, console, platform]
+keywords: [support, donate, donation, tip, patreon, ko-fi, kofi, buy me a coffee, games list, add rom, import, folder, folders, multiple folders, several folders, add folder, zip, 7z, archive, cover, box art, artwork, icon, steamgriddb, rename, delete, hide, favourite, star, sort, grid, list view, frontend, es-de, esde, iisu, cocoon, launcher, filter, tabs, recently played, history, hacks, game boy, gbc, gba, console, platform]
 ---
 
 The library is the first thing you see when you open PokeDaisy: every game you've added, in the order you pick. Tap a game to play it.
@@ -16,8 +16,8 @@ The buttons in the header, from left to right:
 | --- | --- |
 | Sort | Picks the order of your games (see [Sorting](#sorting-and-favorites)). |
 | List / grid | Switches between a list (one game per row, with its file path) and a grid of covers. |
-| `+` | Imports a game file. |
-| Refresh | Looks through your ROMs folder again and tells you what it found. |
+| `+` | Adds games: `ADD A ROM FILE`, `ADD A ROMS FOLDER` or `MANAGE ROMS FOLDERS` (see [Adding games](#adding-games)). |
+| Refresh | Looks through your ROMs folders again and tells you what it found. |
 | `?` | Opens this manual. |
 | Gear | Opens Settings. |
 
@@ -32,8 +32,8 @@ The row of coloured buttons under the header narrows the library down to one kin
 | `ALL` | Every game. |
 | `FAVORITES` | The games you starred (see [Sorting and favorites](#sorting-and-favorites)). |
 | `RECENT` | Every game you've played, the one you played last first, whatever the sort order. |
-| `GB` | Game Boy games. |
-| `GBC` | Game Boy Color only games. |
+| `GB` | Game Boy games, like Red, Blue and Yellow. |
+| `GBC` | Game Boy Color games, like Crystal, and the ones that also play on a Game Boy, like Gold and Silver. |
 | `GBA` | Game Boy Advance games. |
 | `DS` | Nintendo DS games. |
 | `HACKS` | ROM hacks. |
@@ -48,20 +48,22 @@ The library remembers the view you picked, also after you close the app. A view 
 
 There are three ways to get games into the library. Use whichever suits you; they mix fine.
 
-### Link your ROMs folder
+### Link your ROMs folders
 
-The easiest way if you already keep your games in a folder. Link it in first-time setup, or later in Settings > `FOLDERS` > `ROMS FOLDER` with `CHOOSE FOLDER`.
+The easiest way if you already keep your games in folders. Link them in first-time setup, with `+` > `ADD A ROMS FOLDER` in the library, or in Settings > `FOLDERS` > `ROMS FOLDERS` with `ADD FOLDER`.
 
-- Every supported game in it shows up in the library.
+- You can link as many folders as you like. Linking just the ones with your games (say `ROMs/gba`, `ROMs/gbc` and `ROMs/nds`) is quicker to look through than one big folder that holds every system's games.
+- Every supported game in them shows up in the library.
 - Games are played right where they are. Nothing is copied, so they take no extra space.
-- The folder is checked for new games every time you come back to the library. `RESCAN` (in `FOLDERS`) or the refresh button checks it now.
-- `UNLINK` removes the folder's games from the library. Your files stay where they are.
+- The folders are checked for new games every time you come back to the library. `RESCAN` (in `ROMS FOLDERS`) or the refresh button checks them now.
+- `+` > `MANAGE ROMS FOLDERS` opens the list of linked folders, with how many games each one has. `REMOVE` takes a folder's games out of the library. Your files stay where they are.
+- A folder inside one you already linked is already covered, so it isn't added twice. Link a folder that holds ones you linked before, and it takes their place.
 
 Games in a linked folder are your own files, so the library never deletes them. Their menu has `HIDE` instead of `DELETE`.
 
 ### Import with +
 
-Tap `+` in the header and pick a game file. PokeDaisy copies it into its own games folder and adds it to the library. If the file is zipped, it's unpacked as it's imported.
+Tap `+` in the header, pick `ADD A ROM FILE` and pick a game file. PokeDaisy copies it into its own games folder and adds it to the library. If the file is zipped, it's unpacked as it's imported.
 
 If the companion can't read the game, you're told it's `NOT SUPPORTED` and asked whether to add it anyway: the game still plays, only the companion won't show its party, map, items or battles.
 
@@ -177,6 +179,12 @@ Every game plays, but the companion only reads the games it knows. The library t
 - `PARTIALLY SUPPORTED`: a ROM PokeDaisy matched to a game it knows. The party, bag, map and battles work, and whatever didn't match is switched off.
 
 From a linked folder, the library lists the supported games plus any unsupported hacks of FireRed, LeafGreen, Emerald, Ruby or Sapphire (tagged), so you can try them. When PokeDaisy can't tell which game a ROM is built on, `INFO` has `PICK A GAME` to tell it, and `FORGET MATCH` to undo a match. [Supported games](supported-games.md) has the full list and explains how matching works.
+
+## Supporting PokeDaisy
+
+PokeDaisy is free, has no ads and is made by one person. After you've played for a good while, the library asks once whether you'd like to support it, with `BUY ME A COFFEE`, `PATREON` and `KO-FI`. Pick one and your browser opens that page. `REMIND ME LATER` (or BACK) asks again a few hours of play later, and `NO THANKS` means it never asks again. Picking a site counts as an answer too.
+
+To know when to ask, PokeDaisy counts how long your games have been running. That count stays on your device and is never sent anywhere.
 
 ## Using a D-pad or controller
 

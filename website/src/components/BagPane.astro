@@ -1,0 +1,65 @@
+---
+// The companion's BAG tab as an AppScreen pane (ItemsScreen.kt), in FireRed's bag colours (FireRedBag): the
+// pocket folder tabs, the cream list with the cursor and the item counts, a ball mark on what USE can act on,
+// and the blue description box with the item's picture, USE and GIVE. Invented items only (never a real
+// item's name or art). CompanionDemo walks the list (data-item) and presses USE.
+import Pixel from './Pixel.astro';
+
+const pockets = ['ITEMS', 'KEY ITEMS', 'BALLS', 'TMs'];
+const items = [
+  { name: 'DAISY TONIC', n: 6, icon: 'tonic', text: 'A gentle tonic. It restores 20 HP to one of your team.' },
+  { name: 'SUPER TONIC', n: 2, icon: 'tonicSuper', text: 'A stronger tonic. It restores 50 HP to one of your team.' },
+  { name: 'CLEAR DROPS', n: 3, icon: 'drops', text: 'Cool eye drops. They clear poison from one of your team.' },
+  { name: 'SHOO SPRAY', n: 4, icon: 'spray', text: 'Weak wild ones keep away for 100 steps after a spray.' },
+  { name: 'TRAIL THREAD', n: 1, icon: 'thread', text: 'Follow it back out of a cave or a forest.', field: true },
+];
+---
+<div class="pane bag-pane" data-pane="bag">
+  <div class="bag-tabs">
+    {pockets.map((p, i) => <span class:list={['bag-tab t24', i === 0 ? 'f-bagTabOn on' : 'f-bagTab']}>{p}</span>)}
+  </div>
+  <div class="bag-list f-bagPanel">
+    {items.map((it, i) => (
+      <div class:list={['bag-row', i === 0 && 'sel']} data-item={i}>
+        <span class="bag-cur"><Pixel name="cursor" scale={1.334} /></span>
+        <span class="bag-name t32">{it.name}</span>
+        {!it.field && <span class="bag-act"><Pixel name="orb" scale={1} /></span>}
+        <span class="bag-n t32">×{it.n}</span>
+      </div>
+    ))}
+  </div>
+  <div class="bag-desc f-bagDesc">
+    <span class="bag-icon f-bagIcon">
+      {items.map((it, i) => <span class:list={['bag-pic', i === 0 && 'on']} data-pic={i}><Pixel name={it.icon} scale={2} /></span>)}
+    </span>
+    {items.map((it, i) => <p class:list={['bag-text t24', i === 0 && 'on']} data-text={i}>{it.text}</p>)}
+  </div>
+  <span class="bag-btn f-appBtn t32" data-b="use" style="top:316px">USE</span>
+  <span class="bag-btn f-appBtn t32" data-b="give" style="top:380px">GIVE</span>
+</div>
+
+<style is:global>
+  /* The bag screen's own backdrop: FireRed's party stripes in its bag's cream and gold. */
+  .app .bag-pane { background: repeating-linear-gradient(180deg, #f8e8a0 0 4px, #f0d888 4px 8px); }
+  .app .bag-tabs { position: absolute; left: 22px; top: 8px; right: 22px; display: flex; gap: 6px; }
+  .app .bag-tab { flex: 1 1 auto; display: grid; place-items: center; height: 42px; padding: 0 8px; color: #f8f8f8; text-shadow: 2px 2px 0 #606060; white-space: nowrap; }
+  .app .bag-tab.on { position: relative; z-index: 1; height: 48px; box-shadow: inset 0 -4px 0 #d88848; }
+  .app .bag-list { position: absolute; left: 14px; right: 14px; top: 48px; height: 258px; padding: 2px 10px; }
+  .app .bag-row { position: relative; display: flex; align-items: center; gap: 10px; height: 47px; color: #606060; text-shadow: 2px 2px 0 #d0d0c8;
+    background: repeating-linear-gradient(90deg, #e8e0a8 0 12px, transparent 12px 16px) 0 100% / 100% 4px no-repeat; }
+  .app .bag-row:last-child { background: none; }
+  .app .bag-cur { width: 22px; opacity: 0; }
+  .app .bag-row.sel .bag-cur { opacity: 1; animation: curNudge 0.5s steps(1) infinite; }
+  @keyframes curNudge { 50% { transform: translateX(2px); } }
+  .app .bag-act { display: inline-flex; opacity: 0.9; }
+  .app .bag-n { margin-left: auto; padding-right: 6px; }
+  .app .bag-desc { position: absolute; left: 14px; right: 136px; top: 314px; height: 122px; display: flex; gap: 12px; align-items: center; padding: 6px 12px; }
+  .app .bag-icon { position: relative; flex: none; width: 72px; height: 72px; }
+  /* Hidden with display, never visibility: a visible child would show through its hidden pane. */
+  .app .bag-pic { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; }
+  .app .bag-pic.on { display: block; }
+  .app .bag-text { display: none; margin: 0; line-height: 1.35; color: #f8f8f8; text-shadow: 2px 2px 0 #305878; }
+  .app .bag-text.on { display: block; }
+  .app .bag-btn { position: absolute; right: 14px; width: 112px; height: 58px; display: grid; place-items: center; color: #484848; text-shadow: 2px 2px 0 #d8d8d8; }
+  .app .bag-btn.pressed { transform: translateY(2px); filter: brightness(0.92); }
+</style>

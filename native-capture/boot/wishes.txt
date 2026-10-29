@@ -1,0 +1,9 @@
+# Pokémon Wishes of Tomorrow v1.2.6: the title, CONTINUE, the field (MUNEN VILLAGE).
+wait 600
+press START
+wait 300
+# the main menu takes the second A (the first only wakes it)
+press A
+wait 60
+press A
+wait 400

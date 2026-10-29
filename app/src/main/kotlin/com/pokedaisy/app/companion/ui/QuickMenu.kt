@@ -45,12 +45,11 @@ import com.pokedaisy.app.companion.QuickAction
 import com.pokedaisy.app.companion.QuickMenuStyle
 import com.pokedaisy.app.companion.REPEL_KINDS
 import com.pokedaisy.app.companion.data.FlyTargets
-import com.pokedaisy.app.companion.data.gen4ConfigFor
+import com.pokedaisy.app.companion.data.dsFlySpotName
 import com.pokedaisy.app.companion.data.KeyItems
 import com.pokedaisy.app.companion.data.SnapshotView
 import com.pokedaisy.app.companion.data.activeGame
 import com.pokedaisy.app.companion.data.activeMapSecData
-import com.pokedaisy.app.companion.data.flySpotName
 import com.pokedaisy.app.companion.data.isDsGame
 import com.pokedaisy.app.companion.data.gameCase
 import com.pokedaisy.app.companion.data.itemName
@@ -545,8 +544,8 @@ internal fun ringPlaces(n: Int, w: Float, h: Float, gap: Float, limW: Float, lim
 private fun FlyDestinations(state: QuickMenuState, targets: FlyTargets, m: GbaTextMetrics) {
     val ids = targets.destinations
     LaunchedEffect(targets) { state.startFly(targets, ids) }
-    // A DS game's destinations are its fly spots (spawn ids), not map sections.
-    val name: (Int) -> String? = if (activeGame.isDsGame) ({ gen4ConfigFor(activeGame)?.flySpotName(it) }) else ({ activeMapSecData[it]?.name })
+    // A DS game's destinations are its fly spots (Gen 4: spawn ids; Gen 5: the towns' places), not map sections.
+    val name: (Int) -> String? = if (activeGame.isDsGame) ({ dsFlySpotName(activeGame, it) }) else ({ activeMapSecData[it]?.name })
     PickList(tr("FLY"), ids.map { id -> gameCase(name(id) ?: tr("AREA {0}", id)) }, state, m)
 }
 

@@ -8,7 +8,9 @@
 #include "pd_style.h"
 #include "pd_ui.h"
 
-#define CONTENT_Y 28
+// Where a tab's content starts: the tab bar is along the bottom, like the app's
+// (pd_ui_draw hands the tabs the canvas above it).
+#define CONTENT_Y MARGIN
 #define MARGIN 4
 #define ROW_H 18
 
@@ -16,11 +18,12 @@
 enum {
     HIT_TAB = 100,         // + tab
     HIT_FF = 110,
+    HIT_MORE = 111,        // the tab bar's MORE chip
     HIT_SLOT = 200,        // + party slot
     HIT_BACK = 300,
-    HIT_POCKET_PREV = 400,
-    HIT_POCKET_NEXT = 401,
+    HIT_BAG_TAB = 400,     // + the bag's pocket tab (ALL first)
     HIT_BAG_LIST = 410,
+    HIT_SETTINGS_LIST = 411, // the SETTINGS list (a drag scrolls it)
     HIT_BAG_ROW = 500,     // + item index
     HIT_SETTING = 600,     // + enum setting_row
     HIT_OPTION = 700,      // + pick-list option
@@ -55,7 +58,16 @@ enum setting_row {
     SETTING_SAVE_STATE,
     SETTING_LOAD_STATE,
     SETTING_LEAVE,
+    SETTING_ASPECT,    // hosts with hasExpand
+    SETTING_AUTO_ZOOM,
+    SETTING_TAB_BAR,   // opens its page
+    SETTING_HUD,       // hosts with hasHud: opens its page
 };
+
+// The tabs TAB BAR offers, in the bar's order.
+#define UI_BAR_CHOICES 6
+extern const enum pd_tab UI_BAR_CHOICE[UI_BAR_CHOICES];
+const char* ui_tab_label(enum pd_tab t);
 
 void ui_add_hit(struct pd_ui* ui, int x, int y, int w, int h, int id);
 void ui_add_scroll_hit(struct pd_ui* ui, int x, int y, int w, int h, int id);
@@ -80,6 +92,12 @@ void ui_map_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, 
 void ui_guide_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct pd_snapshot* s);
 void ui_dex_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g, const struct pd_snapshot* s);
 void ui_overlay(struct pd_ui* ui, struct pd_canvas* c);
+// TAB BAR's / HUD's / MORE's rows: row i picked.
+void ui_toggle_act(struct pd_ui* ui, int i);
+// The tabs off the bar (MORE's list), in the bar's order.
+int ui_more_tabs(const struct pd_ui* ui, enum pd_tab out[UI_BAR_CHOICES]);
+// How many tabs TAB BAR has on the bar.
+int ui_bar_count(const struct pd_ui* ui);
 // Overlays drawn by their tab's file (PLACES, the GUIDE notice).
 void ui_places_overlay(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g);
 void ui_guide_notice(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g);

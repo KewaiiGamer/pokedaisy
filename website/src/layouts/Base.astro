@@ -4,7 +4,7 @@
 import Pixel from '../components/Pixel.astro';
 import { frameCss, spriteSvg } from '../lib/pixel.js';
 import { REPO_URL } from '../lib/releases.js';
-import { REDDIT_URL, KOFI_URL, PATREON_URL, COFFEE_URL } from '../lib/links.js';
+import { REDDIT_URL, DISCORD_URL, KOFI_URL, PATREON_URL, COFFEE_URL } from '../lib/links.js';
 
 interface Props { title: string; description: string; noindex?: boolean }
 const { title, description, noindex = false } = Astro.props;
@@ -58,13 +58,13 @@ const petals = [[4, 22, 1, 0, 22], [91, 10, 2, 4, 26], [70, 62, 1, 9, 24], [10, 
           }
         }
         // Sprites the same way: each sprite pixel a whole number of device pixels. (Not inside an app
-        // screen, which is scaled as one, or the handheld's controls, which size to their column.)
+        // screen, which is scaled as one, or a hero handheld, drawn in its own unit.)
         function snapSprites() {
           var r = window.devicePixelRatio || 1;
           var all = document.querySelectorAll('.pixel[data-s]');
           for (var i = 0; i < all.length; i++) {
             var el = all[i];
-            if (el.closest('[data-app], .ctl')) continue;
+            if (el.closest('[data-app], .handheld')) continue;
             var cs = getComputedStyle(el);
             var unit = parseFloat(cs.getPropertyValue('--px')) * Number(el.dataset.s);
             var cell = Math.max(1, Math.round(unit * r)) / r;
@@ -101,10 +101,10 @@ const petals = [[4, 22, 1, 0, 22], [91, 10, 2, 4, 26], [70, 62, 1, 9, 24], [10, 
           {nav.map(([label, href]) => (
             <a href={href} aria-current={path === href || (href === '/docs/' && path.startsWith('/docs/')) ? 'page' : undefined}>{label}</a>
           ))}
-          <a href={REDDIT_URL} class="icon-link" aria-label="r/PokeDaisy on Reddit"><Pixel name="reddit" scale={0.5} /></a>
+          <a href={DISCORD_URL} class="icon-link" aria-label="PokeDaisy on Discord"><Pixel name="discord" scale={0.5} /></a>
           <a href={REPO_URL} class="icon-link" aria-label="GitHub"><Pixel name="github" scale={0.5} /></a>
         </nav>
-        <!-- Phones: GitHub beside COFFEE, bigger, instead of squeezed onto the end of the scrolling links (Reddit stays there: no room). -->
+        <!-- Phones: GitHub beside COFFEE, bigger, instead of squeezed onto the end of the scrolling links (Discord stays there: no room). -->
         <a href={REPO_URL} class="icon-link gh-top" aria-label="GitHub"><Pixel name="github" scale={0.75} /></a>
         <a class="btn f-coffee h-coffeeHot small coffee-nav" href={COFFEE_URL}>
           <Pixel name="cup" scale={0.5} /> <span>COFFEE</span>
@@ -120,7 +120,7 @@ const petals = [[4, 22, 1, 0, 22], [91, 10, 2, 4, 26], [70, 62, 1, 9, 24], [10, 
           <Pixel name="logo" scale={1} />
           <div>
             <p class="foot-name"><span class="red">POKE</span>DAISY</p>
-            <p class="muted tiny">Free and open source, GPL v3. No ads, no accounts, no tracking.</p>
+            <p class="muted tiny">Free and open source, GPL v3. No ads, no accounts, no cookies. The site only counts visits, anonymously.</p>
           </div>
         </div>
         <div class="foot-links tiny">
@@ -131,6 +131,7 @@ const petals = [[4, 22, 1, 0, 22], [91, 10, 2, 4, 26], [70, 62, 1, 9, 24], [10, 
           <a href="/feedback/#bug">REPORT A BUG</a>
           <a href={REPO_URL}>GITHUB</a>
           <a href={REDDIT_URL}>REDDIT</a>
+          <a href={DISCORD_URL}>DISCORD</a>
           <a href={KOFI_URL}>KO-FI</a>
           <a href={PATREON_URL}>PATREON</a>
           <a href={COFFEE_URL}>BUY ME A COFFEE</a>
@@ -146,6 +147,10 @@ const petals = [[4, 22, 1, 0, 22], [91, 10, 2, 4, 26], [70, 62, 1, 9, 24], [10, 
       </div>
     </footer>
 
+    <script>
+      import { startAnalytics } from '../lib/analytics.js';
+      startAnalytics();
+    </script>
     <script>
       // Windows open as they scroll into view, a few at a time.
       const reveal = new IntersectionObserver((entries) => {

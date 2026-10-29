@@ -94,7 +94,8 @@ fun CompanionSettingsScreen(
     // HOME starts with a group title, so its first row is index 1. HOME's cursor and
     // scroll outlive its sub-pages: coming back lands on the row that opened one.
     var homeCursor by ui::homeCursor
-    var pageCursor by remember(page) { mutableStateOf(0) }
+    // GAME BUTTONS opens on a group title (ALL GAMES): its cursor starts on the row under it, like HOME's.
+    var pageCursor by remember(page) { mutableStateOf(if (page == Page.BUTTONS) 1 else 0) }
     val cursor = if (page == Page.HOME) homeCursor else pageCursor
     fun moveCursor(i: Int) { if (page == Page.HOME) homeCursor = i else pageCursor = i }
     val homeScroll = ui.homeScroll
@@ -166,15 +167,21 @@ fun CompanionSettingsScreen(
                             tick++
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
-                    Page.BUTTONS -> GbaControls.Btn.entries.map { btn ->
-                        val title = btn.title
-                        SettingRow(title, bindingValue(capture, title, settings.gbaControlBindings()[btn]), subtitle = btn.subtitle, labelBadge = btn.badge) {
-                            capture?.toggle(title) {
-                                KeyCapture.Request(
-                                    title, chord = false,
-                                    onDone = { keys -> settings.setGbaControlBinding(btn, KeyCapture.keyName(keys.first())); tick++ },
-                                    onClear = if (btn.canClear) ({ settings.clearGbaControlBinding(btn); tick++ }) else null,
-                                )
+                    // Every game's buttons, then the game running's own group (TO COMPANION only with two screens).
+                    Page.BUTTONS -> GbaControls.Group.entries.filter { it == GbaControls.Group.ALL || settings.buttonGroup.let { g -> g == null || g == it } }.flatMap { group ->
+                        val btns = GbaControls.Btn.entries.filter {
+                            it.group == group && (it != GbaControls.Btn.TO_COMPANION || settings.usesSecondScreen || settings.buttonGroup == null)
+                        }
+                        listOf(groupTitle(group.title)) + btns.map { btn ->
+                            val title = btn.title
+                            SettingRow(title, bindingValue(capture, title, settings.gbaControlBindings()[btn]), subtitle = btn.subtitle, labelBadge = btn.badge) {
+                                capture?.toggle(title) {
+                                    KeyCapture.Request(
+                                        title, chord = false,
+                                        onDone = { keys -> settings.setGbaControlBinding(btn, KeyCapture.keyName(keys.first())); tick++ },
+                                        onClear = if (btn.canClear) ({ settings.clearGbaControlBinding(btn); tick++ }) else null,
+                                    )
+                                }
                             }
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
@@ -353,7 +360,7 @@ fun CompanionSettingsScreen(
                 sel.title, sel.options, sel.current, { it }, m,
                 onPick = { sel.onPick(it); selector = null; tick++ },
                 onDismiss = { selector = null },
-                badge = sel.badge,
+                badge = sel.badge, note = sel.note,
             )
         }
         confirm?.let { c ->
@@ -407,6 +414,8 @@ private class Selector(
     val badge: (String) -> String? = { null },
     /** PLAYER LOOK's tiles ([PlayerLookPicker]): [options] are OFF then the heroes' names. */
     val tiles: Boolean = false,
+    /** A few words above the options ([OptionSelector]'s note), or null. */
+    val note: String? = null,
     val onPick: (String) -> Unit,
 )
 
@@ -517,6 +526,29 @@ private fun homeRows(
         ) {
             if (s.reusableTmsSupported) { s.setReusableTms(!s.reusableTms); changed() }
         },
+        // A new wild foe made shiny at these odds before its battle draws it (ShinyOdds.kt; the versions it knows by hash).
+        SettingRow(
+            tk("SHINY ODDS"), if (s.shinyOddsSupported) shinyOddsLabel(s.shinyOdds) else tk("N/A"),
+            enabled = s.shinyOddsSupported, labelBadge = NewFeatures.badge(NewFeatures.SHINY_ODDS),
+        ) {
+            if (s.shinyOddsSupported) {
+                val odds = s.shinyOddsChoices
+                val labels = odds.map(::shinyOddsLabel)
+                select(
+                    Selector(tk("SHINY ODDS"), labels, shinyOddsLabel(s.shinyOdds), note = SHINY_ODDS_NOTE) { l ->
+                        s.setShinyOdds(odds[labels.indexOf(l)])
+                    },
+                )
+            }
+        },
+        // The NUZLOCKE tab and its tracker for this game (Nuzlocke.kt): first encounter per area, fainted = out of the run.
+        SettingRow(
+            tk("NUZLOCKE"), if (s.nuzlockeSupported) onOff(s.nuzlocke) else tk("N/A"), enabled = s.nuzlockeSupported,
+            labelBadge = NewFeatures.badge(NewFeatures.NUZLOCKE),
+            subtitle = tk("Track a run: one catch per area, a faint is final"),
+        ) {
+            if (s.nuzlockeSupported) { s.setNuzlocke(!s.nuzlocke); changed() }
+        },
         // B held for the player while walking on the field; holding it walks. Never on a bike or in a menu.
         SettingRow(tk("AUTO-RUN"), if (s.fieldReadable) onOff(s.autoRun) else tk("N/A"), enabled = s.fieldReadable) { if (s.fieldReadable) { s.setAutoRun(!s.autoRun); changed() } },
         // Every map lets the player run (buildings too); FireRed / Emerald engines.
@@ -538,6 +570,17 @@ private fun homeRows(
         // EXPAND only: whether a conversation, sign, menu or picture over the field pulls the zoom in (battles always do).
         SettingRow(tk("AUTO ZOOM IN"), onOff(s.expandZoomOnText), subtitle = "1x on dialogue, signs, menus") { s.setExpandZoomOnText(!s.expandZoomOnText); changed() }
             .takeIf { s.gameAspect == GameAspect.WIDE },
+        // A DS game: its 3D at 2x to 8x the DS's own on the GPU, or ORIGINAL (the CPU's, pixel for pixel).
+        s.dsResolution?.let { scale ->
+            SettingRow(
+                tk("DS RESOLUTION"), if (s.dsGpuAvailable) dsResolutionLabel(scale) else tk("N/A"), enabled = s.dsGpuAvailable,
+                labelBadge = NewFeatures.badge(NewFeatures.DS_RESOLUTION), subtitle = "Sharper 3D in DS games",
+            ) {
+                if (!s.dsGpuAvailable) return@SettingRow
+                val labels = dsResolutionLabels()
+                select(Selector(tk("DS RESOLUTION"), labels, dsResolutionLabel(scale)) { l -> s.setDsResolution(labels.indexOf(l) + 1); changed() })
+            }
+        },
         // The party, a minimap, the balls and BAG / WILD over the game on the field: its own page (layout, look, size, parts).
         SettingRow(tk("HUD"), onOff(s.fieldHud), labelBadge = NewFeatures.badge(NewFeatures.HUD), opensPage = true, subtitle = "Party, minimap and bag over the game") { navigate(Page.FIELD_HUD) },
         // One screen: FIGHT, POKéMON and RUN in the room beside a battle (BattleButtons).
@@ -598,6 +641,8 @@ private fun homeRows(
         // The on-screen buttons: when they show, layouts, size, extras, EDIT LAYOUT - its own page, with a preview.
         SettingRow(tk("TOUCH CONTROLS"), s.touchStyle.show.label, labelBadge = touchControlsBadge(), opensPage = true, subtitle = "The on-screen buttons: layout, size, extras") { navigate(Page.TOUCH) },
         groupTitle(tk("APP")),
+        // A card now and then about a feature the player hasn't found (FeatureTips).
+        tipsRow(s.tips) { s.setTips(it); changed() },
         // AUTO: the ROM's own language. Applies at once, both screens.
         SettingRow("LANGUAGE", L10n.settingLabel(s.appLanguage)) {
             val opts = L10n.options
@@ -605,6 +650,11 @@ private fun homeRows(
                 s.setAppLanguage(opts.first { it.second == l }.first)
             })
         },
+        // PokeDaisy's Discord server, opened in the browser (or the Discord app) on the main screen.
+        SettingRow(
+            "DISCORD", null, subtitle = "Help, bug reports, ideas and chat",
+            labelBadge = NewFeatures.badge(NewFeatures.DISCORD), labelIcon = { DiscordMark() },
+        ) { s.openDiscord() },
         // The manual: every tab and setting explained (served by the website, kept for offline reading).
         SettingRow(tk("HELP"), null, subtitle = "The manual: how every screen and setting works", opensPage = true) { navigate(Page.HELP) },
     )
@@ -811,3 +861,10 @@ private fun KeyCapture.toggle(title: String, request: () -> KeyCapture.Request) 
 
 /** WILD ENCOUNTERS' value: ON (the game's own rate) or OFF. */
 internal fun wildEncountersLabel(percent: Int) = if (percent == 0) tk("OFF") else tk("ON")
+
+/** SHINY ODDS' value: NORMAL (the game's own 1 in 8192), else "1 IN n". */
+private fun shinyOddsLabel(odds: Int): String =
+    if (odds >= com.pokedaisy.app.companion.data.ShinyOdds.NORMAL) tk("NORMAL") else tr("1 IN {0}", odds)
+
+/** SHINY ODDS' pick-list disclaimer: what a save checker may say, and the achievements' pause. */
+private const val SHINY_ODDS_NOTE = "Save checkers may flag these shinies. Achievements pause."

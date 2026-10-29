@@ -1,0 +1,18 @@
+# Pokémon Dreamstone Mysteries: boot as dreamstone.txt, then a scripted wild ZIGZAGOON Lv5 - setwildbattle 263 5 0 (its
+# setwildbattle takes a second mon's species / level / item too, zero here) / dowildbattle / end, poked into free EWRAM and
+# run through ScriptContext_SetupScript (0x081EAD35); dumped at the action menu ("What will Torchic do?").
+wait 700
+press START
+wait 100
+press START
+wait 100
+press A
+wait 300
+poke32 0x0203f000 0x050107b6
+poke32 0x0203f004 0x00000000
+poke32 0x0203f008 0xb7000000
+poke32 0x0203f00c 0x00000002
+call 0x081ead35 0x0203f000
+wait 800
+press A
+wait 320

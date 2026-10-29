@@ -1,0 +1,69 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# R.O.W.E. v2.1.9.1 Experimental (BPEE, 32 MB, BelialClover's own pokeemerald fork - no expansion;
+# 1.9.4's source is public, v2.x's isn't, and v2.x rewrote struct Pokemon: ROWE_PARTY_MON). The ROM
+# carries a symbol table for its online play (0x08FB0670, {char *name, u32 addr} x 150) naming nearly
+# every address below; each was also found headless (`rowe`: Duraludon Lv10 in Littleroot;
+# `rowe_battle`: a scripted wild Wurmple) and is a literal-pool word in the ROM:
+# - gPlayerParty 0x02025128 (1280 refs; SaveBlock1+0x238 is the save's copy), count 0x02025125;
+# gEnemyParty 0x020252F0 (the party + 6 * 0x4C).
+# - gSaveBlock1Ptr / 2Ptr 0x03004AFC / 0x03004B00 (the blocks move per load); the key at SB2+0x40
+# (a copy at +0x188) decrypts money (SB1+0x400) to 3000 and the bag. gMain 0x03002B90.
+# - gMapHeader 0x02037BF4 (a byte mapsec, Emerald's ids; +0x19 = region: 0 Hoenn, 1 Kanto, 2 Sevii),
+# gObjectEvents 0x02037C2C (player first, pos + 7).
+# - gBagPockets 0x0203B3B4: 10 pockets, the bag's tabs - Items, Medicine, Poke Balls, Battle Items,
+# Type Items, Mega Stones, Berries, Power-Up, TMs & HMs, Key Items.
+# - Battle: gBattleTypeFlags 0x02024B6C, gBattlersCount 0x02024BF8, gBattlerPartyIndexes 0x02024BFA
+# (1 after a SHIFT), gBattlerPositions 0x02024C02, gBattleMons 0x02024C10 (ROWE_BATTLE_MON), the
+# gBattleStruct pointer 0x020250A4 (monToSwitchIntoId +0x5E: 06 -> 01 -> 06 through a SHIFT).
+# gBattlerControllerFuncs 0x03004AD0: action / move / bag / party 0x08075791 / 0x080760B1 /
+# 0x080780D9 / 0x08077F69; HandleInputChooseTarget 0x08075AB1 by code. gPartyMenu 0x0203E774, a
+# 2-column grid.
+# - Icons: vanilla-shaped tables (gMonIconTable 0x08F6F910, 2301 entries - the egg is 2300 -,
+# indices 0x08F72778, palettes 0x08F73314); gItemIconTable 0x0904D9A0 {LZ tiles, LZ palette}.
+# Tables: scripts/gen_rowe_tables.py. Not found: its renumbered system flags (no 0x800-0x8FF flag is
+# set in this save), so no TRAINER CARD (its card is Emerald's, modified) or GUIDE yet.
+#
+[config.rowe]
+base = 'emerald'
+# gItems: 0x38-byte entries, description pointer at +0x1C.
+itemDescs = { base = 0x08F76D78, stride = 0x38, descOff = 0x1C }
+playerParty = 0x02025128
+playerPartyCount = 0x02025125
+monStride = 0x4C
+partyMonLayout = 'ROWE_PARTY_MON'
+gMain = 0x03002B90
+saveBlock1Ptr = 0x03004AFC
+saveBlock2Ptr = 0x03004B00
+encryptionKeyOff = 0x40
+moneyOff = 0x400
+objectEvents = 0x02037C2C
+mapHeader = 0x02037BF4
+bagPockets = 0x0203B3B4
+bagPocketCount = 10
+bagPocketOrder = 'ROWE_BAG_POCKET_ORDER'
+battleTypeFlags = 0x02024B6C
+battlersCount = 0x02024BF8
+battlerPartyIndexes = 0x02024BFA
+battlerPositions = 0x02024C02
+battleMons = 0x02024C10
+battleMonLayout = 'ROWE_BATTLE_MON'
+battleStructPtr = 0x020250A4
+# gActionSelectionCursor / gMoveSelectionCursor, +0x10 / +0x14 past the gBattleStruct pointer. Checked
+# headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = 0x020250B4
+moveCursor = 0x020250B8
+monToSwitchIntoOff = 0x5E
+enemyParty = 0x020252F0
+battlerControllerFuncs = 0x03004AD0
+handleInputChooseAction = 0x08075791
+handleInputChooseMove = 0x080760B1
+completeWhenChoseItem = 0x080780D9
+waitForMonSelection = 0x08077F69
+handleInputChooseTarget = 0x08075AB1
+eggSpecies = 2300
+monIconTable = 0x08F6F910
+monIconPaletteIndices = 0x08F72778
+monIconPaletteTable = 0x08F73314
+itemIconTable = 0x0904D9A0
+pokedex = 'POKEDEX_ROWE'

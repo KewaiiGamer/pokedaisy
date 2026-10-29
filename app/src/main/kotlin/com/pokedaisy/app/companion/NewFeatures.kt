@@ -45,6 +45,8 @@ object NewFeatures {
 
     /** SETTINGS > REUSABLE TMS: a TM stays in the bag after it teaches a move (companion.data.ReusableTms). */
     const val REUSABLE_TMS = "reusable_tms"
+    /** SETTINGS > SHINY ODDS: a wild foe shiny at the odds picked (companion.data.ShinyOdds). */
+    const val SHINY_ODDS = "shiny_odds"
 
     /** SETTINGS > SHADERS > UNLIT SCREEN: the GBA's screen with no light of its own (ScreenShaders.UNLIT). */
     const val UNLIT_SCREEN = "unlit_screen"
@@ -52,8 +54,12 @@ object NewFeatures {
     /** SETTINGS > DISPLAY OPTIONS > LIGHT COMPANION: a lighter companion for slow devices (LightCompanion). */
     const val LIGHT_COMPANION = "light_companion"
 
-    /** GAME BUTTONS > X: on the field of a two-screen device, X takes the buttons to the companion, like a DS game's menu. */
+    /** GAME BUTTONS > TO COMPANION (X by default): on the field of a two-screen device it takes the buttons to the
+     * companion, like a DS game's menu. */
     const val X_COMPANION = "x_companion"
+
+    /** GAME BUTTONS > START 2 / SELECT 2: the GBA / Game Boy games' spare buttons, apart from the DS games' X / Y. */
+    const val GBA_BUTTONS = "gba_buttons"
 
     /** SETTINGS > PLAYER LOOK: play as another game's hero (companion.data.PlayerLook). */
     const val PLAYER_LOOK = "player_look"
@@ -70,6 +76,24 @@ object NewFeatures {
     /** SETTINGS > FOLLOWER: the party's lead walks behind the player (pk_wide.c's follower). */
     const val FOLLOWER = "follower"
 
+    /** HOTKEYS > COMPANION: opens the companion over the game on one screen (Hotkeys.Action.COMPANION). */
+    const val COMPANION_HOTKEY = "companion_hotkey"
+
+    /** SETTINGS > NUZLOCKE: the NUZLOCKE tab, a run's encounters and fainted Pokémon (companion.Nuzlocke). */
+    const val NUZLOCKE = "nuzlocke"
+
+    /** SETTINGS > DS RESOLUTION: a DS game's 3D drawn at 2x to 8x on the GPU (nds/pk_nds_gl.h). */
+    const val DS_RESOLUTION = "ds_resolution"
+
+    /** SETTINGS > APP > TIPS: a card now and then about a feature the player hasn't found (FeatureTips). */
+    const val TIPS = "tips"
+
+    /** Settings > FOLDERS > ROMS FOLDERS and the library's + menu: several ROMs folders linked at once (RomFolder). */
+    const val ROMS_FOLDERS = "roms_folders"
+
+    /** SETTINGS > DISCORD: PokeDaisy's Discord server, for help, bug reports, ideas and chat (companion.Discord). */
+    const val DISCORD = "discord"
+
     /**
      * SETTINGS > CO-OP > PAIR: play Emerald with a friend (companion.coop). Kept OUT of [ALL] while the co-op feature flag
      * is off (FeatureFlags.coop): it joins [ALL] when the flag goes. Until then [isNew] is true only before [init]
@@ -80,8 +104,8 @@ object NewFeatures {
     /** Every feature that gets the tag. */
     val ALL = listOf(
         HUD, BATTLE_BUTTONS, GAME_HOTKEYS, COMPANION_WINDOW, HUD_PC, QUICK_MENU, HUD_REPEL, SINGLE_SCREEN, MORE_TAB, TOUCH_CONTROLS,
-        COMPANION_TAB, REUSABLE_TMS, UNLIT_SCREEN, LIGHT_COMPANION, X_COMPANION, PLAYER_LOOK, RIVAL_LOOK, TEXT_LOOK, DAY_NIGHT,
-        FOLLOWER,
+        COMPANION_TAB, REUSABLE_TMS, SHINY_ODDS, UNLIT_SCREEN, LIGHT_COMPANION, X_COMPANION, PLAYER_LOOK, RIVAL_LOOK, TEXT_LOOK, DAY_NIGHT,
+        FOLLOWER, COMPANION_HOTKEY, NUZLOCKE, GBA_BUTTONS, DS_RESOLUTION, TIPS, ROMS_FOLDERS, DISCORD,
     )
 
     private const val DAYS = 7

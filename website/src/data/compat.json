@@ -41,6 +41,7 @@
     {"sha1": "1ee1557db1e4c2e0e94c6306efcc40506bc40cc9", "title": "Pokémon Ash Gray", "version": "v4.5.3"},
     {"sha1": "92ed82145c013069472153391c7aab1cfbf37b75", "title": "Pokémon Ash Gray Fork Bug Fix", "version": "v1.0"},
     {"sha1": "3cbd5a2e72ce60cfae1e0c28d83e01f855c51537", "title": "Pokémon Celia's Stupid Romhack", "version": "v1.1.4"},
+    {"sha1": "20e91aecb3243eea7cd610659846f37062f5d709", "title": "Pokémon Dreamstone Mysteries", "version": ""},
     {"sha1": "5b38a681b6924ef3e0bb9f6cfbf22426c4c4e523", "title": "Pokémon Elite Redux", "version": "v2.65.3b"},
     {"sha1": "2f3e17e55c6afe23da97ec0f96a067eeb142ad15", "title": "Pokémon Elite Redux", "version": "v2.65.4.1b"},
     {"sha1": "1d20091c4d936f5eb122db8780554dd0829ffb63", "title": "Pokémon Emerald Imperium", "version": "v1.3.1"},
@@ -88,6 +89,7 @@
     {"sha1": "3b6c51d8fb6b513bdd01b7bda3ed8965bc985d58", "title": "Pokémon Ultra Violet", "version": "v1.22"},
     {"sha1": "b4776b82a4c7915d0fadeaa27e013523f99dfd94", "title": "Pokémon Unbound", "version": "v2.1.1.1"},
     {"sha1": "0ce2a880aa097f1dce4e1db8ee513d0e82d15859", "title": "Pokémon Unbound", "version": "v2.1.1.1-FR"},
+    {"sha1": "60182b934d2e8eb3eef226a9bbc25e5df6becd4f", "title": "Pokémon Wishes of Tomorrow", "version": "v1.2.6"},
     {"sha1": "43dd208b23eade69aa3384301e934ecafbf6c2b3", "title": "Super Mariomon", "version": "v1.2.1"},
     {"sha1": "08d1c275c0ba4d559b33427292702d61ad49fb5c", "title": "Super Mariomon", "version": "v1.2.2"},
     {"sha1": "043512c2497871c018df606fb90ffbd4c81430f4", "title": "Super Mariomon", "version": "v1.3"},
@@ -107,6 +109,7 @@
     {"sha1": "0aceec0ef7aa2ca5aa831554598d91f61a925591", "title": "Pokémon Version Jaune"},
     {"sha1": "11d461629363402fc15b5005ef51b8f44e726140", "title": "Pokémon Polished Crystal"},
     {"sha1": "1dc242039218fba50928d1afb66b70565b6b9daf", "title": "Pokémon Edición Amarilla"},
+    {"sha1": "2e94d09c1e16a57eb079404c030f26fdeeac949d", "title": "Pokémon PureRed"},
     {"sha1": "3ff091a8e94a0c031372b6f0275e12620fe3d766", "title": "Pokémon Polished Crystal"},
     {"sha1": "42f3714eec6eca25200d42461ff08d57c98f6d1d", "title": "Pokémon Gelbe Edition"},
     {"sha1": "457d61dfc28a17388b87792595433ba20bd1c1ed", "title": "Pokémon Polished Crystal"},
@@ -129,6 +132,7 @@
     {"sha1": "c0a2c70d73ce68830a891ddd292300c90766acdd", "title": "Pokémon Polished Crystal"},
     {"sha1": "c4bd263e58325c6c04c34462c1b4a37fba085e9c", "title": "Pokémon Polished Crystal"},
     {"sha1": "cc7d03262ebfaf2f06772c1a480c7d9d5f4a38e1", "title": "Pokémon Yellow"},
+    {"sha1": "d419fe244fa17196f7df46ddab47c840e7573652", "title": "Pokémon PureBlue"},
     {"sha1": "d7037c83e1ae5b39bde3c30787637ba1d4c48ce2", "title": "Pokémon Blue"},
     {"sha1": "d8b8a3600a465308c9953dfa04f0081c05bdcb94", "title": "Pokémon Gold"},
     {"sha1": "e55859484c5cda70e05daed59b14662e0a0f8eac", "title": "Pokémon Polished Crystal"},
@@ -140,7 +144,8 @@
   "ds": [
     {"code": "CPUE", "rev": 1, "title": "Pokémon Platinum"},
     {"code": "IPGE", "rev": 0, "title": "Pokémon SoulSilver"},
-    {"code": "IPKE", "rev": 0, "title": "Pokémon HeartGold"}
+    {"code": "IPKE", "rev": 0, "title": "Pokémon HeartGold"},
+    {"code": "IRBO", "rev": 0, "title": "Pokémon Black"}
   ],
   "titles": {
     "015a5d380afe316a2a6fcc561798ebff9dfb3009": "Pokémon Versione Rubino",
@@ -152,6 +157,7 @@
     "18a3758ceeef2c77b315144be2c3910d6f1f69fe": "Pokémon Feuerrote Edition",
     "1c2a53332382e14dab8815e3a6dd81ad89534050": "Pokémon Rubin-Edition",
     "1f49f7289253dcbfecbc4c5ba3e67aa0652ec83c": "Pokémon Edición Rubí",
+    "26ad0b9967aa279c4a266ee69f52b9b2332399a5": "Pokémon Black",
     "2b3134224392f58da00f802faa1bf4b5cf6270be": "Pokémon Versione Rubino",
     "3233342c2f3087e6ffe6c1791cd5867db07df842": "ポケットモンスター サファイア",
     "3a6489189e581c4b29914071b79207883b8c16d8": "Pokémon Edición Zafiro",
@@ -195,11 +201,12 @@
   "matrix": {
     "columns": ["Party", "Bag", "Battle", "Map", "Dex", "Guide"],
     "rows": [
-      {"game": "Red / Blue (GB)", "version": "USA/Europe", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
-      {"game": "Yellow (GB)", "version": "USA/Europe", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
-      {"game": "Yellow (GB)", "version": "DE / FR / IT / ES", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
+      {"game": "Red / Blue (GB)", "version": "USA/Europe", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
+      {"game": "PureRed / PureBlue (GB)", "version": "2.7.6", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
+      {"game": "Yellow (GB)", "version": "USA/Europe", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
+      {"game": "Yellow (GB)", "version": "DE / FR / IT / ES", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
       {"game": "Gold / Silver (GBC)", "version": "USA/Europe", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
-      {"game": "Crystal (GBC)", "version": "USA, USA/Europe rev 1, AU", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
+      {"game": "Crystal (GBC)", "version": "USA, USA/Europe rev 1, AU", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
       {"game": "Crystal Clear (GBC)", "version": "2.5.11, 2.6.0 (4 builds)", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
       {"game": "Prism (GBC)", "version": "0.95 build 254", "cells": ["yes", "yes", "part", "yes", "yes", "no"]},
       {"game": "Polished Crystal (GBC)", "version": "3.2.0-3.2.3 (16 builds)", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
@@ -216,6 +223,7 @@
       {"game": "Platinum (DS)", "version": "USA rev 1", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
       {"game": "HeartGold (DS)", "version": "USA", "cells": ["yes", "yes", "no", "yes", "yes", "yes"]},
       {"game": "SoulSilver (DS)", "version": "USA", "cells": ["yes", "yes", "no", "yes", "yes", "yes"]},
+      {"game": "Black (DS)", "version": "USA/Europe", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
       {"game": "Unbound", "version": "2.1.1.1", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
       {"game": "Unbound", "version": "2.1.1.1 French", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
       {"game": "Radical Red", "version": "4.1", "cells": ["yes", "yes", "part", "yes", "yes", "yes"]},
@@ -247,6 +255,8 @@
       {"game": "Recharged Emerald", "version": "2.2.5, 2.2.8, Rebalanced", "cells": ["yes", "yes", "part", "yes", "yes", "part"]},
       {"game": "Elite Redux", "version": "2.65.3b, 2.65.4.1b", "cells": ["yes", "yes", "part", "yes", "yes", "part"]},
       {"game": "Team Rocket Dragonsden", "version": "1.5", "cells": ["yes", "yes", "part", "part", "no", "part"]},
+      {"game": "Wishes of Tomorrow", "version": "1.2.6", "cells": ["yes", "yes", "part", "yes", "yes", "part"]},
+      {"game": "Dreamstone Mysteries", "version": "the one release", "cells": ["yes", "yes", "part", "yes", "yes", "part"]},
       {"game": "Emerald Rogue", "version": "2.2.1-EX", "cells": ["yes", "yes", "yes", "yes", "yes", "no"]},
       {"game": "SoulGold", "version": "1.1.4, 1.2 (3 builds)", "cells": ["yes", "yes", "part", "yes", "yes", "part"]},
       {"game": "R.O.W.E.", "version": "2.1.9.1 Experimental", "cells": ["yes", "yes", "part", "yes", "part", "no"]}

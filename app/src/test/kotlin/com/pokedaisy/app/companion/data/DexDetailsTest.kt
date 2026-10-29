@@ -148,6 +148,7 @@ class DexDetailsTest {
     @Test fun `older expansion and its forks name every method`() {
         for ((cfg, kind, rom) in listOf(
             Triple(NATIVE_IMPERIUM, GameKind.IMPERIUM, "Pokemon Emerald Imperium (v1.3.1).gba"),
+            Triple(NATIVE_DREAMSTONE, GameKind.DREAMSTONE, "Pokemon Dreamstone Mysteries.gba"),
             Triple(NATIVE_EMERALD_SEAGLASS, GameKind.EMERALD_SEAGLASS, "Pokemon Emerald Seaglass (v3.0).gba"),
             Triple(NATIVE_LAZARUS, GameKind.LAZARUS, "Pokemon Lazarus (v2.0).gba"),
             Triple(NATIVE_EMERALD_ROGUE, GameKind.EMERALD_ROGUE, "Pokemon Emerald Rogue (v2.2.1-EX).gba"),

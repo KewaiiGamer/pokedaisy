@@ -3,7 +3,7 @@ title: Guide
 summary: The GUIDE tab's hints, what's in the area you're in, the next gym leader's team, evolutions and the hand-written help pages.
 section: companion
 order: 7
-keywords: [walkthrough, hints, spoilers, help, stuck, where, encounters, wild, gym, leader, boss, items, hidden, gifts, trades, evolve, trees, clock, time of day, rematch]
+keywords: [walkthrough, hints, spoilers, help, stuck, where, encounters, wild, gym, leader, boss, items, hidden, gifts, trades, evolve, trees, clock, time of day, rematch, season, spring, summer, autumn, winter]
 ---
 
 The GUIDE tab is there for the moments you'd normally open a walkthrough: you're stuck, you want to know what lives on this route, or you'd like to see the next gym leader's team before walking in. It reads your game as you play, so it knows where you are, what you've already picked up and which bosses you've beaten.
@@ -29,11 +29,13 @@ The guide remembers which page you were on and where you'd scrolled, even when y
 HERE is about the place you're standing in right now, and it changes as you walk. A town counts with its houses and shops, a route with its gates. It can have these sections:
 
 - **TO DO**: hand-written entries about this area (where to find something important here, how to get past a blocker).
-- **Wild Pokémon**, one section per way of finding them: grass and caves, surfing, smashing rocks, each fishing rod and, in Polished Crystal, the trees you can shake Pokémon out of (the common list and the one rarer trees use). Every row shows the level range and the odds, like `LV 3-5  20%`. A Pokémon you haven't seen yet shows as `???` until you tap it, the same way your Pokédex hides it.
+- **Wild Pokémon**, one section per way of finding them: grass and caves, surfing, smashing rocks, each fishing rod and, in Crystal and Polished Crystal, the trees you can shake Pokémon out of (the common list and the one rarer trees use). Every row shows the level range and the odds, like `LV 3-5  20%`. A Pokémon you haven't seen yet shows as `???` until you tap it, the same way your Pokédex hides it.
 
-In Polished Crystal the grass list follows your game's clock (morning, day or night, and the evening uses the night's), and the line under `GRASS / CAVE` says which time it's for. Some of its side areas set their Pokémon's levels by how many badges you have, and HERE already shows the levels for yours.
+In Crystal and Polished Crystal the grass list follows your game's clock (morning, day or night; in Polished Crystal the evening uses the night's), and the line under `GRASS / CAVE` says which time it's for. A few fishing spots also catch something else at night. Some of Polished Crystal's side areas set their Pokémon's levels by how many badges you have, and HERE already shows the levels for yours.
 
 In Lazarus many outdoor areas have different Pokémon by day and at night. Its night runs from 8 in the evening to 7 in the morning on your game's clock. HERE lists the ones out right now, says under `GRASS / CAVE` whether that's `DAY` or `NIGHT`, and adds an `AT NIGHT` (or `BY DAY`) section for the ones that only show up at the other time. The line at the top that counts how many you've caught here counts both.
+
+In Black the wild Pokémon change with the seasons, and the season changes every month: January, May and September are spring, then summer, autumn and winter in turn. The line under `GRASS / CAVE` says which season HERE shows, going by your device's date.
 - **PEOPLE**: anyone in the area who gives you an item, a Pokémon or an egg, and in-game trades (what they offer and what they want for it). Some of them want something done first.
 - **ITEMS**: items lying on the ground and hidden ones. A hidden item shows as `HIDDEN ITEM` until you tap it: the hint says roughly where it's buried, the answer names it.
 
@@ -53,7 +55,7 @@ Each of their Pokémon is its own entry, with its level showing:
 
 When every boss is beaten, the page says `ALL DONE`.
 
-Some hacks give a boss more than one team, for example one per difficulty in Unbound. Those get a section for each team, so look at the one you're playing on. In Polished Crystal the Elite Four and the champion bring stronger teams once you hold all 16 badges, and NEXT BOSS lists that rematch after the Kanto gyms.
+Some hacks give a boss more than one team, for example one per difficulty in Unbound. Those get a section for each team, so look at the one you're playing on. In Red, Blue and Yellow your rival's team as champion depends on what happened at the start of the game. Once your save has settled it, NEXT BOSS shows that team; before then it shows each team the game could pick. In Polished Crystal the Elite Four and the champion bring stronger teams once you hold all 16 badges, and NEXT BOSS lists that rematch after the Kanto gyms.
 
 ## EVOLUTIONS
 
@@ -78,11 +80,12 @@ The pages a game gets depend on how much of it has been mapped. The [supported g
 | Games | What the GUIDE has |
 | --- | --- |
 | FireRed, LeafGreen, Emerald, Ruby, Sapphire | Everything: HERE with all its sections, NEXT BOSS, EVOLUTIONS, TIPS, WHERE IS and STUCK? |
-| Unbound, Radical Red, Heart and Soul, Odyssey, Gaia, Amethyst, Celia's hack, Orange Islands, Ultra Violet, FireRed Rocket Edition, Ash Gray, Ghost Grey, Sword and Shield Ultimate Plus, GS Chronicles, Recharged Yellow, Emerald Legacy, Polished Crystal | NEXT BOSS, HERE with people and items, a WHERE IS built from the maps and, for most of them, a few TIPS |
-| Lazarus, Seaglass, Too Many Types 2, SoulGold, Glazed, Emerald Imperium, Quetzal (both releases, and Moemon Quetzal), Super Mariomon, Recharged Emerald | NEXT BOSS and the wild Pokémon in HERE |
+| Unbound, Radical Red, Heart and Soul, Odyssey, Gaia, Amethyst, Celia's hack, Orange Islands, Ultra Violet, FireRed Rocket Edition, Ash Gray, Ghost Grey, Sword and Shield Ultimate Plus, GS Chronicles, Recharged Yellow, Emerald Legacy, Red, Blue, Yellow, Crystal, Polished Crystal | NEXT BOSS, HERE with people and items, a WHERE IS built from the maps and, for most of them, a few TIPS |
+| Lazarus, Seaglass, Too Many Types 2, SoulGold, Glazed, Emerald Imperium, Quetzal (both releases, and Moemon Quetzal), Super Mariomon, Recharged Emerald, Dreamstone Mysteries | NEXT BOSS and the wild Pokémon in HERE |
 | Elite Redux | The wild Pokémon in HERE. Its gym leaders pick one of several teams when the battle starts, so there's no NEXT BOSS |
 | Team Rocket Edition: Dragonsden Version | The wild Pokémon in HERE. Its story takes you around in its own order, so there's no NEXT BOSS yet |
-| Emerald Rogue, R.O.W.E., Red, Blue, Yellow, Gold, Silver, Crystal, Crystal Clear, Prism | No guide yet |
+| Wishes of Tomorrow | The wild Pokémon in HERE, swapped the way your save swaps them when you play with its randomizer on. Its story takes you around its own region in its own order, so there's no NEXT BOSS yet |
+| Emerald Rogue, R.O.W.E., PureRed, PureBlue, Gold, Silver, Crystal Clear, Prism | No guide yet |
 
 The original games' hand-written pages follow the app's language when you play a French, German, Italian, Spanish or Japanese copy. Most hacks' pages are in English.
 

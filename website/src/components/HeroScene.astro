@@ -41,57 +41,59 @@ const daisies = [[4, 66], [24, 69], [60, 64], [74, 72], [90, 66], [40, 90], [56,
 </div>
 
 <style is:global>
-  .device .scene { position: absolute; inset: 0; }
-  .device .topscreen { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #8ccaf4; font-family: 'Pixel Operator', monospace; }
-  .device .sky { position: absolute; inset: 0; background: linear-gradient(#7cc0f0 0 18%, #90ccf4 18% 30%, #a6d8f8 30% 40%, #bce2f8 40% 50%, #d0ecfa 50% 60%); }
-  .device .cloud { position: absolute; left: 0; animation: cloud 40s steps(160) infinite; }
-  .device .c1 { top: 15%; }
-  .device .c2 { top: 25%; animation-duration: 56s; animation-delay: -20s; }
-  .device .c3 { top: 11%; animation-duration: 70s; animation-delay: -45s; opacity: 0.85; }
+  /* The screen's text grows with the handheld (6 units, the page's smallest size at most) so a phone's small
+     screen isn't all status bar and text box. */
+  .handheld .scene { position: absolute; inset: 0; --hh-text: clamp(9px, calc(var(--u) * 6), var(--t-xs)); }
+  .handheld .topscreen { overflow: hidden; background: #8ccaf4; }
+  .handheld .sky { position: absolute; inset: 0; background: linear-gradient(#7cc0f0 0 18%, #90ccf4 18% 30%, #a6d8f8 30% 40%, #bce2f8 40% 50%, #d0ecfa 50% 60%); }
+  .handheld .cloud { position: absolute; left: 0; animation: cloud 40s steps(160) infinite; }
+  .handheld .c1 { top: 15%; }
+  .handheld .c2 { top: 25%; animation-duration: 56s; animation-delay: -20s; }
+  .handheld .c3 { top: 11%; animation-duration: 70s; animation-delay: -45s; opacity: 0.85; }
   @keyframes cloud { from { transform: translateX(-120px); } to { transform: translateX(620px); } }
-  .device .bird { position: absolute; left: 0; animation: fly 18s steps(90) infinite, flap 0.5s steps(1) infinite; }
-  .device .bird-1 { top: 20%; }
-  .device .bird-2 { top: 27%; animation-delay: -6s, -0.25s; }
+  .handheld .bird { position: absolute; left: 0; animation: fly 18s steps(90) infinite, flap 0.5s steps(1) infinite; }
+  .handheld .bird-1 { top: 20%; }
+  .handheld .bird-2 { top: 27%; animation-delay: -6s, -0.25s; }
   @keyframes fly { from { transform: translateX(620px); } to { transform: translateX(-60px); } }
   @keyframes flap { 50% { transform: scaleY(0.4); } }
-  .device .hills { position: absolute; left: 0; right: 0; top: 46%; height: calc(var(--px) * 14); background: var(--hill) repeat-x 0 0 / calc(var(--px) * 64) 100%; }
-  .device .ground { position: absolute; left: 0; right: 0; top: calc(46% + var(--px) * 14); bottom: 0; background: #88d058 var(--tuft) repeat 0 0 / calc(var(--px) * 32) calc(var(--px) * 32); }
-  .device .path { position: absolute; left: 0; right: 0; top: 77%; height: calc(var(--px) * 14); background: var(--path) repeat 0 0 / calc(var(--px) * 32) calc(var(--px) * 16); box-shadow: 0 calc(var(--px) * -1) 0 #6cb848, 0 var(--px) 0 #6cb848; }
-  .device .fence { position: absolute; left: 30%; width: 26%; top: 60%; height: calc(var(--px) * 8); background: var(--fence) repeat-x 0 0 / calc(var(--px) * 8) 100%; }
-  .device .tall { position: absolute; left: 36%; width: 20%; top: 66%; height: calc(var(--px) * 16); background: var(--tall) repeat 0 0 / calc(var(--px) * 8) calc(var(--px) * 8); animation: rustle 1.6s steps(1) infinite; }
+  .handheld .hills { position: absolute; left: 0; right: 0; top: 46%; height: calc(var(--px) * 14); background: var(--hill) repeat-x 0 0 / calc(var(--px) * 64) 100%; }
+  .handheld .ground { position: absolute; left: 0; right: 0; top: calc(46% + var(--px) * 14); bottom: 0; background: #88d058 var(--tuft) repeat 0 0 / calc(var(--px) * 32) calc(var(--px) * 32); }
+  .handheld .path { position: absolute; left: 0; right: 0; top: 77%; height: calc(var(--px) * 14); background: var(--path) repeat 0 0 / calc(var(--px) * 32) calc(var(--px) * 16); box-shadow: 0 calc(var(--px) * -1) 0 #6cb848, 0 var(--px) 0 #6cb848; }
+  .handheld .fence { position: absolute; left: 30%; width: 26%; top: 60%; height: calc(var(--px) * 8); background: var(--fence) repeat-x 0 0 / calc(var(--px) * 8) 100%; }
+  .handheld .tall { position: absolute; left: 36%; width: 20%; top: 66%; height: calc(var(--px) * 16); background: var(--tall) repeat 0 0 / calc(var(--px) * 8) calc(var(--px) * 8); animation: rustle 1.6s steps(1) infinite; }
   @keyframes rustle { 50% { background-position: var(--px) 0; } }
-  .device .house { position: absolute; left: 7%; top: 36%; }
-  .device .sign { position: absolute; left: 25%; top: 61%; }
-  .device .pond { position: absolute; left: 62%; top: 62%; }
-  .device .tree { position: absolute; }
-  .device .t1 { left: 80%; top: 37%; }
-  .device .t2 { left: 0; top: 52%; }
-  .device .t3 { left: 90%; top: 49%; }
-  .device .flower { position: absolute; animation: sway 1.2s steps(1) infinite; transform-origin: 50% 100%; }
+  .handheld .house { position: absolute; left: 7%; top: 36%; }
+  .handheld .sign { position: absolute; left: 25%; top: 61%; }
+  .handheld .pond { position: absolute; left: 62%; top: 62%; }
+  .handheld .tree { position: absolute; }
+  .handheld .t1 { left: 80%; top: 37%; }
+  .handheld .t2 { left: 0; top: 52%; }
+  .handheld .t3 { left: 90%; top: 49%; }
+  .handheld .flower { position: absolute; animation: sway 1.2s steps(1) infinite; transform-origin: 50% 100%; }
   @keyframes sway { 50% { transform: rotate(-12deg); } }
-  .device .walker { position: absolute; top: 70%; left: 0; animation: walk 14s steps(56) infinite alternate; }
-  .device .walker-bob { display: block; animation: step 0.3s steps(1) infinite; }
+  .handheld .walker { position: absolute; top: 70%; left: 0; animation: walk 14s steps(56) infinite alternate; }
+  .handheld .walker-bob { display: block; animation: step 0.3s steps(1) infinite; }
   /* An invented creature (creatures.js) trotting beside the trainer, another peeking out of the tall grass. */
-  .device .walker { display: flex; align-items: flex-end; gap: calc(var(--px) * 2); }
-  .device .buddy { display: block; animation: step 0.3s steps(1) infinite reverse; }
-  .device .peek { position: absolute; left: 44%; top: 62%; animation: peek 5s steps(1) infinite; }
+  .handheld .walker { display: flex; align-items: flex-end; gap: calc(var(--px) * 2); }
+  .handheld .buddy { display: block; animation: step 0.3s steps(1) infinite reverse; }
+  .handheld .peek { position: absolute; left: 44%; top: 62%; animation: peek 5s steps(1) infinite; }
   @keyframes peek { 0%, 55%, 100% { transform: translateY(calc(var(--px) * 6)); opacity: 0; } 60%, 90% { transform: none; opacity: 1; } }
   @keyframes walk { from { transform: translateX(80px); } to { transform: translateX(380px); } }
   @keyframes step { 50% { transform: translateY(calc(var(--px) * -1)); } }
-  .device .statusbar {
-    position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 12px; align-items: center; padding: 3px 8px;
-    font-size: var(--t-xs); line-height: 1; color: #636363; background: #fff; box-shadow: 0 2px 0 #ced6d6, 0 4px 0 #63737b; white-space: nowrap;
+  .handheld .statusbar {
+    position: absolute; left: 0; right: 0; top: 0; display: flex; gap: calc(var(--u) * 4); align-items: center; padding: var(--u) calc(var(--u) * 3);
+    font-size: var(--hh-text); line-height: 1; color: #636363; background: #fff; box-shadow: 0 calc(var(--u) * 0.75) 0 #ced6d6, 0 calc(var(--u) * 1.5) 0 #63737b; white-space: nowrap;
   }
-  .device .sb-place { color: #cb0707; }
-  .device .sb-right { margin-left: auto; }
-  .device .textbox { position: absolute; left: 3%; right: 3%; bottom: 4%; padding: 2px 8px 4px; font-size: var(--t-xs); line-height: 1.5; color: #404048; text-shadow: 2px 2px 0 #d8d8d0; min-height: 2.4em; }
-  .device .textbox.closed { visibility: hidden; }
-  .device .tb-more { position: absolute; right: 6px; bottom: 2px; animation: bob 0.8s steps(1) infinite; }
+  .handheld .sb-place { color: #cb0707; }
+  .handheld .sb-right { margin-left: auto; }
+  .handheld .textbox { position: absolute; left: 3%; right: 3%; bottom: 4%; padding: calc(var(--u) * 0.75) calc(var(--u) * 3) calc(var(--u) * 1.5); font-size: var(--hh-text); line-height: 1.5; color: #404048; text-shadow: calc(var(--u) * 0.75) calc(var(--u) * 0.75) 0 #d8d8d0; min-height: 2.4em; }
+  .handheld .textbox.closed { visibility: hidden; }
+  .handheld .tb-more { position: absolute; right: 6px; bottom: 2px; animation: bob 0.8s steps(1) infinite; }
 
-  .device .sb-place, .device .sb-right { display: inline-flex; align-items: center; gap: 5px; }
-  .device .sb-right .pixel { margin-left: 2px; }
+  .handheld .sb-place, .handheld .sb-right { display: inline-flex; align-items: center; gap: 5px; }
+  .handheld .sb-right .pixel { margin-left: 2px; }
 
-  @media (max-width: 560px) { .device .statusbar { gap: 6px; } .device .sb-right { display: none; } .device .house, .device .sign { transform: scale(0.75); transform-origin: 0 100%; } }
+  @media (max-width: 560px) { .handheld .sb-right { display: none; } }
 </style>
 
 <script>

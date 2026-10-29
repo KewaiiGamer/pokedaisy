@@ -12,7 +12,6 @@
 #include "pd_ui_internal.h"
 
 #define CHIP_H 22
-#define LIST_Y (CONTENT_Y + CHIP_H + 4)
 #define ROW 18
 #define LINE 16
 #define MAX_ENTRIES 160
@@ -72,8 +71,9 @@ static int steps(const struct view_entry* e) {
     return !*e->answer ? 0 : e->hint ? 2 : 1;
 }
 
+// The pages sit in a column (GuideScreen's): room for their whole names.
 static const char* page_label(const char* title) {
-    return !strcmp(title, "WHERE IS") ? "WHERE" : title;
+    return title;
 }
 
 static void build_pages(const struct pd_game* g, const struct pd_snapshot* s, const struct pd_guide* gd) {
@@ -82,7 +82,7 @@ static void build_pages(const struct pd_game* g, const struct pd_snapshot* s, co
     pd_areas_for(g, &areaCount);
     bool rom = pd_guide_rom_ok(g);
     if (areaCount || rom) pages[pageCount++] = (struct page_ref) { PAGE_HERE, 0, "HERE" };
-    if (rom && s->flagsOk && gd->bossCount) pages[pageCount++] = (struct page_ref) { PAGE_BOSS, 0, "BOSS" };
+    if (rom && s->flagsOk && gd->bossCount) pages[pageCount++] = (struct page_ref) { PAGE_BOSS, 0, "NEXT BOSS" };
     for (int i = 0; i < gd->pageCount && pageCount < MAX_PAGES; i++) {
         pages[pageCount++] = (struct page_ref) { PAGE_STATIC, i, page_label(gd->pages[i].title) };
     }
@@ -393,16 +393,25 @@ void ui_guide_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g
     build_pages(g, s, gd);
     if (ui->guidePage < 0 || ui->guidePage >= pageCount) ui->guidePage = 0;
 
-    // The page chips.
-    int w = (c->w - MARGIN * (pageCount + 1)) / pageCount;
+    // The pages, in a column on the left like GuideScreen's: a GUIDE title
+    // window over a list window, the open page the white row.
+    int colW = c->w * 30 / 100;
+    int tf = pd_title_box(c, MARGIN, CONTENT_Y, colW, CHIP_H, PD_TITLE_FILL);
+    pd_text(c, MARGIN + tf + 6, pd_text_y(CONTENT_Y, CHIP_H), "GUIDE", PD_TITLE_TEXT, PD_TITLE_SHADOW);
+    int py = CONTENT_Y + CHIP_H + 4;
+    int pf = pd_list_box(c, MARGIN, py, colW, c->h - py - MARGIN);
+    int rowH = (c->h - py - MARGIN - 2 * pf) / (pageCount > 0 ? pageCount : 1);
+    if (rowH > 26) rowH = 26;
     for (int i = 0; i < pageCount; i++) {
-        int x = MARGIN + i * (w + MARGIN);
+        int rx = MARGIN + pf, ry = py + pf + i * rowH, rw = colW - 2 * pf;
         bool open = ui->guidePage == i;
-        pd_title_box(c, x, CONTENT_Y, w, CHIP_H, open || ui->pressedId == HIT_GUIDE_PAGE + i ? PD_TITLE_FILL : PD_LIST_FILL);
-        int tw = pd_text_width(pages[i].label);
-        pd_text(c, x + (w - tw) / 2, pd_text_y(CONTENT_Y, CHIP_H), pages[i].label, open ? PD_VALUE : PD_TITLE_TEXT,
-                open ? PD_VALUE_SHADOW : PD_TITLE_SHADOW);
-        ui_add_hit(ui, x, CONTENT_Y, w, CHIP_H, HIT_GUIDE_PAGE + i);
+        if (open || ui->pressedId == HIT_GUIDE_PAGE + i) pd_fill(c, rx, ry, rw, rowH, PD_ROW_SELECTED);
+        pd_text_fit(c, rx + 6, pd_text_y(ry, rowH), rw - 10, pages[i].label, open ? PD_VALUE : PD_LABEL,
+                    open ? PD_VALUE_SHADOW : PD_LABEL_SHADOW);
+        if (i < pageCount - 1) {
+            for (int dx = 4; dx < rw - 4; dx += 4) pd_fill(c, rx + dx, ry + rowH - 1, 2, 1, PD_DIVIDER);
+        }
+        ui_add_hit(ui, rx, ry, rw, rowH, HIT_GUIDE_PAGE + i);
     }
 
     entryCount = sectionCount = 0;
@@ -412,9 +421,9 @@ void ui_guide_tab(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g
     else build_static(g, s, &gd->pages[p->index]);
     if (ui->guideOpen >= entryCount) ui->guideOpen = -1;
 
-    int x = MARGIN, lw = c->w - 2 * MARGIN;
-    int f = pd_list_box(c, x, LIST_Y, lw, c->h - LIST_Y - MARGIN);
-    draw_list(ui, c, x + f, LIST_Y + f + 1, lw - 2 * f, c->h - LIST_Y - MARGIN - 2 * f - 2);
+    int x = MARGIN + colW + 4, lw = c->w - MARGIN - x;
+    int f = pd_list_box(c, x, CONTENT_Y, lw, c->h - CONTENT_Y - MARGIN);
+    draw_list(ui, c, x + f, CONTENT_Y + f + 1, lw - 2 * f, c->h - CONTENT_Y - MARGIN - 2 * f - 2);
 }
 
 void ui_guide_notice(struct pd_ui* ui, struct pd_canvas* c, const struct pd_game* g) {

@@ -48,10 +48,14 @@ fun typeMatchups(defType1: Int, defType2: Int): TypeMatchups {
     val weaknesses = mutableListOf<TypeMatchup>()
     val resistances = mutableListOf<TypeMatchup>()
     val immunities = mutableListOf<TypeMatchup>()
+    val named = HashSet<String>()
     for (atk in activeTypeNames.keys.sorted()) {
         // TYPE_MYSTERY - no real move uses it. Matched by name, not id 9:
         // expansion-numbered hacks put Steel at 9 (Too Many Types 2).
         if (activeTypeNames[atk] == "???") continue
+        // A second type under a name already listed (PureRGB's BONEMERANG, which it calls GROUND): its one move is
+        // shown as it is, the list keeps the real type.
+        if (!named.add(activeTypeNames[atk].orEmpty())) continue
         val pct = typeMultiplierPct(atk, defType1, defType2)
         val m = TypeMatchup(typeName(atk), formatMultiplier(pct), pct)
         when {
@@ -137,6 +141,10 @@ fun itemDescription(id: Int): String = when (activeGame) {
     // ... in English: the German / French / Italian / Spanish carts get none rather than English under their names.
     // Red and Blue have Yellow's items (gen_gen1_tables.py checks it): its text fits them.
     GameKind.YELLOW, GameKind.RED, GameKind.BLUE -> if (romLanguage != 'E') "" else itemDescriptionsYellow[id] ?: tmDescriptionsYellow[id] ?: ""
+    // PureRGB renamed, replaced and added items: Yellow's text only where the item is still Yellow's (same id, same name);
+    // its own TMs teach other moves (tmDescriptionsPureRgb).
+    GameKind.PURE_RED, GameKind.PURE_BLUE -> tmDescriptionsPureRgb[id]
+        ?: itemDescriptionsYellow[id]?.takeIf { itemNamesPureRgb[id] == itemNamesYellow[id] } ?: ""
     // Crystal's own text, from the cart (a TM's: its move's), like the GBA games'.
     // (Prism's are compressed: none.)
     GameKind.CRYSTAL, GameKind.CRYSTAL_CLEAR, GameKind.PRISM, GameKind.GOLD, GameKind.SILVER, GameKind.POLISHED_CRYSTAL -> activeGen2.pokedex?.gen2?.let { Gen2Dex.itemDescription(it, id) }.orEmpty()

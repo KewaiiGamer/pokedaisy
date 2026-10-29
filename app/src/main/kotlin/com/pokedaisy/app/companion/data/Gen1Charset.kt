@@ -12,6 +12,12 @@ enum class Gen1Charset(val chars: Map<Int, String>) {
         listOf("c'", "d'", "j'", "l'", "m'", "n'", "p'", "s'", "'s", "t'", "u'", "y'").withIndex().associate { 0xD4 + it.index to it.value }),
     IS(BASE + zipCodes(0xBA, "àèéùÀÁÄÖÜäöüÈÉÌÍÑÒÓÙÚáìíñòóúº&") + mapOf(0xE4 to "¿", 0xE5 to "¡") +
         listOf("'d", "'l", "'m", "'r", "'s", "'t", "'v").withIndex().associate { 0xD8 + it.index to it.value }),
+    /** PureRGB: English's, plus its one-byte words from 0x33 (home/text.asm's TextShortcutCommandJumpTable), quotes where
+     * the brackets were, an arrow, + and % (its charmap.asm; scripts/gen_gen1_tables.py's "PURE"). */
+    PURE(EN.chars + listOf("like", "an", "You", "er", "with", "at", "ight", "have", " a ", "here", "to ", " to", "or", "ing",
+        "the", "you", "opponent", "user", "POKéMON", "TRAINER TIPS", "TEAM ").withIndex().associate { 0x33 + it.index to it.value } +
+        mapOf(0x48 to " ", 0x4D to "is", 0x56 to "...", 0x5B to "PC", 0x5C to "TM", 0x5D to "TRAINER", 0x5E to "ROCKET",
+            0x74 to "·", 0x9E to "“", 0x9F to "”", 0xE9 to "→", 0xEA to "+", 0xEB to "%")),
     ;
 
     /** The single characters a font tile stands for (the companion's font: ligatures left out, and 0xF2's

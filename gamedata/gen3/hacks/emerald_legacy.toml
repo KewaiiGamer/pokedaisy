@@ -1,0 +1,33 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Emerald Legacy v1.1.4 - BPEE, 16 MB: pret's pokeemerald rebuilt from its own source (cRz-Shadows/
+# Pokemon_Emerald_Legacy at V1.1.4, built with agbcc = the release byte for byte), so every address here is a symbol of
+# that build's ELF. The battle globals kept retail's EWRAM; gMain, the save blocks, gObjectEvents, the bag and the code
+# moved. Its structs are retail's but for SaveBlock1 past the ITEMS pocket (120 slots: the bag goes through gBagPockets,
+# the flags / vars / dex / card offsets are on their tables) and ObjectEvent's u16 graphicsId. Eggs are SPECIES_EGG 415:
+# species 412-414 are Deoxys forms, so an egg is flagged (eggSpecies) rather than read as vanilla's 412.
+[config.emerald_legacy]
+base = 'emerald_retail'
+gameCode = { ref = 'LEGACY_TEXT' }
+itemDescs = { preset = 'vanilla', base = 0x085B6210 }
+gMain = 0x030024A0
+saveBlock1Ptr = 0x03005F6C
+saveBlock2Ptr = 0x03005F70
+objectEvents = 0x020374DC
+mapHeader = 0x020374A4
+bagPockets = 0x0203A100
+monIconTable = 0x085AE4DC
+monIconPaletteIndices = 0x085AEBC8
+monIconPaletteTable = 0x085AED84
+itemIconTable = 0x086486E0
+battlerControllerFuncs = 0x03005F40
+handleInputChooseAction = 0x08057E1C
+handleInputChooseMove = 0x08058490
+completeWhenChoseItem = 0x0805A214
+waitForMonSelection = 0x0805A15C
+handleInputChooseTarget = 0x080580B8
+partyMenu = 0x0203D1F0
+eggSpecies = 415
+trainerCard = 'TRAINER_CARD_EMERALD_LEGACY'
+pokedex = 'POKEDEX_EMERALD_LEGACY'
+guideTables = 'GUIDE_TABLES_EMERALD_LEGACY'

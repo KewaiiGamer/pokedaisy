@@ -113,7 +113,8 @@ internal fun peekMonIcon(asset: String?): Bitmap? {
 fun rememberMonIconSheet(asset: String?): Bitmap? {
     val context = LocalContext.current
     val gen = rememberIconGeneration()
-    var bitmap by remember(asset) { mutableStateOf<Bitmap?>(null) }
+    // An icon already decoded shows on the first frame (no blank slot while the load below runs).
+    var bitmap by remember(asset) { mutableStateOf(peekMonIcon(asset)) }
     LaunchedEffect(asset, gen) { loadMonIconSheet(context, asset)?.let { bitmap = it } }
     return bitmap
 }

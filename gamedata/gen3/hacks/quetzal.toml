@@ -1,0 +1,243 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Quetzal English Alpha 9 v0 - BPEE, 32 MB ("PKM QUETZAL"), TenmaRH's own
+# engine on pokeemerald (vanilla's table shapes, expansion-sized contents), no
+# source. From headless captures of the user's save (`quetzal`: Charmander Lv5,
+# 10/19 HP, on Kanto's Route 1; `quetzal_battle`: a scripted wild Pidgey), each
+# address also a literal-pool word (counts in brackets) and each field poked to see
+# the game show it:
+# - gPlayerParty 0x020235CC (1033) / gPlayerPartyCount 0x020235C9 (55); its own
+# 104-byte plaintext struct (QUETZAL_PARTY_MON). SaveBlock1+0x6A8 is the save's copy.
+# - gSaveBlock1Ptr / 2Ptr 0x030055BC / 0x030055C0 (the blocks move on every load);
+# SaveBlock1 is its own: pos / map at +0x470 (walking LEFT moved it, the player's
+# object at pos + 7), money at +0x918 XOR SB2+0x2C (₽7450, as START shows, in 5
+# boots with 5 keys). gMain 0x03002660 (inBattle at the usual +0x439).
+# - gMapHeader 0x02038CB0 (a byte mapsec, Emerald's ids: 0x65 = the Town Map's
+# ROUTE 1), gObjectEvents 0x02038D10 (488).
+# - The bag: Bag3Layout (no gBagPockets anywhere): Poké Ball x6, Premier Ball,
+# Potion, Burn Heal, Paralyze Heal, Repel, Escape Rope, Poké Doll; key items
+# Town Map, Mega Ring, Z-Power Ring, Exp. Share - its bag screen's. TMs aren't in it.
+# - Battle: gBattleTypeFlags 0x02022FBC (583), gBattlersCount 0x02023044,
+# gBattlerPartyIndexes 0x02023046 (1 after a switch), gBattlerPositions 0x0202304E,
+# gBattleMons 0x0202305C (EXPANSION_BATTLE_MON: a hit took HP 10 -> 7 at +0x2A, PP
+# 56 -> 55 at +0x25; poison poked into status1 hurt the foe), gBattleStruct
+# 0x0202352C (monToSwitchIntoId at +0x3C), gEnemyParty 0x02023AAC (on the field it
+# holds the overworld's visible wild Pokémon, with a count of 0).
+# gBattlerControllerFuncs 0x03005580: action / move / bag / party 0x0808BD45 /
+# 0x0808C9B9 / 0x0808EC05 / 0x0808EB4D; HandleInputChooseTarget 0x0808C18D by code.
+# gPartyMenu 0x0203E9FC (Emerald's list; a switch to slot 2 worked).
+# - Icons: vanilla-shaped tables of its own (gMonIconTable 0x091CFB80, palette
+# indices 0x091D1DDC, palettes 0x091D2674; item icons 0x092BD4B8); the egg is 1529.
+# Tables: scripts/gen_quetzal_tables.py.
+[config.quetzal]
+base = 'emerald'
+# gItems: 0x1C-byte entries, description pointer at +0xC (names are a table of their own).
+itemDescs = { base = 0x091E0594, stride = 0x1C, descOff = 0x0C }
+playerParty = 0x020235CC
+playerPartyCount = 0x020235C9
+monStride = 0x68
+partyMonLayout = 'QUETZAL_PARTY_MON'
+gMain = 0x03002660
+saveBlock1Ptr = 0x030055BC
+saveBlock2Ptr = 0x030055C0
+encryptionKeyOff = 0x2C
+moneyOff = 0x918
+saveBlock1PosOff = 0x470
+objectEvents = 0x02038D10
+mapHeader = 0x02038CB0
+bagPockets = 0
+bagPocketCount = 0
+bag3 = { kotlin = 'Bag3Layout(off = 0x940L, splitAt = 0xC08, tailOff = 0x1DD0L, keyItemsBit = 0x6480, pockets = itemPocketsQuetzal)' }
+battleTypeFlags = 0x02022FBC
+battlersCount = 0x02023044
+battlerPartyIndexes = 0x02023046
+battlerPositions = 0x0202304E
+battleMons = 0x0202305C
+battleMonLayout = 'EXPANSION_BATTLE_MON'
+battleStructPtr = 0x0202352C
+# gActionSelectionCursor / gMoveSelectionCursor, +0x10 / +0x14 past the gBattleStruct pointer (English and Spanish). Checked
+# headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = 0x0202353C
+moveCursor = 0x02023540
+monToSwitchIntoOff = 0x3C
+enemyParty = 0x02023AAC
+battlerControllerFuncs = 0x03005580
+handleInputChooseAction = 0x0808BD45
+handleInputChooseMove = 0x0808C9B9
+completeWhenChoseItem = 0x0808EC05
+waitForMonSelection = 0x0808EB4D
+handleInputChooseTarget = 0x0808C18D
+partyMenu = 0x0203E9FC
+eggSpecies = 1529
+monIconTable = 0x091CFB80
+monIconPaletteIndices = 0x091D1DDC
+monIconPaletteTable = 0x091D2674
+itemIconTable = 0x092BD4B8
+pokedex = 'POKEDEX_QUETZAL'
+guideTables = 'GUIDE_TABLES_QUETZAL'
+# Johto's maps (groups 34-35) name their sections from Johto's own table (ROM 0x0922A7E8).
+altMapSecGroups = [34, 35]
+# Its money goes past Gen 3's 999,999 (a save at 1,048,458, which START shows as such).
+maxMoney = 9_999_999
+quetzalPlacesDefault = 0
+
+# Pokémon Quetzal Spanish Alpha 9 v0 (sha1 fe346b5b…): the same engine rebuilt with Spanish
+# dialogue, item descriptions and dex text (its header's GF language word is 7, English's 2).
+# Its RAM is English's - every RAM literal pool maps to the same word (scripts/port_retail.py's
+# literal matching, run English -> Spanish), and the user's save (`quetzal_es`: six Lv42s on
+# Jagged Pass, ₽1,048,458, 3403 Master Balls - its own bag screen shows the same) decodes with
+# it. The ROM side moved: tables by those literal pools, the battle handlers by their code
+# (all 0x24 earlier), gBattleMoves / gSpeciesNames by the GF header at 0x08000100. Its names
+# tables are English's too - the game picks Spanish ones per its IDIOMA options, like English
+# (QuetzalNames); only LUGARES defaults to Spanish here.
+[config.quetzal_es]
+base = 'quetzal'
+itemDescs = { base = 0x091E359C, stride = 0x1C, descOff = 0x0C }
+handleInputChooseAction = 0x0808BD21
+handleInputChooseMove = 0x0808C995
+completeWhenChoseItem = 0x0808EBE1
+waitForMonSelection = 0x0808EB29
+handleInputChooseTarget = 0x0808C169
+monIconTable = 0x091D315C
+monIconPaletteIndices = 0x091D53B8
+monIconPaletteTable = 0x091D5C50
+itemIconTable = 0x092C1A2C
+pokedex = 'POKEDEX_QUETZAL_ES'
+guideTables = 'GUIDE_TABLES_QUETZAL_ES'
+language = 'S'
+quetzalPlacesDefault = 1
+
+# Pokémon Quetzal English / Spanish Alpha 9 v1 (sha1 c108cec7… / ff008b70…): Alpha 9 v0 rebuilt. Its RAM is v0's - every
+# RAM literal pool of v0's code maps to the same word in v1's, and the v0 saves load in it unchanged (`quetzal_v1`,
+# `quetzal_es_v1`; the party struct sets three more bits of byte 0x1B, which nothing here reads). Every ROM table moved, each
+# checked equal to v0's entry for entry (scripts/gen_quetzal_tables.py --v1: names, species data, pockets, chart, moves'
+# power / type, map sections). Its bag is a new record, "BAG4" ([Bag4Layout]), which v1 writes over a v0 save's BAG3 as it
+# loads (the same items, quantities and key items); the battle handlers were read in gBattlerControllerFuncs in each menu of a scripted wild
+# battle (`quetzal_v1_battle`, `quetzal_es_v1_battle`: Spanish's 0x24 earlier, as in v0), the target handler (doubles
+# only) is v0's function, one local more, where v0's literal pool points in v1. One-press picks: v0's cursors, unmoved.
+[config.quetzal_v1]
+base = 'quetzal'
+itemDescs = { base = 0x091E9C6C, stride = 0x1C, descOff = 0x0C }
+handleInputChooseAction = 0x0808DC89
+handleInputChooseMove = 0x0808E911
+completeWhenChoseItem = 0x08090B21
+waitForMonSelection = 0x08090A31
+handleInputChooseTarget = 0x0808E071
+monIconTable = 0x091D9258
+monIconPaletteIndices = 0x091DB4B4
+monIconPaletteTable = 0x091DBD4C
+itemIconTable = 0x092C7AC0
+bag4 = { kotlin = 'Bag4Layout(off = 0x940L, midOff = 0x29D8L, tailOff = 0x3535L, lists = 0x09201A00L, counts = 0x09201A2CL, pockets = itemPocketsQuetzal)' }
+pokedex = 'POKEDEX_QUETZAL_V1'
+guideTables = 'GUIDE_TABLES_QUETZAL_V1'
+quetzalV1 = true
+
+[config.quetzal_es_v1]
+base = 'quetzal_es'
+itemDescs = { base = 0x091ECCB0, stride = 0x1C, descOff = 0x0C }
+handleInputChooseAction = 0x0808DC65
+handleInputChooseMove = 0x0808E8ED
+completeWhenChoseItem = 0x08090AFD
+waitForMonSelection = 0x08090A0D
+handleInputChooseTarget = 0x0808E04D
+monIconTable = 0x091DC870
+monIconPaletteIndices = 0x091DEACC
+monIconPaletteTable = 0x091DF364
+itemIconTable = 0x092CC07C
+bag4 = { kotlin = 'Bag4Layout(off = 0x940L, midOff = 0x29D8L, tailOff = 0x3535L, lists = 0x09204A44L, counts = 0x09204A70L, pockets = itemPocketsQuetzal)' }
+pokedex = 'POKEDEX_QUETZAL_ES_V1'
+guideTables = 'GUIDE_TABLES_QUETZAL_ES_V1'
+quetzalV1 = true
+
+# Pokémon Quetzal English Alpha 0.8.4 (sha1 6806c714…) - the release before Alpha 9: the same engine with Hoenn alone
+# (34 map groups to Alpha 9's 40), so Emerald's region map and vanilla's gRegionMapEntries (one language a build), and
+# vanilla's bag: gBagPockets' 11 pockets of {itemId, quantity ^ key} in SaveBlock1 (no BAG3 stream). Its species and
+# items are Alpha 9's first 1520 / 879 (1520 is its egg), its names tables (every language) Alpha 9's, 16 moves have
+# other powers (scripts/gen_quetzal_tables.py --v084). No 0.8.4 save: Spanish Alpha 9's loads in it (the English
+# saves stand in Kanto / Johto and fade to black) - with its party, money, map and dex as they were, its bag read as
+# 0.8.4's slots (the game's own bag screen shows the same: Great Ball x9999 x3 ...). From headless captures of it
+# (`quetzal_084`, a walk, `quetzal_084_battle`), every address also English Alpha 9's literal pools mapped into its
+# code (scripts/port_retail.py's matching) and stable across the three:
+# - gPlayerParty / Count Alpha 9's (0x020235CC / 0x020235C9); gMain 0x030023C0 (its vblank counter moving);
+# gSaveBlock1Ptr / 2Ptr 0x0300531C / 0x03005320 (moving on every load; SaveBlock1 Alpha 9's, money +0x918, pos
+# +0x470); gMapHeader 0x02038CAC, gObjectEvents 0x02038CE4 (the player's at pos + 7).
+# - gBagPockets 0x0203B904 (11 x {slots*, capacity}: 130 / 60 / 40 / 70 / 70 / 120 / 120 / 160 / 40 / 30 / 80).
+# - Battle: Alpha 9's EWRAM (gBattleTypeFlags .. gEnemyParty, the cursors); gBattlerControllerFuncs 0x030052E0,
+# action / move / bag / party 0x08087FED / 0x08088C61 / 0x0808AE95 / 0x0808ADDD (each seen there), the target
+# handler by its code. Cursors checked headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party
+# menu, 1 + A the bag, a written move 1 + A spent its PP; gPartyMenu 0x0203EA08 (a list: DOWN walks slotId 0 -> 1,
+# A, SHIFT sent slot 1 in).
+# - ROM: its GF header's tables (species / move names, gSpeciesInfo, gItems, gBattleMoves, pics, icons), the rest
+# through the literal pools, each checked against Alpha 9's bytes.
+[config.quetzal_v084]
+base = 'quetzal'
+itemDescs = { base = 0x08F95224, stride = 0x1C, descOff = 0x0C }
+gMain = 0x030023C0
+saveBlock1Ptr = 0x0300531C
+saveBlock2Ptr = 0x03005320
+objectEvents = 0x02038CE4
+mapHeader = 0x02038CAC
+bagPockets = 0x0203B904
+bagPocketCount = 11
+bagPocketOrder = 'QUETZAL_V084_BAG_POCKET_ORDER'
+bag3 = 'none'
+battlerControllerFuncs = 0x030052E0
+handleInputChooseAction = 0x08087FED
+handleInputChooseMove = 0x08088C61
+completeWhenChoseItem = 0x0808AE95
+waitForMonSelection = 0x0808ADDD
+handleInputChooseTarget = 0x08088435
+partyMenu = 0x0203EA08
+eggSpecies = 1520
+monIconTable = 0x08F84C54
+monIconPaletteIndices = 0x08F86E8C
+monIconPaletteTable = 0x08F8771C
+itemIconTable = 0x09060C70
+pokedex = 'POKEDEX_QUETZAL_V084'
+guideTables = 'GUIDE_TABLES_QUETZAL_V084'
+altMapSecGroups = 'none'
+quetzalV084 = true
+
+# Pokémon Quetzal Spanish Alpha 0.8.4 (sha1 b6542c7d…): English 0.8.4's RAM (the same literal pools, the same three
+# captures' checks: `quetzal_es_084`, `quetzal_es_084_battle`), its handlers 0x24 earlier (as Alpha 9 Spanish's are),
+# its ROM tables at its own addresses; its map names are Spanish.
+[config.quetzal_v084_es]
+base = 'quetzal_v084'
+itemDescs = { base = 0x08F94944, stride = 0x1C, descOff = 0x0C }
+handleInputChooseAction = 0x08087FC9
+handleInputChooseMove = 0x08088C3D
+completeWhenChoseItem = 0x0808AE71
+waitForMonSelection = 0x0808ADB9
+handleInputChooseTarget = 0x08088411
+monIconTable = 0x08F84988
+monIconPaletteIndices = 0x08F86BC0
+monIconPaletteTable = 0x08F87450
+itemIconTable = 0x09061844
+pokedex = 'POKEDEX_QUETZAL_V084_ES'
+guideTables = 'GUIDE_TABLES_QUETZAL_V084_ES'
+language = 'S'
+quetzalPlacesDefault = 1
+
+# Moemon Quetzal English / Spanish Alpha 0.8.4 Hotfix (sha1 f1035f61… / ae5d88bb…): the 0.8.4 builds with other
+# Pokémon pictures - the same code (its battle handlers at the same addresses, each seen in its own captures:
+# `quetzal_moemon_084`, `quetzal_moemon_es_084` and their `_battle`s), RAM and names tables; only where the ROM keeps
+# its tables moved. Its pictures are read from the player's ROM like every game's, never bundled.
+[config.quetzal_moemon_v084]
+base = 'quetzal_v084'
+itemDescs = { base = 0x08F95208, stride = 0x1C, descOff = 0x0C }
+monIconTable = 0x08F84C38
+monIconPaletteIndices = 0x08F86E70
+monIconPaletteTable = 0x08F87700
+itemIconTable = 0x09060C54
+pokedex = 'POKEDEX_QUETZAL_MOEMON_V084'
+guideTables = 'GUIDE_TABLES_QUETZAL_MOEMON_V084'
+
+[config.quetzal_moemon_v084_es]
+base = 'quetzal_v084_es'
+itemDescs = { base = 0x08F94928, stride = 0x1C, descOff = 0x0C }
+monIconTable = 0x08F8496C
+monIconPaletteIndices = 0x08F86BA4
+monIconPaletteTable = 0x08F87434
+itemIconTable = 0x09061828
+pokedex = 'POKEDEX_QUETZAL_MOEMON_V084_ES'
+guideTables = 'GUIDE_TABLES_QUETZAL_MOEMON_V084_ES'

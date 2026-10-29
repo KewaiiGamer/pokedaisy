@@ -110,14 +110,14 @@ fun CompanionFocusHost(focused: Boolean, keys: CompanionKeys, content: @Composab
 }
 
 /** The stripe's height in the game's own pixels. */
-private const val STRIPE_ROWS = 12
+private const val STRIPE_ROWS = 16
 
 /** The arrow's rows, widest first (a pixel triangle pointing down). */
-private val ARROW_ROWS = intArrayOf(9, 7, 5, 3, 1)
+private val ARROW_ROWS = intArrayOf(13, 11, 9, 7, 5, 3, 1)
 
 /** Where the arrow's top row sits in the stripe at rest, and how far it bobs down (game pixels). */
 private const val ARROW_TOP = 2
-private const val ARROW_BOB = 2
+private const val ARROW_BOB = 3
 
 private val STRIPE_EDGE = Color(0xFF6C7080)
 private val STRIPE_SHINE = Color(0xFFFAFAFE)
@@ -165,7 +165,7 @@ fun CompanionFocusStripe(shown: Boolean, frame: Rect?, gameRows: Int, onClose: (
 private const val STRIPE_MS = 180
 
 /** One bob: down a pixel at a time to [ARROW_BOB], a pause, back up, then a rest. */
-private const val BOB_MS = 900
+private const val BOB_MS = 960
 
 @Composable
 private fun Stripe(px: Float, onClose: () -> Unit) {
@@ -175,11 +175,13 @@ private fun Stripe(px: Float, onClose: () -> Unit) {
             keyframes {
                 durationMillis = BOB_MS
                 0f at 0
-                1f at 120
-                ARROW_BOB.toFloat() at 240
-                ARROW_BOB.toFloat() at 420
-                1f at 540
-                0f at 660
+                1f at 90
+                2f at 180
+                ARROW_BOB.toFloat() at 270
+                ARROW_BOB.toFloat() at 450
+                2f at 540
+                1f at 630
+                0f at 720
             },
             initialStartOffset = StartOffset(0),
         ),

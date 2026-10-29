@@ -1,0 +1,301 @@
+# PokedexTables's fields (Pokedex.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | ref (a Kotlin val's name);
+# record names the schema of a value a config may spell out as a sub-table.
+
+version = 1
+kotlin_class = 'PokedexTables'
+kotlin_file = 'Pokedex.kt'
+
+# gPokedexEntries: [entryStride]-byte records, indexed by national dex number.
+[field.entries]
+kotlin = 'Long'
+type = 'long'
+
+# gMonFrontPicTable: {LZ77 tiles ptr, u16 size, u16 tag}, by species.
+[field.frontPics]
+kotlin = 'Long'
+type = 'long'
+
+# gMonPaletteTable: {LZ77 palette ptr, u16 tag, u16 pad}, by species.
+[field.palettes]
+kotlin = 'Long'
+type = 'long'
+
+# gSpeciesInfo (gBaseStats): 28-byte records, by species ([expansion]: its entry 0).
+[field.speciesInfo]
+kotlin = 'Long'
+type = 'long'
+
+# sSpeciesToNationalPokedexNum: u16 per species, starting at species 1.
+[field.speciesToNational]
+kotlin = 'Long'
+type = 'long'
+
+# gAbilityNames: [abilityNameLength]-byte strings, by ability id.
+[field.abilityNames]
+kotlin = 'Long'
+type = 'long'
+
+# gMonFootprintTable: ptr to a 16x16 1bpp footprint, by species; 0 = none.
+[field.footprints]
+kotlin = 'Long'
+type = 'long'
+
+[field.abilityNameLength]
+kotlin = 'Int'
+type = 'int'
+default = 13
+
+# Bytes from one ability name to the next; 0 = [abilityNameLength]
+# (expansion's gAbilitiesInfo has a description and AI rating after it).
+[field.abilityNameStride]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+# Each [abilityNameStride]-byte record starts with a POINTER to the name, not the name (Elite Redux).
+[field.abilityNamePtr]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# gSpeciesInfo offset of a third (hidden) ability byte; -1 = none (vanilla).
+[field.hiddenAbilityOff]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+# After the category on the dex page, in the game's own casing ("" = none: German, French).
+[field.categorySuffix]
+kotlin = 'String'
+type = 'string'
+default = 'POKéMON'
+
+# Before it instead (Spanish / Italian Emerald: "POKéMON POLLUELO").
+[field.categoryPrefix]
+kotlin = 'String'
+type = 'string'
+default = ''
+
+# HT / WT in metres and kilograms with a decimal comma, as the European releases print them.
+[field.metric]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# FireRed's entries carry an extra unused description pointer (0x24); Emerald's don't (0x20).
+[field.entryStride]
+kotlin = 'Int'
+type = 'int'
+default = 0x24
+
+# Ruby/Sapphire split the dex text over two pages: the second page's
+# pointer's offset in the entry (0x14); -1 = one page (FireRed's 0x14 is unused).
+[field.descriptionPage2Off]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+[field.speciesCount]
+kotlin = 'Int'
+type = 'int'
+default = 412
+
+[field.nationalCount]
+kotlin = 'Int'
+type = 'int'
+default = 386
+
+# The regional dex before the National Dex is unlocked (Kanto: 1-151).
+[field.regionalCount]
+kotlin = 'Int'
+type = 'int'
+default = 151
+
+# null = the game has one dex only (no regional / national switch).
+[field.regionName]
+kotlin = 'String?'
+type = 'string'
+default = 'KANTO'
+
+# National numbers in regional-dex order (Emerald's sHoennToNationalOrder);
+# 0 = the regional dex is national 1..[regionalCount] (Kanto).
+[field.regionalOrder]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# Bytes per [regionalOrder] entry: u16, or u32 (Heart and Soul's Johto).
+[field.regionalOrderStride]
+kotlin = 'Int'
+type = 'int'
+default = 2
+
+# [regionalOrder] lists species ids, not national numbers (Unbound).
+[field.regionalOrderIsSpecies]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# u16 species per dex number, from No. 0 - read instead of inverting
+# [speciesToNational] (Celia's hack, whose table is only this way round).
+[field.nationalToSpecies]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# [entries] is indexed by species, not by dex number (Celia's hack).
+[field.entriesBySpecies]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# The dex page lives in gSpeciesInfo (pokeemerald-expansion); null = vanilla tables.
+[field.expansion]
+kotlin = 'SpeciesInfoDex?'
+type = 'ref'
+default = 'none'
+
+# A Game Boy game's dex ([Gen1Dex]: read from the cart's bytes); null = a GBA one.
+[field.gen1]
+kotlin = 'Gen1DexTables?'
+type = 'ref'
+default = 'none'
+
+# A Game Boy Color game's dex ([Gen2Dex]: read from the cart's bytes); null = not one.
+[field.gen2]
+kotlin = 'Gen2DexTables?'
+type = 'ref'
+default = 'none'
+
+# A DS game's dex ([Gen4Dex]: the cart's own pages and pictures, taken out by NdsArt); null = not one.
+[field.gen4]
+kotlin = 'Gen4DexTables?'
+type = 'ref'
+default = 'none'
+
+[field.flags]
+kotlin = 'DexFlags'
+type = 'ref'
+record = 'gen3_dexflags'
+default = 'FIRERED_DEX_FLAGS'
+
+# The flags' SaveBlock2 struct Pokedex, whose nationalMagic says the National Dex is unlocked.
+[field.sb2DexOff]
+kotlin = 'Long'
+type = 'long'
+default = 0x18
+
+# pokedex.nationalMagic's offset and the value meaning "unlocked";
+# -1 = the National Dex is always there (Unbound).
+[field.nationalMagicOff]
+kotlin = 'Int'
+type = 'int'
+default = 3
+
+[field.nationalMagic]
+kotlin = 'Int'
+type = 'int'
+default = 0xB9
+
+# gEvolutionTable: 5 {u16 method, u16 param, u16 target, pad} per species
+# (see [EvolutionSource]); 0 = not located for this game yet. Found by
+# searching the retail ROMs for BULBASAUR's row (LEVEL 16 -> IVYSAUR).
+[field.evolutions]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# Entry 1's category, as [pokedexMatchesRom] expects to read it: the game's own language.
+[field.probeCategory]
+kotlin = 'String'
+type = 'string'
+default = 'SEED'
+
+# Entry 1's height / weight, and the species whose national number is 1 (BULBASAUR's 7 / 69 / 1;
+# Super Mariomon's No.1 is PIRANHA P., species 906).
+[field.probeHeight]
+kotlin = 'Int'
+type = 'int'
+default = 7
+
+[field.probeWeight]
+kotlin = 'Int'
+type = 'int'
+default = 69
+
+[field.probeSpecies]
+kotlin = 'Int'
+type = 'int'
+default = 1
+
+# Japanese Emerald's 0x1C-byte entries: categoryName[6], height at +6, weight +8, the text at +0x0C.
+[field.entryCategoryLen]
+kotlin = 'Int'
+type = 'int'
+default = 12
+
+# The entry starts with a pointer to its category's text, not the text (Quetzal's 12-byte entries).
+[field.entryCategoryPtr]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# gBaseStats' shape, where it isn't vanilla's 28-byte one.
+[field.baseStats]
+kotlin = 'BaseStatsLayout'
+type = 'ref'
+default = 'VANILLA_BASE_STATS'
+
+[field.entryHeightOff]
+kotlin = 'Int'
+type = 'int'
+default = 0x0C
+
+[field.entryDescOff]
+kotlin = 'Int'
+type = 'int'
+default = 0x10
+
+# Between the category and [categorySuffix]: none in Japanese ("ひよこポケモン").
+[field.categorySeparator]
+kotlin = 'String'
+type = 'string'
+default = ' '
+
+# [metric]'s decimal mark and unit spacing: "0,4 m" in Europe, "0.4m" in Japan.
+[field.decimalPoint]
+kotlin = 'Char'
+type = 'char'
+default = ','
+
+[field.unitSpace]
+kotlin = 'Boolean'
+type = 'bool'
+default = true
+
+# Where the DEX page's EVOLVE reads from when it isn't [evolutions]' vanilla table ([DexDetails]).
+[field.evoLayout]
+kotlin = 'EvoLayout?'
+type = 'ref'
+default = 'none'
+
+# A per-species pointer table of {u16 move, u16 level} level-up lists ending at move 0xFFFF, for
+# games whose [GuideTables] has none (Quetzal, R.O.W.E.); 0 = none.
+[field.levelUpLearnsets]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# sTMHMLearnsets (a u64 per species: TM01-TM50, then HM01-HM08) and sTMHMMoves (u16 x 58), for the
+# DEX's MOVES page; 0 = not located. Found by BULBASAUR's bits and FOCUS PUNCH, DRAGON CLAW, ...
+# (TM01-04); both are checked before use, so a port that copied English's addresses gets none.
+[field.tmhmLearnsets]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.tmhmMoves]
+kotlin = 'Long'
+type = 'long'
+default = 0

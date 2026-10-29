@@ -13,8 +13,9 @@ import java.io.File
 class ShinyTest {
     private val lead = 0x02039024 - 0x02000000   // NATIVE_SOULGOLD_V1_2's playerParty, in the fixture's EWRAM
 
-    private fun cyndaquil(value: Int?): Mon {
+    private fun cyndaquil(value: Int?, modifier: Boolean = false): Mon {
         val ram = File("src/test/resources/fixtures/soulgold_v12/ewram.bin").readBytes()
+        if (modifier) ram[lead + 0x1F] = (ram[lead + 0x1F].toInt() or 0x40).toByte()
         if (value != null) {
             val otId = u32(ram, lead + 4)
             val pid = otId xor value.toLong()
@@ -36,6 +37,15 @@ class ShinyTest {
         assertTrue(cyndaquil(0).shiny)
         assertTrue(cyndaquil(255).shiny)
         assertFalse(cyndaquil(256).shiny)
+    }
+
+    /** The game's forced shinies (GitHub #267: a shiny Zorua drawn plain): hpLost's neighbour bit, +0x1F's 0x40, flips the
+     * answer - found headless on v1.2's party menu (the bit alone drew the shiny icon, the bit on a shiny personality the
+     * plain one). */
+    @Test fun theShinyModifierFlipsIt() {
+        assertTrue(cyndaquil(null, modifier = true).shiny)
+        assertFalse(cyndaquil(0, modifier = true).shiny)
+        assertTrue(cyndaquil(256, modifier = true).shiny)
     }
 
     @Test fun vanillaLayoutsNeverReadIt() {

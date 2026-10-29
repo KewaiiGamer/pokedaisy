@@ -262,6 +262,21 @@ class FieldHudScreenshotTest {
         )
     }
 
+    /** Black (the DS): its Town Map in the minimap, the player's figure on Route 1's point (the art from the cart, when
+     * it's on this machine: NdsArt). */
+    @Test fun cornersBlack() {
+        activeGame = GameKind.BLACK
+        val rom = java.io.File(java.io.File(com.pokedaisy.app.companion.data.RETAIL_ROM_DIR).parentFile, "nds/Pokemon - Black Version (USA, Europe) (NDSi Enhanced).nds")
+        if (rom.isFile) com.pokedaisy.app.companion.data.NdsArt.extractTo(rom, java.io.File("build/rom-art-paparazzi"))
+        shot(
+            FieldHudStyle(),
+            snap = snapshot.copy(
+                game = GameKind.BLACK, regionMapSectionId = com.pokedaisy.app.companion.data.mapPlaceIdsBlack.getValue(317),
+                location = LocationView("Route 1", "unova", 0, 0, 0, 0), regionMapTile = 232 / 8 to 148 / 8,
+            ),
+        )
+    }
+
     /** The companion's SETTINGS rows around HUD: its NEW tag (NewFeatures, before init = new). */
     @Test
     fun settingsNewTag() = paparazzi.snapshot {

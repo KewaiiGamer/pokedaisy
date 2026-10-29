@@ -1,0 +1,130 @@
+# FlyFns's fields (Fly.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | int_set | long_set | int_map |
+# ref (a Kotlin val's name, or a record in gamedata/gen3/records/); record names the schema of the record a ref
+# names (its defaults stand in where there is none).
+
+version = 1
+kotlin_class = 'FlyFns'
+kotlin_file = 'Fly.kt'
+
+[field.flagGet]
+kotlin = 'Long'
+type = 'long'
+
+# FLAG_BADGE03_GET (FireRed / LeafGreen: the Thunder Badge).
+[field.badgeFlag]
+kotlin = 'Int'
+type = 'int'
+
+# SetUpFieldMove_Fly: TRUE where the map type allows flying (outdoors). With [mapHeader], the check it makes:
+# Overworld_MapTypeAllowsTeleportAndFly(gMapHeader.mapType) (Ruby / Sapphire's sets the party menu's callbacks too).
+[field.setUpFieldMoveFly]
+kotlin = 'Long'
+type = 'long'
+
+# GetMapsecType(mapsec): [visited] for a town the player has been to.
+[field.getMapsecType]
+kotlin = 'Long'
+type = 'long'
+
+# FadeScreen(mode, delay): FADE_TO_BLACK is 1.
+[field.fadeScreen]
+kotlin = 'Long'
+type = 'long'
+
+[field.lockControls]
+kotlin = 'Long'
+type = 'long'
+
+# UnlockPlayerFieldControls: only to hand the field back if the second step can't go on.
+[field.unlockControls]
+kotlin = 'Long'
+type = 'long'
+
+# SetFlyWarpDestination(mapsec): the Fly map's choice.
+[field.setFlyWarpDestination]
+kotlin = 'Long'
+type = 'long'
+
+# gPartyMenu.slotId: the Pokémon the Fly cut-in shows (GetCursorSelectionMonId).
+[field.partyMenuSlotId]
+kotlin = 'Long'
+type = 'long'
+
+# sMapFlyDestinations: one {map group, map num, heal location} per map section from [firstMapsec].
+[field.destinations]
+kotlin = 'Long'
+type = 'long'
+
+[field.firstMapsec]
+kotlin = 'Int'
+type = 'int'
+
+[field.count]
+kotlin = 'Int'
+type = 'int'
+
+# CRC32 of each function's first 32 bytes: flagGet, setUpFieldMoveFly, getMapsecType, fadeScreen,
+# lockControls, unlockControls, setFlyWarpDestination.
+[field.codeCrcs]
+kotlin = 'List<Long>'
+type = 'long_list'
+
+# The GetMapsecType answers the Fly map takes (FireRed: VISITED; Emerald: CITY_CANFLY, BATTLE_FRONTIER).
+[field.flyTypes]
+kotlin = 'Set<Int>'
+type = 'int_set'
+default = [2]
+
+# Map sections past [destinations]' table that can still be flown to (Emerald's Battle Frontier).
+[field.extraMapsecs]
+kotlin = 'List<Int>'
+type = 'int_list'
+default = []
+
+# Emerald's way of ending the Fly map, in place of [setFlyWarpDestination].
+[field.healWarp]
+kotlin = 'HealWarp?'
+type = 'ref'
+record = 'gen3_heal_warp'
+default = 'none'
+
+[field.flyMove]
+kotlin = 'Int'
+type = 'int'
+default = 19
+
+# Another CRC32 [getMapsecType] may have: the FireRed hacks' 16-bit map section patch ([GET_MAPSEC_TYPE_U16]).
+[field.getMapsecTypeAltCrc]
+kotlin = 'Long?'
+type = 'long'
+default = 'none'
+
+# GetMonData's MON_DATA_MOVE1 / MON_DATA_IS_EGG (the expansion renumbered them: 20 / 54).
+[field.monMoveField]
+kotlin = 'Int'
+type = 'int'
+default = 13
+
+[field.monEggField]
+kotlin = 'Int'
+type = 'int'
+default = 45
+
+# gMapHeader, when [setUpFieldMoveFly] takes its mapType (+0x17); 0 = it takes nothing.
+[field.mapHeader]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# The game's own list of fly spots, when it has one in place of [destinations]' per-section table (Unbound).
+[field.spots]
+kotlin = 'FlySpots?'
+type = 'ref'
+default = 'none'
+
+# The Fly map's state the warp reads, pinned for the call (Unbound).
+[field.regionMap]
+kotlin = 'RegionMapPin?'
+type = 'ref'
+default = 'none'

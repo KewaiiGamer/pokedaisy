@@ -11,6 +11,7 @@ class PokeDaisyApp : Application() {
         val prefs = Prefs(this)
         prefs.appOpenCount = (prefs.appOpenCount + 1).coerceAtMost(1000)
         CrashReports.apply(prefs.crashReportsEnabled)
+        com.pokedaisy.app.companion.data.onGameIdentified = { kind, how -> CrashReports.gameIdentified(kind, how) }
         ScreenScraperClient.enabled = FeatureFlags.screenScraper(this)
         // LIGHT COMPANION: the player's pick, and AUTO's verdict (a device that looks weak, or whose buttons came late before).
         com.pokedaisy.app.companion.LightCompanion.mode = com.pokedaisy.app.companion.LightCompanionMode.of(prefs.lightCompanion)

@@ -134,7 +134,7 @@ enum class GuideId {
     // Recharged Yellow v1.9.7, and its earlier releases with their own area data (same guide text).
     RECHARGED_YELLOW, RECHARGED_YELLOW_V180, RECHARGED_YELLOW_V190, RECHARGED_YELLOW_V194,
     MARIOMON,
-    ULTRA_VIOLET, SWORD_SHIELD, ROCKET_EDITION, ASH_GRAY, GHOST_GREY, ELITE_REDUX, TEAM_ROCKET,
+    ULTRA_VIOLET, SWORD_SHIELD, ROCKET_EDITION, ASH_GRAY, GHOST_GREY, ELITE_REDUX, TEAM_ROCKET, WISHES, DREAMSTONE,
     // Quetzal Alpha 0.8.4: Hoenn alone (Alpha 9 added Johto and Kanto).
     QUETZAL_V084,
     GS_CHRONICLES,
@@ -143,6 +143,10 @@ enum class GuideId {
     POLISHED_CRYSTAL,
     // The DS games: HeartGold and SoulSilver share their text, not their wild Pokémon.
     PLATINUM, HEARTGOLD, SOULSILVER,
+    // The Game Boy games: Yellow (all five languages), Red, Blue, retail Crystal.
+    YELLOW, RED, BLUE, CRYSTAL,
+    // Gen 5 (Gen5World, from the cart).
+    BLACK,
 }
 
 /** [live]'s guide; else by [game] (a config whose tables didn't check out has no live tables). */
@@ -151,10 +155,15 @@ fun guideId(game: GameKind?, live: GuideTables?): GuideId? = live?.guide ?: when
     GameKind.EMERALD -> GuideId.EMERALD
     // A Game Boy game: no GBA tables; its guide carries its own (GameGuide.world).
     GameKind.POLISHED_CRYSTAL -> GuideId.POLISHED_CRYSTAL
+    GameKind.YELLOW -> GuideId.YELLOW
+    GameKind.RED -> GuideId.RED
+    GameKind.BLUE -> GuideId.BLUE
+    GameKind.CRYSTAL -> GuideId.CRYSTAL
     // A DS game: its guide carries its own tables too (Gen4World).
     GameKind.PLATINUM -> GuideId.PLATINUM
     GameKind.HEARTGOLD -> GuideId.HEARTGOLD
     GameKind.SOULSILVER -> GuideId.SOULSILVER
+    GameKind.BLACK -> GuideId.BLACK
     else -> null
 }
 
@@ -187,6 +196,8 @@ fun gameGuide(id: GuideId?): GameGuide? = when (id) {
     GuideId.GHOST_GREY -> GUIDE_GHOST_GREY
     GuideId.ELITE_REDUX -> GUIDE_ELITE_REDUX
     GuideId.TEAM_ROCKET -> GUIDE_TEAM_ROCKET
+    GuideId.WISHES -> GUIDE_WISHES
+    GuideId.DREAMSTONE -> GUIDE_DREAMSTONE
     GuideId.SWORD_SHIELD -> GUIDE_SWORD_SHIELD
     GuideId.GS_CHRONICLES -> GUIDE_GS_CHRONICLES
     GuideId.RECHARGED_YELLOW, GuideId.RECHARGED_YELLOW_V180, GuideId.RECHARGED_YELLOW_V190,
@@ -198,6 +209,11 @@ fun gameGuide(id: GuideId?): GameGuide? = when (id) {
     GuideId.PLATINUM -> GUIDE_PLATINUM
     GuideId.HEARTGOLD -> GUIDE_HEARTGOLD
     GuideId.SOULSILVER -> GUIDE_SOULSILVER
+    GuideId.BLACK -> GUIDE_BLACK
+    GuideId.YELLOW -> GUIDE_YELLOW
+    GuideId.RED -> GUIDE_RED
+    GuideId.BLUE -> GUIDE_BLUE
+    GuideId.CRYSTAL -> GUIDE_CRYSTAL
     null -> null
 }
 

@@ -1,0 +1,257 @@
+# Gen 3 records (retail FireRed / LeafGreen): the Pokédex, guide, trainer-card and dex-flag tables the
+# configs in gen3/retail/ name, and that the 3DS / Linux companion reads (gamedata/targets/3ds.toml).
+# The format and the commands: gamedata/README.md.
+
+# FireRed's own gBagPockets[] index order (item.c: gBagPockets[POCKET_X-1] =
+# ...). Every FireRed-engine config (rev0/rev1/Unbound/Gaia/Radical Red)
+# shares this - none of them are known to reorder the bag pockets array.
+[list.FIRERED_BAG_POCKET_ORDER]
+of = 'Int'
+items = ['POCKET_ITEMS', 'POCKET_KEY_ITEMS', 'POCKET_POKE_BALLS', 'POCKET_TM_HM', 'POCKET_BERRIES']
+
+# struct Pokedex in SaveBlock2 (+0x18: owned[52] at +0x10, seen[52] at +0x44) + SaveBlock1's two
+# anti-cheat copies of seen.
+[record.FIRERED_DEX_FLAGS]
+schema = 'gen3_dexflags'
+block = 'DexFlagBlock.SAVE_BLOCK_2'
+seen = 0x5C
+caught = 0x28
+bytes = 52
+seenCopies = [0x5F8, 0x3A18]
+
+[record.POKEDEX_FIRERED_REV1]
+schema = 'gen3_pokedex'
+entries = 0x0844E8B0
+frontPics = 0x0823511C
+palettes = 0x0823737C
+speciesInfo = 0x082547F4
+speciesToNational = 0x0825205E
+abilityNames = 0x0824FCB0
+footprints = 0x0843FB20
+evolutions = 0x082597C4
+tmhmLearnsets = 0x08252C38
+tmhmMoves = 0x0845A604
+
+# LeafGreen: FireRed's layout, its own tables (and dex text).
+[record.POKEDEX_LEAFGREEN_REV0]
+schema = 'gen3_pokedex'
+entries = 0x0844E270
+frontPics = 0x08235088
+palettes = 0x082372E8
+speciesInfo = 0x08254760
+speciesToNational = 0x08251FCA
+abilityNames = 0x0824FC1C
+footprints = 0x0843F8EC
+evolutions = 0x08259734
+tmhmLearnsets = 0x08252BA4
+tmhmMoves = 0x08459FC4
+
+[record.POKEDEX_LEAFGREEN_REV1]
+schema = 'gen3_pokedex'
+entries = 0x0844E2E0
+frontPics = 0x082350F8
+palettes = 0x08237358
+speciesInfo = 0x082547D0
+speciesToNational = 0x0825203A
+abilityNames = 0x0824FC8C
+footprints = 0x0843F95C
+evolutions = 0x082597A4
+tmhmLearnsets = 0x08252C14
+tmhmMoves = 0x0845A034
+
+[record.GUIDE_TABLES_FIRERED_REV1]
+schema = 'gen3_guide'
+trainers = 0x0823EB38
+learnsets = 0x0825D824
+wildHeaders = 0x083C9D28
+mapGroups = 0x08352718
+
+# LeafGreen, from pret/pokefirered's `leafgreen` / `leafgreen_rev1` maps (both
+# builds byte-identical to retail): same layouts, its own addresses and data
+# (version-exclusive wild encounters).
+[record.GUIDE_TABLES_LEAFGREEN_REV0]
+schema = 'gen3_guide'
+trainers = 0x0823EAA4
+learnsets = 0x0825D794
+wildHeaders = 0x083C9AF4
+guide = 'GuideId.LEAFGREEN'
+mapGroups = 0x08352688
+
+[record.GUIDE_TABLES_LEAFGREEN_REV1]
+schema = 'gen3_guide'
+trainers = 0x0823EB14
+learnsets = 0x0825D804
+wildHeaders = 0x083C9B64
+guide = 'GuideId.LEAFGREEN'
+mapGroups = 0x083526F8
+
+# FireRed / LeafGreen's card (trainer_card.c's SetPlayerCardData, include/global.h): game stats in
+# SaveBlock1, the National Dex magic at SaveBlock2 + 0x18 + 3, the Sticker Man's var.
+[record.TRAINER_CARD_FIRERED]
+schema = 'gen3_card'
+style = 'CardStyle.KANTO'
+gameStatsOff = 0x1200
+flagsOff = 0xEE0
+varsOff = 0x1000
+badgeFlag = 0x820
+pokedexFlag = 0x829
+nationalMagicOff = 0x1B  # 0x18 + 3
+nationalMagic = 0xB9
+nationalVar = 0x404E
+nationalVarValue = 0x6258
+nationalFlag = 0x840
+dexFlags = 'FIRERED_DEX_FLAGS'
+regionalDex = { kotlin = 'IntArray(151) { it + 1 }' }
+stickerVar = 0x4049
+
+# FLY (Fly.kt's FlyFns): retail FireRed rev 1, pret's pokefirered built clean as firered_rev1 (byte for byte
+# retail) and its ELF.
+[record.FLY_FIRERED_REV1]
+schema = 'gen3_fly'
+flagGet = 0x0806E6E4
+badgeFlag = 0x822
+setUpFieldMoveFly = 0x08124B04
+getMapsecType = 0x080C35F0
+fadeScreen = 0x0807A82C
+lockControls = 0x08069954
+unlockControls = 0x08069960
+setFlyWarpDestination = 0x080C5290
+partyMenuSlotId = 0x0203B0A9
+destinations = 0x083F2F50
+firstMapsec = 0x58
+count = 108
+codeCrcs = [0x07BEBC3A, 0xCD8961DF, 0x348C5B9F, 0xF9959006, 0x0111A86E, 0xBAB654BA, 0x70EA1DFC]
+
+# Retail LeafGreen rev 0 / rev 1: built clean as leafgreen / leafgreen_rev1.
+[record.FLY_LEAFGREEN_REV0]
+schema = 'gen3_fly'
+base = 'FLY_FIRERED_REV1'
+flagGet = 0x0806E6D0
+setUpFieldMoveFly = 0x08124A64
+getMapsecType = 0x080C35B0
+fadeScreen = 0x0807A7EC
+lockControls = 0x08069940
+unlockControls = 0x0806994C
+setFlyWarpDestination = 0x080C5250
+destinations = 0x083F2D1C
+codeCrcs = [0x07BEBC3A, 0x5B68C93A, 0xE4D65E08, 0xF9959006, 0x0111A86E, 0xBAB654BA, 0x059815BF]
+
+[record.FLY_LEAFGREEN_REV1]
+schema = 'gen3_fly'
+base = 'FLY_FIRERED_REV1'
+flagGet = 0x0806E6E4
+setUpFieldMoveFly = 0x08124ADC
+getMapsecType = 0x080C35C4
+fadeScreen = 0x0807A800
+lockControls = 0x08069954
+unlockControls = 0x08069960
+setFlyWarpDestination = 0x080C5264
+destinations = 0x083F2D8C
+codeCrcs = [0x07BEBC3A, 0xDBE480BD, 0x50C0C136, 0xF9959006, 0x0111A86E, 0xBAB654BA, 0x059815BF]
+
+# USE / GIVE / TAKE, the Repels, FLY and PC anywhere (FieldItems.kt's FieldItemFns): retail FireRed rev 1 (BPRE).
+# Every address from the pret pokefirered build at the pinned commit, built as firered_rev1 (byte for byte the
+# retail ROM, SHA1 dd5945db...) and its ELF.
+[record.FIELD_ITEMS_FIRERED_REV1]
+schema = 'gen3_field_items'
+varGet = 0x0806E57C
+varSet = 0x0806E598
+checkBagHasItem = 0x08099F54
+removeBagItem = 0x0809A1EC
+fieldControlsLocked = 0x0806996C
+repelVar = 0x4020
+items = 0x083DB098
+codeCrcs = [0xE6DE47BA, 0x6E7CC2BE, 0xD30D656E, 0xC40BF208, 0x9C26CCA4]
+party = 'PARTY_ITEMS_FIRERED_REV1'
+fly = 'FLY_FIRERED_REV1'
+pc = 'PC_FIRERED_REV1'
+
+[record.PARTY_ITEMS_FIRERED_REV1]
+schema = 'gen3_party_items'
+getMonData = 0x0803FBFC
+setMonData = 0x08040390
+itemNoEffect = 0x08042428
+itemEffect = 0x080413D4
+addBagItem = 0x0809A098
+party = 0x02024284
+partyCount = 0x02024029
+# EWRAM's last symbol (__malloc_current_mallinfo) ends at 0x0203FBB0 and nothing writes
+# past it (the only EWRAM_END user is the title screen's Colosseum multiboot copy):
+# the last 16 bytes read 0 on the field and through a save.
+scratch = 0x0203FFF0
+itemCount = 375
+unholdablePockets = [2, 4] # POCKET_KEY_ITEMS, POCKET_TM_CASE
+codeCrcs = [0xA73A32CD, 0x71F5A020, 0x788AB547, 0xEADAC6C9, 0xC316CD20]
+useFuncs = [0x080A16F4, 0x080A1710, 0x080A172C, 0x080A19AC] # FieldUseFunc_Medicine, _Ether, _PpUp, _Repel
+
+# PC anywhere (Pc.kt's PcFns): its gSpecials and ScriptContext_SetupScript traced from the ROM's script command table.
+[record.PC_FIRERED_REV1]
+schema = 'gen3_pc'
+setupScript = 0x08069AF8
+special = 60
+specials = 0x0815FDD8
+pcFn = 0x0808C6BD
+codeCrcs = [0xAAC00946, 0x9662F022]
+
+# Retail LeafGreen rev 0 (BPGE): pret's pokefirered built clean as leafgreen (byte for byte retail, SHA1 574fa542...).
+[record.FIELD_ITEMS_LEAFGREEN_REV0]
+schema = 'gen3_field_items'
+varGet = 0x0806E568
+varSet = 0x0806E584
+checkBagHasItem = 0x08099F14
+removeBagItem = 0x0809A1AC
+fieldControlsLocked = 0x08069958
+repelVar = 0x4020
+items = 0x083DAE64
+codeCrcs = [0xE6DE47BA, 0x6E7CC2BE, 0xD30D656E, 0xC40BF208, 0x9C26CCA4]
+party = 'PARTY_ITEMS_LEAFGREEN_REV0'
+fly = 'FLY_LEAFGREEN_REV0'
+pc = 'PC_LEAFGREEN_REV0'
+
+[record.PARTY_ITEMS_LEAFGREEN_REV0]
+schema = 'gen3_party_items'
+base = 'PARTY_ITEMS_FIRERED_REV1'
+getMonData = 0x0803FBE8
+setMonData = 0x0804037C
+itemNoEffect = 0x08042414
+itemEffect = 0x080413C0
+addBagItem = 0x0809A058
+codeCrcs = [0x7841F205, 0x9B11B0A6, 0x788AB547, 0xEADAC6C9, 0xC316CD20]
+useFuncs = [0x080A16B4, 0x080A16D0, 0x080A16EC, 0x080A196C]
+
+[record.PC_LEAFGREEN_REV0]
+schema = 'gen3_pc'
+setupScript = 0x08069AE4
+special = 60
+specials = 0x0815FD3C
+pcFn = 0x0808C67D
+codeCrcs = [0xAAC00946, 0x5333E53E]
+
+# Retail LeafGreen rev 1 (BPGE): built clean as leafgreen_rev1 (SHA1 7862c67b...). FireRed rev 1's party code and RAM.
+[record.FIELD_ITEMS_LEAFGREEN_REV1]
+schema = 'gen3_field_items'
+varGet = 0x0806E57C
+varSet = 0x0806E598
+checkBagHasItem = 0x08099F28
+removeBagItem = 0x0809A1C0
+fieldControlsLocked = 0x0806996C
+repelVar = 0x4020
+items = 0x083DAED4
+codeCrcs = [0xE6DE47BA, 0x6E7CC2BE, 0xD30D656E, 0xC40BF208, 0x9C26CCA4]
+party = 'PARTY_ITEMS_LEAFGREEN_REV1'
+fly = 'FLY_LEAFGREEN_REV1'
+pc = 'PC_LEAFGREEN_REV1'
+
+[record.PARTY_ITEMS_LEAFGREEN_REV1]
+schema = 'gen3_party_items'
+base = 'PARTY_ITEMS_FIRERED_REV1'
+addBagItem = 0x0809A06C
+useFuncs = [0x080A16C8, 0x080A16E4, 0x080A1700, 0x080A1980]
+
+[record.PC_LEAFGREEN_REV1]
+schema = 'gen3_pc'
+setupScript = 0x08069AF8
+special = 60
+specials = 0x0815FDB4
+pcFn = 0x0808C691
+codeCrcs = [0xAAC00946, 0x5333E53E]

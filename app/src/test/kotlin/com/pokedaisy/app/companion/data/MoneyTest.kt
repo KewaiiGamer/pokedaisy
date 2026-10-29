@@ -56,6 +56,11 @@ class MoneyTest {
         assertEquals(999_900L, money("elite_redux_v2653", NATIVE_ELITE_REDUX_V2_65_3B))
         // Team Rocket Edition: Dragonsden's save: past 999,999 (its AddMoney caps at 99,999,999).
         assertEquals(3_000_000L, money("team_rocket", NATIVE_TEAM_ROCKET))
+        // Wishes of Tomorrow's new game (its START menu: ₽3000), the randomizer one too.
+        assertEquals(3000L, money("wishes", NATIVE_WISHES))
+        assertEquals(3000L, money("wishes_random", NATIVE_WISHES))
+        // Dreamstone Mysteries' new game (its save screen and START menu): SaveBlock1 +0x490 XOR SaveBlock2 +0xAC.
+        assertEquals(3000L, money("dreamstone", NATIVE_DREAMSTONE))
         // Ghost Grey's 1.0.3 save in each build (its trainer card: ₽163300).
         assertEquals(163300L, money("ghost_grey", NATIVE_GHOST_GREY))
         assertEquals(163300L, money("ghost_grey_v102", NATIVE_GHOST_GREY))

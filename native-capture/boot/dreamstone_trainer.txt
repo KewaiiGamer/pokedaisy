@@ -1,0 +1,24 @@
+# Pokémon Dreamstone Mysteries: boot as dreamstone.txt, then BACKPACKER RONNIE's own trainer script (0x08367DAB, trainer 7:
+# its trainerbattle_single and intro, from a route's NPC) run through ScriptContext_SetupScript (0x081EAD35); A through
+# the intro to the action menu ("What will Torchic do?") against his CUBONE, SENTRET in reserve.
+wait 700
+press START
+wait 100
+press START
+wait 100
+press A
+wait 300
+call 0x081ead35 0x08367dab
+wait 720
+press A
+wait 90
+press A
+wait 90
+press A
+wait 90
+press A
+wait 90
+press A
+wait 90
+press A
+wait 300

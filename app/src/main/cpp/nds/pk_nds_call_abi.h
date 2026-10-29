@@ -27,6 +27,23 @@ typedef struct PkNdsOp {
     unsigned int a[4];
 } PkNdsOp;
 
+/** Gen 5's field-skill helper (stub/pk_nds_skill.c): its code, then its PkNdsSkill, in the spare ITCM (Black has no
+ * scripts of ours to put there). */
+#define PK_NDS_HELPER_ADDR 0x01FFD000u
+#define PK_NDS_SKILL_ADDR 0x01FFD400u
+
+/** The helper's arguments: the game's three field-skill functions, the skill, its use parameters (FLDSKILL's: the party
+ * slot, the skill, a word - FLY's zone) and the check work the game fills (0x14 bytes in Black). */
+typedef struct PkNdsSkill {
+    unsigned int initCheck;   // (fieldMap, check*)
+    unsigned int canUse;      // (skill, check*): 0 = may
+    unsigned int use;         // (skill, param*, check*): the skill's event
+    unsigned int skill;
+    unsigned short paramSlot, paramSkill;
+    unsigned int paramArg;
+    unsigned int check[8];
+} PkNdsSkill;
+
 typedef struct PkNdsJob {
     unsigned int seq;    // the host's number for this job
     unsigned int done;   // the hook sets it to seq once the ops ran

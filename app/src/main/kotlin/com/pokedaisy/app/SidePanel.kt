@@ -388,7 +388,12 @@ class SidePanel(
             alpha = if (docked.value && !win) LOCKED_TAB_ALPHA else 1f
         }
         setRightMargin(game, if (side && isDocked) w else 0)
-        setRightMargin(touchControls, if (side) w else 0)
+        // A DS game's touch screen: the controls span both screens (the D-pad's side on the left, A / B / X / Y's on the
+        // right), above the panel; a touch on no button goes through to the screen (TouchControlsView.passMisses).
+        val overDs = side && dsScreen.value
+        setRightMargin(touchControls, if (side && !overDs) w else 0)
+        touchControls.translationZ = if (overDs) DS_CONTROLS_Z else 0f
+        (touchControls as? TouchControlsView)?.passMisses = overDs
     }
 
     private fun setRightMargin(v: View, margin: Int) {
@@ -424,6 +429,9 @@ class SidePanel(
     }
 
     private companion object {
+        /** The touch controls' lift over a DS game's touch screen in the panel (it's drawn and touched in Z order). */
+        private const val DS_CONTROLS_Z = 8f
+
         const val MIN_FRACTION = 0.3f
         const val MAX_FRACTION = 0.75f
         const val HANDLE_TOP_DP = 12

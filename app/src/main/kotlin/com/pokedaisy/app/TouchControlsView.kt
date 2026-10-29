@@ -44,6 +44,21 @@ class TouchControlsView(context: Context) : FrameLayout(context) {
 
     /** The L / R buttons: off for a Game Boy / Color game, which has none. */
     var shoulders by mutableStateOf(true)
+    /** A DS game: X and Y on screen too. */
+    var dsButtons by mutableStateOf(false)
+
+    /** Laid over a DS game's touch screen (one screen held sideways, SidePanel.setDsScreen): a touch that starts on no
+     * button goes on to whatever is under this view. Android splits fingers between views, so another finger can still
+     * land on a button meanwhile. */
+    var passMisses = false
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (passMisses && ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+            val p = placed
+            if (p == null || TouchGeometry.hits(p, ev.x, ev.y, 10 * p.dp).isEmpty()) return false
+        }
+        return super.dispatchTouchEvent(ev)
+    }
 
     private var placed: TouchGeometry.Placed? = null
 
@@ -76,7 +91,7 @@ class TouchControlsView(context: Context) : FrameLayout(context) {
                         onAction = { b, down -> onAction?.invoke(b, down) },
                         onPress = { if (style.vibration) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) },
                     ),
-                    gameAspect = gameAspect, gameBoy = !shoulders, ffOn = ffOn,
+                    gameAspect = gameAspect, gameBoy = !shoulders, ffOn = ffOn, ds = dsButtons,
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                     onPlaced = { placed = it; onPlaced?.invoke() },
                 )

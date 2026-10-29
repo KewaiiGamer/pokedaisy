@@ -55,7 +55,10 @@ object CoverArtSync {
         label: String = GameTitles.tidy(rom.nameWithoutExtension),
     ): Status {
         val hasCover = coverFile.isFile && coverFile.length() > 0
-        val manual = prefs.romCoverManual(rom)
+        // A manual cover whose file is gone (GitHub #272: a player's picked covers went missing) protects nothing: the
+        // game used to keep the placeholder for good, never fetched again. Its flag goes once an automatic one lands.
+        val staleManual = !hasCover && prefs.romCoverManual(rom)
+        val manual = hasCover && prefs.romCoverManual(rom)
         // ScreenScraper's media first, whatever the cover: the launcher's media screen shows it all.
         val ssBox = fetchMedia(rom, ss, mediaRoot, label, replace)
         if (!replace && manual) return Status.MANUAL_COVER
@@ -63,6 +66,7 @@ object CoverArtSync {
         val ssCover = hasCover && prefs.romCoverSource(rom) == Source.SCREENSCRAPER.name
         if (ssBox != null && (replace || !ssCover)) {
             if (copyCover(ssBox, coverFile)) {
+                if (staleManual) prefs.setRomCoverManual(rom, false)
                 prefs.setRomCoverSource(rom, Source.SCREENSCRAPER.name)
                 return if (hasCover) Status.REPLACED else Status.FETCHED
             }
@@ -78,6 +82,7 @@ object CoverArtSync {
             else -> null
         }
         if (source != null) {
+            if (staleManual) prefs.setRomCoverManual(rom, false)
             prefs.setRomCoverSource(rom, source.name)
             return if (hasCover) Status.REPLACED else Status.FETCHED
         }

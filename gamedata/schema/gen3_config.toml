@@ -1,0 +1,452 @@
+# Every NativeConfig field (NativeReader.kt's data class), checked against it by
+# scripts/gen_gamedata.py. type: long | int | bool | char | string | item_descs | int_range | ref
+# (a ref names a Kotlin val until phase 3 moves those records into gamedata/ too); a field
+# with a `record` may also be spelled out as a sub-table, checked against that schema.
+# A field without a default must be set by every config with no base.
+
+version = 1
+kotlin_class = 'NativeConfig'
+kotlin_file = 'NativeReader.kt'
+
+[field.playerParty]
+kotlin = 'Long'
+type = 'long'
+
+[field.playerPartyCount]
+kotlin = 'Long'
+type = 'long'
+
+[field.battleMons]
+kotlin = 'Long'
+type = 'long'
+
+[field.battlerPositions]
+kotlin = 'Long'
+type = 'long'
+
+[field.battlersCount]
+kotlin = 'Long'
+type = 'long'
+
+[field.battleTypeFlags]
+kotlin = 'Long'
+type = 'long'
+
+[field.gMain]
+kotlin = 'Long'
+type = 'long'
+
+[field.saveBlock1Ptr]
+kotlin = 'Long'
+type = 'long'
+
+[field.saveBlock2Ptr]
+kotlin = 'Long'
+type = 'long'
+
+[field.objectEvents]
+kotlin = 'Long'
+type = 'long'
+
+[field.mapHeader]
+kotlin = 'Long'
+type = 'long'
+
+[field.bagPockets]
+kotlin = 'Long'
+type = 'long'
+
+[field.bagPocketCount]
+kotlin = 'Int'
+type = 'int'
+
+[field.encryptionKeyOff]
+kotlin = 'Long'
+type = 'long'
+
+# bagPocketOrder[p] is the stable POCKET_* id (see Telemetry.kt) that
+# native gBagPockets[p] holds for THIS game's engine - the array's
+# index-to-pocket assignment is compiled-in per game and FireRed/Emerald
+# order it differently (confirmed by reading both decomps' item.c:
+# FireRed is Items/KeyItems/PokeBalls/TMCase/BerryPouch, Emerald is
+# Items/PokeBalls/TMHM/Berries/KeyItems - same 5 pockets, different array
+# positions). Defaults to FireRed's order since every FireRed-engine
+# config (rev0/rev1/Unbound/Gaia/Radical Red) shares it unmodified.
+[field.bagPocketOrder]
+kotlin = 'List<Int>'
+type = 'ref'
+default = 'FIRERED_BAG_POCKET_ORDER'
+
+# ROM addresses of the icon-graphics tables (0 = not known for this game →
+# the app falls back to bundled sprites, if any). Fixed retail addresses
+# read from a vanilla decomp build's ELF.
+[field.monIconTable]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.monIconPaletteTable]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.monIconPaletteIndices]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.itemIconTable]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# See IconTables' own comment - only expansion-based hacks change these.
+[field.monIconStride]
+kotlin = 'Int'
+type = 'int'
+default = 4
+
+[field.monPalIdxStride]
+kotlin = 'Int'
+type = 'int'
+default = 1
+
+[field.monPalIdxMask]
+kotlin = 'Int'
+type = 'int'
+default = 0xFF
+
+[field.itemIconStride]
+kotlin = 'Int'
+type = 'int'
+default = 8
+
+[field.itemPalCompressed]
+kotlin = 'Boolean'
+type = 'bool'
+default = true
+
+# See IconTables.extraItemIconTable (Emerald Rogue's own items).
+[field.extraItemIconTable]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# See IconTables.monIconPalettes (SoulGold's per-species icon palettes).
+[field.monIconPalettes]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.extraItemFirst]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+[field.extraItemCount]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+[field.extraItemStride]
+kotlin = 'Int'
+type = 'int'
+default = 8
+
+# sizeof(struct Pokemon): gPlayerParty's stride. Emerald Rogue's is 104
+# (a RoguePartyMon tail after vanilla's 100 bytes, which are unchanged).
+[field.monStride]
+kotlin = 'Int'
+type = 'int'
+default = { ref = 'MON_STRUCT_SIZE' }
+
+# SaveBlock2 offset of a name the game prints for mapsec 0 instead of the
+# table's (Emerald Rogue's hub, ROGUE_HUB_NAME_OFF); -1 = none.
+[field.hubNameOff]
+kotlin = 'Long'
+type = 'long'
+default = -1
+
+# Newer pokeemerald-expansion packs extra bits next to these BoxPokemon
+# fields (species:11|teraType:5, move:11|evoTracker:5, pp:7|...) - the
+# checksum/decryption is unchanged, only the value needs masking.
+[field.speciesMask]
+kotlin = 'Int'
+type = 'int'
+default = 0xFFFF
+
+[field.moveMask]
+kotlin = 'Int'
+type = 'int'
+default = 0xFFFF
+
+[field.ppMask]
+kotlin = 'Int'
+type = 'int'
+default = 0xFF
+
+# Bottom-screen touch battle control (PLAN.md Phase 5): addresses for the
+# gBattlerControllerFuncs[] scan (readNativeBattleInputFast says why a scan,
+# not a single index read). 0 = not known for this game -> touch battle
+# control just stays disabled.
+[field.battlerControllerFuncs]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.handleInputChooseAction]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.handleInputChooseMove]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# Bag/Party screen detection (for a BACK button while either is open): the
+# callbacks that wait while the bag / party is up, not
+# OpenBagAndChooseItem/OpenPartyMenuToChooseMon (which only run once).
+[field.completeWhenChoseItem]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.waitForMonSelection]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# "Which mon does this move hit" target-select screen (reachable even in
+# a single battle for MOVE_TARGET_USER_OR_SELECTED moves) - without this,
+# such a move's touch-selected confirm silently stalls one screen short.
+[field.handleInputChooseTarget]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# gActionSelectionCursor / gMoveSelectionCursor (a cell per battler): touch picks go straight to
+# their cell from these (BattleInputController.cursorAddrs). 0 = unknown, the picks walk there blind.
+# Only on configs checked headless (and zeroed on the ones copying them whose RAM differs).
+[field.actionCursor]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.moveCursor]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# SaveBlock1 offset of `pos` (mapGroup/mapNum follow at +4/+5). Heart and
+# Soul puts 4 extra bytes at the start of SaveBlock1, so it's 4 there.
+[field.saveBlock1PosOff]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# SaveBlock2 offset of playerGender (after the 8-byte name). Recharged Emerald Rebalanced puts 4 bytes in front
+# of SaveBlock2's fields (and SaveBlock1's: [saveBlock1PosOff]), so it's 0xC there.
+[field.playerGenderOff]
+kotlin = 'Long'
+type = 'long'
+default = 8
+
+# SaveBlock1 offset of `money` (XOR SaveBlock2.encryptionKey, like bag
+# quantities); -1 = not known for this game, so no money is shown.
+[field.moneyOff]
+kotlin = 'Long'
+type = 'long'
+default = -1
+
+# struct BattlePokemon's size and field offsets (see BattleMonLayout).
+[field.battleMonLayout]
+kotlin = 'BattleMonLayout'
+type = 'ref'
+default = 'VANILLA_BATTLE_MON'
+
+# struct Pokemon's party fields and flags byte (see PartyMonLayout).
+[field.partyMonLayout]
+kotlin = 'PartyMonLayout'
+type = 'ref'
+default = 'VANILLA_PARTY_MON'
+
+# gMapHeader.regionMapSectionId is a u16 (SoulGold: 314 sections), which
+# moves cave / weather / mapType a byte later (mapType at +0x18).
+[field.mapSecWide]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# The POKéDEX tab's ROM tables + flag offsets (Pokedex.kt); null = no tab.
+[field.pokedex]
+kotlin = 'PokedexTables?'
+type = 'ref'
+record = 'gen3_pokedex'
+default = 'none'
+
+# The GUIDE's ROM tables + save flag/var offsets (GuideRom.kt); null = no HERE / NEXT BOSS.
+[field.guideTables]
+kotlin = 'GuideTables?'
+type = 'ref'
+record = 'gen3_guide'
+default = 'none'
+
+# Where the ROM keeps the item descriptions the ITEMS tab shows (RomItemText.kt); null = none.
+[field.itemDescs]
+kotlin = 'ItemDescTable?'
+type = 'item_descs'
+default = 'none'
+
+# The species whose icon is the egg's, for games where an egg keeps its own
+# species in the struct (gSpeciesInfo's unnamed entry at the end: SoulGold
+# 1578, Lazarus 1561); 0 = none found (the egg's species icon then).
+[field.eggSpecies]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+# gPartyMenu, for the battle POKéMON pane's switch where the activity takes
+# it from the config (SoulGold's releases); 0 = not here.
+[field.partyMenu]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# USE / GIVE / TAKE's functions (FieldItems.kt) for a build with no retail code to key them on (Recharged
+# Emerald's gcc rebuilds); null = by game kind and header code (fieldItemsForGame).
+[field.fieldItems]
+kotlin = 'FieldItemFns?'
+type = 'ref'
+default = 'none'
+
+# gEnemyParty (6 encrypted Pokémon structs, like gPlayerParty) for the
+# battle's FOE TEAM; 0 = not known for this game.
+[field.enemyParty]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# Which of those is out, and which comes next: gBattlerPartyIndexes (u16
+# per battler) and gBattleStruct (a pointer) -> monToSwitchIntoId[battler]
+# at [monToSwitchIntoOff] - where Cmd_switchhandleorder puts the trainer's
+# pick before "... is about to use X". 0 = not known.
+[field.battlerPartyIndexes]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.battleStructPtr]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.monToSwitchIntoOff]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+# Ruby/Sapphire's BattleStruct isn't behind a pointer: it sits at a fixed
+# address (gSharedMem), and [battleStructPtr] is that address itself.
+[field.battleStructStatic]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# Ruby/Sapphire have no gSaveBlock1Ptr/2Ptr: the blocks sit at fixed
+# addresses, and [saveBlock1Ptr]/[saveBlock2Ptr] hold those addresses.
+[field.staticSaveBlocks]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# gMain.inBattle's byte (bit 1): FireRed/Emerald's struct Main has it at
+# +0x439, Ruby/Sapphire's (4 bytes more before it) at +0x43D.
+[field.inBattleOff]
+kotlin = 'Long'
+type = 'long'
+default = 0x439
+
+# Where the save keeps the TRAINER CARD's data (TrainerCard.kt); null = no
+# CARD tab. Retail FireRed / LeafGreen / Emerald only:
+# the hacks below copy these configs and their saves differ.
+[field.trainerCard]
+kotlin = 'TrainerCardSave?'
+type = 'ref'
+record = 'gen3_card'
+default = 'none'
+
+# The ROM's language letter (game code BPE<S|D|F|I>): a European Emerald's
+# names come from its own tables (EmeraldLanguages.kt). 'E' = English.
+[field.language]
+kotlin = 'Char'
+type = 'char'
+default = 'E'
+
+# Its game code, when it has names of its own (GameText): "BPED", "AXVF".
+[field.gameCode]
+kotlin = 'String'
+type = 'string'
+default = ''
+
+# A bag kept as a bit stream in SaveBlock1 instead of gBagPockets (Quetzal); null = gBagPockets.
+[field.bag3]
+kotlin = 'Bag3Layout?'
+type = 'ref'
+default = 'none'
+
+# Quetzal Alpha 9 v1's "BAG4" record, read before [bag3] (v1 rewrites a v0 save's BAG3 into it on load).
+[field.bag4]
+kotlin = 'Bag4Layout?'
+type = 'ref'
+default = 'none'
+
+# A bag kept as one "owned" bit per item id in SaveBlock1, no counts (Elite Redux); null = gBagPockets.
+[field.itemFlagsBag]
+kotlin = 'ItemFlagsBag?'
+type = 'ref'
+default = 'none'
+
+# Map groups whose sections are named from a second table (Quetzal's Johto): read as 0x100 + id.
+[field.altMapSecGroups]
+kotlin = 'IntRange?'
+type = 'int_range'
+default = 'none'
+
+# The game's money cap: Gen 3's 999,999 (Glazed's AddMoney caps at 9,999,999); above it is a wrong read.
+[field.maxMoney]
+kotlin = 'Long'
+type = 'long'
+default = 999_999
+
+# Quetzal's IDIOMA options pick each kind of name's language from the save ([readQuetzalNames]);
+# this is LUGARES' default when unset - its release's language (0 English, 1 Spanish). -1 = no such options.
+[field.quetzalPlacesDefault]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+# Quetzal Alpha 0.8.4 (ActiveTables' quetzalV084): Hoenn on Emerald's map, its map names in one language, its moves.
+[field.quetzalV084]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# Quetzal Alpha 9 v1 (ActiveTables' quetzalV1): v0's names but the Latin American ones of Johto's key items.
+[field.quetzalV1]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# The game's shiny check, where it's known: shiny when the shiny value is below this (vanilla's 8); 0 = never shown.
+# Set by the Poller on a ROM whose hash is a checked one (ShinyOdds), never in a config file.
+[field.shinyBelow]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+# gMonPaletteTable, for the shiny icons where the pokedex tables (which have it) aren't mapped: English FireRed rev 0.
+[field.monPalettes]
+kotlin = 'Long'
+type = 'long'
+default = 0

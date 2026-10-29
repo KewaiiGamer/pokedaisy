@@ -1,0 +1,211 @@
+# GuideTables's fields (GuideRom.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | ref (a Kotlin val's name);
+# record names the schema of a value a config may spell out as a sub-table.
+
+version = 1
+kotlin_class = 'GuideTables'
+kotlin_file = 'GuideRom.kt'
+
+# gTrainers: 0x28-byte records (party flags, class, name at +4, size at +0x20, party ptr at +0x24).
+[field.trainers]
+kotlin = 'Long'
+type = 'long'
+
+# gLevelUpLearnsets: a pointer per species to u16 (level << 9 | move) runs ending 0xFFFF
+# (CFRU's: {u16 move, u8 level} ending at level 0xFF, see [learnsetCfru]); 0 = not located.
+[field.learnsets]
+kotlin = 'Long'
+type = 'long'
+
+# gWildMonHeaders: {u8 group, u8 num, pad, land*, water*, rockSmash*, fishing*}, ending at group 0xFF.
+[field.wildHeaders]
+kotlin = 'Long'
+type = 'long'
+
+# SaveBlock1.flags / .vars (include/global.h).
+[field.sb1FlagsOff]
+kotlin = 'Long'
+type = 'long'
+default = 0xEE0
+
+[field.sb1VarsOff]
+kotlin = 'Long'
+type = 'long'
+default = 0x1000
+
+[field.flagBytes]
+kotlin = 'Int'
+type = 'int'
+default = 0x120
+
+[field.varCount]
+kotlin = 'Int'
+type = 'int'
+default = 0x100
+
+# A trainer id and the name its record must hold, to check the tables are where we think ([guideTablesMatchRom]).
+# TRAINER_LEADER_BROCK
+[field.probeTrainer]
+kotlin = 'Int'
+type = 'int'
+default = 414
+
+[field.probeName]
+kotlin = 'String'
+type = 'string'
+default = 'BROCK'
+
+# The hand-written guide and area data this game gets ([gameGuide]).
+[field.guide]
+kotlin = 'GuideId'
+type = 'ref'
+default = 'GuideId.FIRERED'
+
+# struct Trainer's size and where its name / party size / party pointer sit.
+[field.trainerStride]
+kotlin = 'Int'
+type = 'int'
+default = 0x28
+
+[field.trainerNameOff]
+kotlin = 'Int'
+type = 'int'
+default = 4
+
+[field.trainerNameLen]
+kotlin = 'Int'
+type = 'int'
+default = 12
+
+# The record holds a POINTER to the name at [trainerNameOff], not the name (Elite Redux).
+[field.trainerNamePtr]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+[field.trainerSizeOff]
+kotlin = 'Int'
+type = 'int'
+default = 0x20
+
+[field.trainerPartyOff]
+kotlin = 'Int'
+type = 'int'
+default = 0x24
+
+# pokeemerald-expansion's struct TrainerMon (always custom moves); null = vanilla's party structs.
+[field.trainerMon]
+kotlin = 'TrainerMonLayout?'
+type = 'ref'
+default = 'none'
+
+# WildPokemonHeader: expansion keeps one set of four tables per time of day.
+[field.wildSets]
+kotlin = 'Int'
+type = 'int'
+default = 1
+
+# Which set HERE shows (expansion's TIME_DAY); a missing table falls back to the others.
+[field.wildSet]
+kotlin = 'Int'
+type = 'int'
+default = 0
+
+# CFRU's 3-byte learnset entries (Radical Red, Unbound, Amethyst).
+[field.learnsetCfru]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# An old pokeemerald-expansion's {u16 move, u16 level} learnset entries, ending at move 0xFFFF
+# (Super Mariomon) - for [trainerMon]s without moves of their own, which get their level-up
+# moves (CreateNPCTrainerParty's GiveMonInitialMoveset).
+[field.learnsetPairs]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# More gTrainers tables a hack picks between (Amethyst's per difficulty): a
+# trainer id or'd with (k + 1) << [TRAINER_TABLE_SHIFT] reads table k, and
+# an empty record there falls back to [trainers], as the game does.
+[field.altTrainers]
+kotlin = 'List<Long>'
+type = 'ref'
+default = { kotlin = 'emptyList()' }
+
+# A WildPokemonHeader of its own shape (Imperium's 24 bytes, Quetzal's 28); null = vanilla's / [wildSets]'.
+[field.wildLayout]
+kotlin = 'WildLayout?'
+type = 'ref'
+default = 'none'
+
+# Flags / vars past the main arrays that live elsewhere in SaveBlock1 (Quetzal's 0x1000+ flags, 0x5000+ vars).
+[field.flagBanks]
+kotlin = 'List<SaveBank>'
+type = 'ref'
+default = { kotlin = 'emptyList()' }
+
+[field.varBanks]
+kotlin = 'List<SaveBank>'
+type = 'ref'
+default = { kotlin = 'emptyList()' }
+
+# gMapGroups (pointers to each group's MapHeader pointers), for naming the wild maps' sections in
+# the DEX's AREA page ([MapSections]); 0 = found by shape. Each group pointer is XORed with
+# [mapGroupsXor] (Unbound's hooked lookup). Found by the scan scripts/gen_guide_areas_rom.py uses.
+[field.mapGroups]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+[field.mapGroupsXor]
+kotlin = 'Long'
+type = 'long'
+default = 0
+
+# MapHeader.regionMapSectionId is a u16 (SoulGold), and groups [altMapSecGroups] name theirs as
+# 0x100 + id (Quetzal's Johto) - as [NativeConfig.mapSecWide] / [NativeConfig.altMapSecGroups].
+[field.mapSecWide]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+[field.altMapSecGroups]
+kotlin = 'IntRange?'
+type = 'int_range'
+default = 'none'
+
+# A second (HARD) party pointer in the same trainer record, its size in the size byte's high
+# nibble and the normal one's in the low (Recharged Yellow); -1 = none. A trainer id or'd with
+# 1 << [TRAINER_TABLE_SHIFT] reads it.
+[field.trainerHardPartyOff]
+kotlin = 'Int'
+type = 'int'
+default = -1
+
+# Maps (group << 8 | num) with more than one wild header back to back, and the var whose value picks one:
+# GetCurrentMapWildMonHeaderId's `i += VarGet(VAR_*_WILD_SET)` after the map's first header (Emerald Legacy).
+[field.wildSetVars]
+kotlin = 'Map<Int, Int>'
+type = 'ref'
+default = { kotlin = 'emptyMap()' }
+
+# A map's second wild header, right after its first, is its night set, picked by the game's clock (Lazarus).
+[field.nightWild]
+kotlin = 'NightWild?'
+type = 'ref'
+default = 'none'
+
+# The save's progress also carries SaveBlock2's trainer ID (GBA_VAR_TRAINER_ID): Wishes of Tomorrow's randomizer swaps
+# the wild Pokémon by it (WishesRandomizer).
+[field.trainerIdVar]
+kotlin = 'Boolean'
+type = 'bool'
+default = false
+
+# Bytes from one species' learnset pointer to the next: 4 for a pointer table, gSpeciesInfo's stride where the
+# pointers live in it (learnsets = gSpeciesInfo + its levelUpLearnset offset: Wishes of Tomorrow).
+[field.learnsetStride]
+kotlin = 'Int'
+type = 'int'
+default = 4

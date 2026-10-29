@@ -63,6 +63,7 @@ import Pixel from './Pixel.astro';
 <script>
   import data from '../data/compat.json';
   import { checkFile } from '../lib/compat.js';
+  import { track } from '../lib/analytics.js';
 
   const MESSAGES: Record<string, (v: any, r: any) => string> = {
     supported: (v) => v.version
@@ -143,6 +144,8 @@ import Pixel from './Pixel.astro';
         if (r.size) row('SIZE', `${(r.size / 1048576).toFixed(r.size % 1048576 ? 1 : 0)} MB`);
         if (r.sha1) row('SHA-1', r.sha1, true);
         message.textContent = MESSAGES[v.status === 'unsupported' ? v.reason : v.status](v, r);
+        // The verdict alone: never the file's name, code or hash.
+        track('rom_check', { verdict: v.status, reason: v.reason });
         if (r.sha1 && (['unknown-hack', 'retail-hack', 'revision', 'other-game', 'gb', 'ds'].includes(v.reason))) {
           actions.append(formLink(r));
         }
@@ -152,6 +155,7 @@ import Pixel from './Pixel.astro';
         stamp.textContent = 'ERROR';
         verdictEl.append(stamp);
         message.textContent = `Couldn't read that file: ${(e as Error).message}`;
+        track('rom_check', { verdict: 'error' });
       }
       drop.classList.remove('busy');
       dropText.textContent = 'DROP ANOTHER ROM';

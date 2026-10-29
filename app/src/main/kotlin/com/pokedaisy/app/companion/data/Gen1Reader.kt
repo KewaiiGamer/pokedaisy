@@ -50,6 +50,10 @@ data class Gen1Config(
      * 2 the pick after a faint, 1 an item's "use on which?") and wPlayerMonNumber (the party slot in battle). */
     val partyMenuType: Long = 0,
     val playerMonNumber: Long = 0,
+    /** The bag's capacity (BAG_ITEM_CAPACITY: 20, PureRGB's 30). */
+    val bagSlots: Int = 20,
+    /** wPartyMenuTypeOrMessageID's BATTLE_PARTY_MENU, the pick after a faint: 2 (PureRGB renumbered its menus: 1). */
+    val battlePartyMenu: Int = 2,
 )
 
 /** Pokémon Yellow (USA, Europe). Red / Blue's own addresses are one byte later ([GEN1_RED]). */
@@ -139,15 +143,55 @@ val GEN1_RED = GEN1_YELLOW.copy(
 /** Blue: Red's addresses (its own dex tables object, so a cache never mixes the two carts' pages). */
 val GEN1_BLUE = GEN1_RED.copy(pokedex = POKEDEX_BLUE)
 
-/** Pokémon Yellow, Red or Blue (every language): Gen 1's reader ([readGen1Telemetry]), tables and look. */
-val GameKind?.isGen1: Boolean get() = this == GameKind.YELLOW || isRedBlue
+/**
+ * PureRed and PureBlue v2.7.6 (Vortyne/pureRGB, a pret/pokered fork: its `make red blue` with rgbds 1.0.3 is both releases
+ * byte for byte, so its pokered.sym gives every address; pokeblue.sym's RAM is the same). A Color cart (rgbfix -c) that
+ * keeps its game state in WRAM bank 1 and switches D000 to bank 2 for its palette buffers (wGBCFullPalBuffer), so
+ * D000-DFFF is read by bank ([wramx], like Crystal's). Its party_struct / battle_struct are pokered's (CatchRate is a
+ * flags byte now), the bag holds 30, and the battle and party menus sit where Red's do (checked headless: the
+ * `purered*` / `pureblue*` fixtures, the user's Red save converted by the game's own save updater).
+ */
+val GEN1_PURE_RED = GEN1_RED.copy(
+    partyCount = wramx(1, 0xD16B),
+    partyMons = wramx(1, 0xD173),
+    bagCount = wramx(1, 0xD542),
+    money = wramx(1, 0xD34F),
+    badges = wramx(1, 0xD35E),
+    curMap = wramx(1, 0xD366),
+    yCoord = wramx(1, 0xD369),
+    xCoord = wramx(1, 0xD36A),
+    isInBattle = wramx(1, 0xD057),
+    battleMon = wramx(1, 0xD014),
+    enemyMon = 0xCFE3L,
+    enemyMonPartyPos = 0xCFE6L,
+    enemyPartyCount = wramx(1, 0xD8A4),
+    enemyMons = wramx(1, 0xD8AC),
+    // Its own PokedexOrder: its forms (FLOATING WEEZING, the spirits, ...) are internal species of their own that carry a
+    // base species' Dex number, so the companion shows them as that species.
+    internalToDex = gen1InternalToDexPureRgb,
+    pokedex = POKEDEX_PURE_RED,
+    playTime = wramx(1, 0xDA49),
+    partyMenuType = wramx(1, 0xD07D),
+    bagSlots = 30,
+    battlePartyMenu = 1,
+)
+/** PureBlue: PureRed's addresses (its own dex tables object, so a cache never mixes the two carts' pages). */
+val GEN1_PURE_BLUE = GEN1_PURE_RED.copy(pokedex = POKEDEX_PURE_BLUE)
+
+/** Pokémon Yellow, Red or Blue (every language), PureRed or PureBlue: Gen 1's reader ([readGen1Telemetry]), tables and look. */
+val GameKind?.isGen1: Boolean get() = this == GameKind.YELLOW || isRedBlue || isPureRgb
 
 /** Pokémon Red or Blue: Yellow's tables, their own art, dex pages and RAM ([GEN1_RED]). */
 val GameKind?.isRedBlue: Boolean get() = this == GameKind.RED || this == GameKind.BLUE
 
+/** PureRed or PureBlue: Gen 1's reader over their own RAM ([GEN1_PURE_RED]), tables, art and dex pages. */
+val GameKind?.isPureRgb: Boolean get() = this == GameKind.PURE_RED || this == GameKind.PURE_BLUE
+
 const val GEN1_PARTY_MON_SIZE = 44
 const val GEN1_BATTLE_MON_SIZE = 29
-private const val GEN1_BAG_SLOTS = 20
+/** wPartyMonNicks' 11-byte names, right after wPartyMonOT (6 x 11): see [readGen1Telemetry]. */
+private const val GEN1_NAME_LEN = 11
+private const val GEN1_NICKNAMES_AFTER_MONS = PARTY_SIZE * GEN1_PARTY_MON_SIZE + PARTY_SIZE * GEN1_NAME_LEN
 
 private fun be16(b: ByteArray, o: Int) = ((b[o].toInt() and 0xFF) shl 8) or (b[o + 1].toInt() and 0xFF)
 private fun u8(b: ByteArray, o: Int) = b[o].toInt() and 0xFF
@@ -190,6 +234,26 @@ fun decodeGen1BattleMon(raw: ByteArray, cfg: Gen1Config): BattleMon? {
         moves = IntArray(4) { u8(raw, 8 + it) },
         pp = IntArray(4) { u8(raw, 25 + it) and 0x3F },
     )
+}
+
+/** [raw]'s nickname at [off] (11 bytes, 0x50-terminated) in the cart's own charset. */
+private fun gen1Nickname(raw: ByteArray, off: Int, charset: Gen1Charset): String? {
+    if (off + GEN1_NAME_LEN > raw.size) return null
+    val chars = charset.chars
+    return buildString {
+        for (i in 0 until GEN1_NAME_LEN) {
+            val c = raw[off + i].toInt() and 0xFF
+            if (c == 0x00 || c == 0x50) break
+            chars[c]?.let { append(it) }
+        }
+    }.trim().takeIf { it.isNotEmpty() }
+}
+
+/** The cart's character set: German / French share one, Italian / Spanish another. */
+private fun gen1Charset(language: Char): Gen1Charset = when (language) {
+    'D', 'F' -> Gen1Charset.DF
+    'I', 'S' -> Gen1Charset.IS
+    else -> Gen1Charset.EN
 }
 
 /**
@@ -249,10 +313,17 @@ private val EMPTY_BATTLE_MON = BattleMon(0, 0, 0, 0, 0, 0, 0, IntArray(4), IntAr
 fun readGen1Telemetry(r: MemoryReader, cfg: Gen1Config): Telemetry {
     val count = u8(r.readCoreMemory(cfg.partyCount, 1), 0).coerceAtMost(PARTY_SIZE)
     val partyRaw = r.readCoreMemory(cfg.partyMons, PARTY_SIZE * GEN1_PARTY_MON_SIZE)
-    val party = (0 until count).mapNotNull { decodeGen1PartyMon(partyRaw, it * GEN1_PARTY_MON_SIZE, cfg) }
+    // wPartyMonNicks: 6 x 11 bytes, after wPartyMons and wPartyMonOT.
+    val nicknames = r.readCoreMemory(cfg.partyMons + GEN1_NICKNAMES_AFTER_MONS, PARTY_SIZE * GEN1_NAME_LEN)
+    val charset = gen1Charset(cfg.language)
+    val party = (0 until count).mapIndexedNotNull { i, _ ->
+        decodeGen1PartyMon(partyRaw, i * GEN1_PARTY_MON_SIZE, cfg)?.copy(
+            nickname = gen1Nickname(nicknames, i * GEN1_NAME_LEN, charset),
+        )
+    }
 
-    val bagN = u8(r.readCoreMemory(cfg.bagCount, 1), 0).coerceAtMost(GEN1_BAG_SLOTS)
-    val bagRaw = r.readCoreMemory(cfg.bagCount + 1, GEN1_BAG_SLOTS * 2)
+    val bagN = u8(r.readCoreMemory(cfg.bagCount, 1), 0).coerceAtMost(cfg.bagSlots)
+    val bagRaw = r.readCoreMemory(cfg.bagCount + 1, cfg.bagSlots * 2)
     val items = (0 until bagN).map { bagRaw[2 * it].toInt() and 0xFF to (bagRaw[2 * it + 1].toInt() and 0xFF) }
         .takeWhile { it.first != 0xFF }
         .map { (id, qty) -> Item(id, qty) }   // one list, in the player's own order, like the game's bag
@@ -297,5 +368,7 @@ fun readGen1Telemetry(r: MemoryReader, cfg: Gen1Config): Telemetry {
         enemyActive = enemyActive,
         money = bcd(r.readCoreMemory(cfg.money, 3)),
         pokedex = cfg.pokedex?.let { t -> t.gen1?.let { runCatching { readGen1PokedexState(r, it, t) }.getOrNull() } },
+        // The GUIDE's flags, badges and the champion's team (GuideGen1.kt).
+        progress = gen1GuideRam(cfg)?.let { runCatching { readGen1Progress(r, it) }.getOrNull() },
     )
 }

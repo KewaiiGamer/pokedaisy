@@ -529,16 +529,27 @@ static void cmdWav(const char* path, int frames) {
     struct blip_t* r = core->getAudioChannel(core, 1);
     blip_clear(l);
     blip_clear(r);
-    size_t cap = (size_t) frames * (SAMPLE_RATE / 50) * 2, pos = 0;
+    size_t cap = (size_t) frames * (SAMPLE_RATE / 20) * 2, pos = 0;
     int16_t* pcm = calloc(cap, sizeof(int16_t));
+    // Audio made per runFrame: the app plays one frame a display refresh, so a frame much shorter or longer than
+    // the core's frame rate (a Game Boy game turning its screen off or on restarts mGBA's frame) is a gap or a glut.
+    int least = 1 << 30, most = 0, uneven = 0;
+    const double expect = SAMPLE_RATE * (double) core->frameCycles(core) / core->frequency(core);
     for (int i = 0; i < frames; i++) {
         core->runFrame(core);
         int n = blip_samples_avail(l);
+        if (n < least) least = n;
+        if (n > most) most = n;
+        if (n < expect * 0.9 || n > expect * 1.1) {
+            if (uneven < 40) printf("wav: frame %d made %d samples (%.0f%%)\n", i, n, 100.0 * n / expect);
+            uneven++;
+        }
         if (pos + (size_t) n * 2 > cap) n = (int) ((cap - pos) / 2);
         blip_read_samples(l, pcm + pos, n, true);
         blip_read_samples(r, pcm + pos + 1, n, true);
         pos += (size_t) n * 2;
     }
+    printf("wav: %d frames, %.1f samples a frame expected, %d to %d made, %d off by over 10%%\n", frames, expect, least, most, uneven);
     FILE* f = fopen(path, "wb");
     if (!f) {
         fprintf(stderr, "mgba_dump: cannot open %s for writing\n", path);
@@ -1608,6 +1619,12 @@ int main(int argc, char** argv) {
             printf("bgm soundInfo=%08x player=%08x status=%08x header=%08x ident=%08x\n", info, bgm,
                    bgm ? core->busRead32(core, bgm + 4) : 0, bgm ? core->busRead32(core, bgm) : 0,
                    bgm ? core->busRead32(core, bgm + 0x34) : 0);
+        } else if (!strcmp(cmd, "volume")) {
+            // mGBA's master volume (0x100 = full): two recordings at two volumes show where the mixer wraps.
+            sscanf(line, "%*s %d", &n);
+            mCoreConfigSetIntValue(&core->config, "volume", n);
+            core->reloadConfigOption(core, "volume", &core->config);
+            printf("volume: %d\n", n);
         } else if (!strcmp(cmd, "wav")) {
             sscanf(line, "%*s %255s %d", arg1, &n);
             cmdWav(arg1, n);

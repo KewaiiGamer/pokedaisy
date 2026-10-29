@@ -1,0 +1,132 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Recharged Yellow (Jaizu; BPRE rev 0, 16 MB, sha1 be503359… v1.8.0 / ac30d1ed… v1.9.0 /
+# 7d9fae6c… v1.9.4 / ed60654d… v1.9.7): a full pokefirered rebuild with modern gcc, no source, so
+# nothing sits at a retail address. Found headlessly from the user's v1.8.0 save, which every later
+# release loads too (`recharged_yellow_*` fixtures: JANE in Viridian City, WARTORTLE Lv16 first of
+# six), each address a literal-pool word (reference counts in brackets, v1.8.0):
+# - gPlayerParty 0x02038554 (537) - the copy that doesn't move (SaveBlock1+0x44 holds the save's,
+# and the save blocks move on every load) - with gPlayerPartyCount right before it 0x02038551
+# (32), vanilla's 100-byte encrypted struct Pokemon. gEnemyParty follows the party (0x020387AC).
+# - gSaveBlock1Ptr / 2Ptr 0x03005AB4 / B8 (780 / 355). The hack dropped the encryption key: a new
+# game's money is a plain 3000 and the save's bag quantities are plain, so encryptionKeyOff -1.
+# SaveBlock1 is its own (its GF ROM header says so: party count +0x3B, party +0x44, flags
+# +0xEFB): pos at +0, money +0x29C (₽4804, as the trainer card shows), bag pockets from +0x374.
+# - gMain 0x03003B64 (570; +0x24 counted 16 between dumps 16 frames apart, inBattle +0x439).
+# - gMapHeader 0x0200B6CC (139; FireRed's map sections: 0x59 VIRIDIAN CITY), gObjectEvents
+# 0x02005CCC (358; the player's object at the save's pos + 7).
+# - gBagPockets 0x0200B768 (31): six {ptr, capacity} pockets - Items (60), a Medicine pocket (100,
+# at SaveBlock1+0x2380), Poké Balls (32), TMs (64), Berries (46), Key Items (50) - the order of
+# each item's own pocket field in its 48-byte gItems record.
+# - Battle (scripted wild RATTATA and trainer battles: BROCK, the double ELI & ANNE): gBattleTypeFlags
+# 0x020003C0 (559; 4 wild, 0xC trainer, 0xD double), gBattlersCount 0x02001444 (2 / 4),
+# gBattlerPartyIndexes 0x02001448 (0 -> 1 through a switch), gBattlerPositions 0x02001450
+# (00 01 02 03 in the double), gBattleMons 0x02001460 (219; vanilla's 0x58-byte BattlePokemon),
+# the gBattleStruct pointer 0x02001880 with monToSwitchIntoId at vanilla's +0x5C (06 -> 01 -> 06).
+# gBattlerControllerFuncs 0x030048F8 (490): action / move / bag / party read live in each menu;
+# target select in the double (the move handler's literal pool names it too).
+# gPartyMenu 0x020384CC (128): slotId at +9 went 0 / 1 / 2 with DOWN in the battle's party menu.
+# - ROM: the GF ROM header (0x08000100) gives the icon tables, gSpeciesNames, gBaseStats and gItems
+# (48-byte records, description +0x18); sItemIconTable is the {tiles, palette} pair table whose
+# entry 1 is MASTER BALL's (FireRed's own graphics). Tables: scripts/gen_recharged_yellow_tables.py.
+# v1.9.0 / v1.9.4 / v1.9.7 moved EWRAM past 0x02005000 up 8 bytes (party, bag, map header, ...); the
+# battle block, gMain and the controller funcs stayed, and v1.9.7 moved the save-block pointers up
+# 0x1C. Each address ported through the literal pools of v1.8.0's code (the same words around it),
+# then read in that release's own field / battle captures; the battle handlers by the same live reads.
+# Recharged Yellow's gBagPockets order (each item's own pocket field - 1 Items, 2 Medicine, 3 Poké
+# Balls, 4 TMs, 5 Berries, 6 Key Items): Medicine folds into Items, like expansion's.
+#
+[config.recharged_yellow_v1_8_0]
+itemDescs = { base = 0x08807A38, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+playerParty = 0x02038554
+playerPartyCount = 0x02038551
+battleMons = 0x02001460
+battlerPositions = 0x02001450
+battlersCount = 0x02001444
+battleTypeFlags = 0x020003C0
+gMain = 0x03003B64
+saveBlock1Ptr = 0x03005AB4
+saveBlock2Ptr = 0x03005AB8
+objectEvents = 0x02005CCC
+mapHeader = 0x0200B6CC
+bagPockets = 0x0200B768
+bagPocketCount = 6
+bagPocketOrder = 'RECHARGED_YELLOW_BAG_POCKET_ORDER'
+encryptionKeyOff = -1
+moneyOff = 0x29C
+monIconTable = 0x0886B7F0
+monIconPaletteIndices = 0x0886BED0
+monIconPaletteTable = 0x0886C088
+itemIconTable = 0x0880C6EC
+battlerControllerFuncs = 0x030048F8
+handleInputChooseAction = 0x08045F89
+handleInputChooseMove = 0x080464ED
+completeWhenChoseItem = 0x080482A1
+waitForMonSelection = 0x080481C9
+handleInputChooseTarget = 0x08046201
+enemyParty = 0x020387AC
+battlerPartyIndexes = 0x02001448
+battleStructPtr = 0x02001880
+# gActionSelectionCursor / gMoveSelectionCursor, +0x10 / +0x14 past the gBattleStruct pointer (every release: the battle globals sit below its 1.9 EWRAM shift). Checked
+# headless: RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = 0x02001890
+moveCursor = 0x02001894
+monToSwitchIntoOff = 0x5C
+partyMenu = 0x020384CC
+pokedex = 'POKEDEX_RECHARGED_YELLOW_V1_8_0'
+guideTables = 'GUIDE_TABLES_RECHARGED_YELLOW_V1_8_0'
+# AddMoney (0x081391D8) caps at 9,999,999, and the card prints 7 digits.
+maxMoney = 9_999_999
+trainerCard = 'TRAINER_CARD_RECHARGED_YELLOW_V1_8_0'
+
+[config.recharged_yellow_v1_9_0]
+base = 'recharged_yellow_v1_8_0'
+itemDescs = { base = 0x088074AC, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+playerParty = 0x0203855C
+playerPartyCount = 0x02038559
+objectEvents = 0x02005CD4
+mapHeader = 0x0200B6D4
+bagPockets = 0x0200B770
+monIconTable = 0x0886B2B0
+monIconPaletteIndices = 0x0886B990
+monIconPaletteTable = 0x0886BB48
+itemIconTable = 0x0880C160
+handleInputChooseAction = 0x08045F5D
+handleInputChooseMove = 0x080464C1
+completeWhenChoseItem = 0x08048275
+waitForMonSelection = 0x0804819D
+handleInputChooseTarget = 0x080461D5
+enemyParty = 0x020387B4
+partyMenu = 0x020384D4
+pokedex = 'POKEDEX_RECHARGED_YELLOW_V1_9_0'
+guideTables = 'GUIDE_TABLES_RECHARGED_YELLOW_V1_9_0'
+trainerCard = 'TRAINER_CARD_RECHARGED_YELLOW_V1_9_0'
+
+[config.recharged_yellow_v1_9_4]
+base = 'recharged_yellow_v1_9_0'
+itemDescs = { base = 0x088E74B0, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+monIconTable = 0x0894B2B4
+monIconPaletteIndices = 0x0894B994
+monIconPaletteTable = 0x0894BB4C
+itemIconTable = 0x088EC164
+handleInputChooseAction = 0x08045F55
+handleInputChooseMove = 0x080464B9
+completeWhenChoseItem = 0x0804826D
+waitForMonSelection = 0x08048195
+handleInputChooseTarget = 0x080461CD
+pokedex = 'POKEDEX_RECHARGED_YELLOW_V1_9_4'
+guideTables = 'GUIDE_TABLES_RECHARGED_YELLOW_V1_9_4'
+trainerCard = 'TRAINER_CARD_RECHARGED_YELLOW_V1_9_4'
+
+[config.recharged_yellow_v1_9_7]
+base = 'recharged_yellow_v1_9_4'
+itemDescs = { base = 0x0890F960, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+saveBlock1Ptr = 0x03005AD0
+saveBlock2Ptr = 0x03005AD4
+monIconTable = 0x089740C4
+monIconPaletteIndices = 0x089747A4
+monIconPaletteTable = 0x0897495C
+itemIconTable = 0x08914614
+pokedex = 'POKEDEX_RECHARGED_YELLOW_V1_9_7'
+guideTables = 'GUIDE_TABLES_RECHARGED_YELLOW_V1_9_7'
+trainerCard = 'TRAINER_CARD_RECHARGED_YELLOW_V1_9_7'

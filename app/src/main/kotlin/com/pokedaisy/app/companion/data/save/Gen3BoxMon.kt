@@ -82,6 +82,14 @@ class Gen3BoxMon private constructor(
         return Gen3BoxMon(h, d, true, original).encode()
     }
 
+    /** This record under another [personality] (SHINY ODDS): its substructs reordered and encrypted with the new key. */
+    fun withPersonality(personality: Long): ByteArray {
+        require(checksumOk) { "an unreadable record is never changed" }
+        val h = header.copyOf()
+        putU32(h, 0, personality and 0xFFFFFFFFL)
+        return Gen3BoxMon(h, data.copyOf(), true, original).encode()
+    }
+
     /** The record's 80 bytes, checksum recomputed and encrypted as the game stores it. */
     fun encode(): ByteArray {
         val out = header.copyOf(SIZE)

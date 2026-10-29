@@ -71,8 +71,11 @@ target_compile_definitions(rcheevos PUBLIC
 
 # ---------------------------------------------------------------------------
 # Vendored melonDS (git submodule, pinned to 1.1) — its core library only, for
-# Nintendo DS carts (nds/pk_nds.cpp). The software 3D renderer (no OpenGL), the
-# ARM64 JIT, no GDB stub, no Qt frontend, no LTO (it would leak into our link).
+# Nintendo DS carts (nds/pk_nds.cpp). The software 3D renderer, and its OpenGL one
+# ported to OpenGL ES 3.2 by our patch (DS RESOLUTION, nds/pk_nds_gl.cpp: added
+# below, not through ENABLE_OGLRENDERER, which brings glad and the compute
+# renderer), the ARM64 JIT, no GDB stub, no Qt frontend, no LTO (it would leak
+# into our link).
 # ---------------------------------------------------------------------------
 get_filename_component(MELONDS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/melonds" ABSOLUTE)
 
@@ -89,13 +92,19 @@ set(ENABLE_JIT          ON  CACHE BOOL "" FORCE)
 
 include("${MELONDS_DIR}/../patches/apply_melonds_patch.cmake")
 add_subdirectory("${MELONDS_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/melonds" EXCLUDE_FROM_ALL)
+target_sources(core PRIVATE
+    "${MELONDS_DIR}/src/GPU_OpenGL.cpp"
+    "${MELONDS_DIR}/src/GPU3D_OpenGL.cpp"
+    "${MELONDS_DIR}/src/OpenGLSupport.cpp")
+target_compile_definitions(core PUBLIC OGLRENDERER_ENABLED MELONDS_GLES "MELONDS_GL_HEADER=<GLES3/gl32.h>")
+target_link_libraries(core PUBLIC GLESv3 EGL)
 
 # ---------------------------------------------------------------------------
 # Our JNI bridge.
 # ---------------------------------------------------------------------------
-add_library(pokedaisy SHARED pokedaisy_jni.c pokedaisy_ra.c pk_cheats.c pk_coop.c pk_coop_field.c pk_coop_after.c pk_coop_lock.c pk_coop_link.c pk_coop_link_start.c pk_coop_link_wild.c pk_coop_link_story.c pk_coop_link_drop.c pk_coop_link_rewards.c pk_coop_link_end.c pk_coop_lock_jni.c pk_rewind.c pk_savevf.c pk_wide.c pk_wide_gb.c pk_gb_field.c
+add_library(pokedaisy SHARED pokedaisy_jni.c pokedaisy_ra.c pk_call.c pk_cheats.c pk_coop.c pk_coop_field.c pk_coop_after.c pk_coop_lock.c pk_coop_link.c pk_coop_link_start.c pk_coop_link_wild.c pk_coop_link_story.c pk_coop_link_drop.c pk_coop_link_rewards.c pk_coop_link_end.c pk_coop_lock_jni.c pk_rewind.c pk_savevf.c pk_wide.c pk_wide_gb.c pk_gb_field.c
     nds/pk_nds.cpp nds/pk_nds_platform.cpp nds/pk_nds_field.cpp nds/pk_nds_call.cpp nds/pk_nds_wide.cpp
-    nds/pk_nds_music.cpp)
+    nds/pk_nds_music.cpp nds/pk_nds_gl.cpp)
 set_target_properties(pokedaisy PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 # melonDS's headers test these (its own sources get them from its directory's add_definitions).
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")

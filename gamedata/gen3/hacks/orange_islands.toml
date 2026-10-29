@@ -1,0 +1,24 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Orange Islands (BPRE rev 0, 16 MB, sha1 8bac897d…; Beta 5.7 d2e3800e… differs from it
+# in 80 bytes of map text / data and shares this): FireRed 1.0 edited in place, no source. Its
+# code is retail rev 0's byte for byte where the config points (the five battle handlers and
+# their glue, ScriptContext_SetupScript), and so is its RAM - the headless capture of the
+# user's save (`orange_islands`: PIKACHU Lv10 on VALENCIA ISLAND, ₽2000, POTION / ORANGE PASS /
+# OLD ROD) and a scripted wild battle (`orange_islands_battle`) decode with rev 0's addresses
+# plus rev 1's three battle fields (the same RAM in both revisions). Its tables are retail
+# rev 0's edited in place, but for the type names / chart (a 24th type, CRYSTL) and
+# gWildMonHeaders (0x08A1B1B0), which it repointed: scripts/gen_orange_islands_tables.py. Its
+# region map is its own Orange Archipelago on FireRed's region_map.c (RomRegionMap).
+[config.orange_islands]
+base = 'firered_rev0'
+# FireRed's battle menu cursors (retail rev 0's EWRAM), checked headless like Unbound's: RIGHT / DOWN walk
+# 0 -> 1 -> 3, a written 2 + A opens the party menu, a written move 1 + A spends its PP.
+actionCursor = { from = 'firered_rev1' }
+moveCursor = { from = 'firered_rev1' }
+pokedex = 'POKEDEX_ORANGE_ISLANDS'
+guideTables = 'GUIDE_TABLES_ORANGE_ISLANDS'
+enemyParty = { from = 'firered_rev1' }
+battlerPartyIndexes = { from = 'firered_rev1' }
+battleStructPtr = { from = 'firered_rev1' }
+monToSwitchIntoOff = { from = 'firered_rev1' }

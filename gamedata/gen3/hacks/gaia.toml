@@ -1,0 +1,65 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Gaia v3.2 - another large (32 MB) BPRE hack, verified 2026-09-20 the
+# same way as Unbound above: static byte comparison against the same vanilla
+# rev-0 build, against the user's own Gaia v3.2 ROM (sha1 d5b1e779…, see
+# GAIA_V3_2_SHA1 in Poller.kt). Ten separate checks, all confirmed identical:
+# gPlayerParty (0x02024284, via a byte-identical ZeroPlayerPartyMons),
+# gSaveBlock1Ptr/gSaveBlock2Ptr (0x03005008/0x0300500C - SetSaveBlocksPointers'
+# own body differs slightly, likely just the ASLR-offset mask, but its
+# literal pool stores the exact same six addresses), gMain (0x030030F0, via a
+# byte-identical ReadKeys), and the full battle-input chain
+# (gBattlerControllerFuncs/HandleInputChooseAction/HandleInputChooseMove/
+# WaitForMonSelection/CompleteWhenChoseItem/HandleInputChooseTarget - same
+# pattern as Unbound's, in-place-patched functions with unchanged stored
+# addresses). The remaining NativeConfig fields (battleMons, bagPockets, etc)
+# weren't individually checked, but ten-for-ten on this varied a sample is
+# strong evidence Gaia is ASM-patch-based like Unbound/CFRU, not a full
+# decomp rebuild (confirmed there's no public Gaia source - the only
+# candidate, sphericalice/pokefirered on GitHub, turned out to be an
+# unmodified, 228-commits-stale mirror of upstream pret/pokefirered, not
+# Gaia's real tree). Known gap: Gaia has a brand-new region, so
+# regionMapSectionId will resolve through the shared Kanto mapsec table and
+# likely show wrong/"Unknown area" location names outside anything reused
+# from Kanto - same class of gap Unbound had before its own Hoenn-equivalent
+# table was worth adding, not attempted here yet.
+#
+# Icons (2026-09-20): sItemIconTable (inherited from rev 0 above, 0x083D4294)
+# is STILL AT ITS VANILLA ADDRESS and its entries decode to the correct
+# sprites (checked Master Ball/Potion/Ultra Ball) - Gaia never needed to grow
+# this table's slot count. gMonIconTable, unlike the item table, DID need to
+# grow (~930 species vs vanilla's ~412) and move - the inherited rev-0
+# address's entries are all zeroed in Gaia's ROM, and a whole-ROM search for
+# Bulbasaur's exact vanilla 1024-byte icon blob found no match, so there was
+# no byte-content anchor the way gSpeciesNames' text strings gave one.
+#
+# Found it anyway, via the CODE instead of the data: pret's GetMonIconTiles
+# (0x08097028), GetValidMonIconPalettePtr (0x080971cc) and
+# GetValidMonIconPalIndex (0x080971f8) are still at their exact vanilla
+# addresses in Gaia's ROM, byte-identical apart from (a) one patched immediate
+# (the SPECIES_DEOXYS form-swap check's constant 205->255, since Gaia inserted
+# ~100 species before it) and (b) their trailing literal-pool words, which
+# naturally now hold Gaia's relocated table addresses instead of vanilla's -
+# read those words directly and got monIconTable/monIconPaletteIndices/
+# monIconPaletteTable below. Verified by decoding: species 1/4/25/150 (all
+# redrawn-or-not Kanto starters+Pikachu+Mewtwo), 412/413-438 (Egg/Unown set,
+# same run of shapes as vanilla), and 444 (Chimchar, in Gaia's Sinnoh block
+# right after Unown) all render as the correct, recognizable sprite. Bulbasaur
+# (species 1) confirmed genuinely redrawn as a regional variant (different
+# colors/shape) - not a decode bug, Gaia just gave it new art while reusing
+# vanilla's tile data unchanged for most other species (Charmander, Pikachu,
+# Mewtwo, the Sinnoh block, etc. all matched vanilla's OWN tile addresses
+# exactly). IconTables.monPresent/itemPresent (Telemetry.kt) stay gated
+# independently since a future hack could easily have this asymmetry the
+# other way around.
+[config.gaia_v3_2]
+base = 'firered_rev0'
+itemDescs = { preset = 'vanilla', base = 0x083DB028 }  # retail's address, its own text
+monIconTable = 0x0872A86C
+monIconPaletteIndices = 0x0872B870
+monIconPaletteTable = 0x0823C500
+pokedex = 'POKEDEX_GAIA'
+guideTables = 'GUIDE_TABLES_GAIA'
+# FireRed's battle menu cursors, checked headless like Unbound's (gaia_battle's README).
+actionCursor = 0x02023FF8
+moveCursor = 0x02023FFC

@@ -207,20 +207,15 @@ fun DsTouchPane(showCompanion: Boolean, onSwitch: (Boolean) -> Unit, companion: 
     val m = rememberGbaTextMetrics()
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().then(if (on) Modifier else Modifier.background(ComposeColor.Black))) {
         // The switch's bar; the touch screen at full width, centred on the pane's middle (level with the game beside it)
-        // as far as the bar still fits under it - at the top in the dock under an upright game.
+        // as far as the bar still fits under it - at the top in the dock under an upright game. Held sideways the bar
+        // goes above it: the touch controls run along the bottom there (SELECT / START), over where it was.
+        val sideways = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val bar = androidx.compose.ui.unit.max(56.dp, m.lineHeight + m.u * 12)
         val screenH = minOf(maxWidth * NdsBottomFrame.H / NdsBottomFrame.W, maxHeight - bar)
-        val top = minOf((maxHeight - screenH) / 2, maxHeight - bar - screenH).coerceAtLeast(0.dp)
-        val centred = top > 0.dp
-        Column(Modifier.fillMaxSize()) {
-            if (on) {
-                Box(Modifier.weight(1f).fillMaxWidth()) { companion() }
-            } else {
-                if (centred) androidx.compose.foundation.layout.Spacer(Modifier.height(top))
-                Box(Modifier.fillMaxWidth().height(screenH)) {
-                    AndroidView({ NdsTouchScreenView(it) }, Modifier.fillMaxSize())
-                }
-            }
+        val top = if (sideways) maxOf((maxHeight - screenH) / 2, bar)
+            else minOf((maxHeight - screenH) / 2, maxHeight - bar - screenH).coerceAtLeast(0.dp)
+        val switch = @Composable {
             Box(Modifier.fillMaxWidth().height(bar), contentAlignment = Alignment.Center) {
                 OptionButton(if (on) tr("GAME SCREEN") else tr("COMPANION"), m, onClick = {
                     on = !on
@@ -228,6 +223,24 @@ fun DsTouchPane(showCompanion: Boolean, onSwitch: (Boolean) -> Unit, companion: 
                     if (on) MgbaCore.pkNdsTouch(false, 0, 0)
                     onSwitch(on)
                 })
+            }
+        }
+        Column(Modifier.fillMaxSize()) {
+            if (on) {
+                Box(Modifier.weight(1f).fillMaxWidth()) { companion() }
+                switch()
+            } else if (sideways) {
+                androidx.compose.foundation.layout.Spacer(Modifier.height(top - bar))
+                switch()
+                Box(Modifier.fillMaxWidth().height(screenH)) {
+                    AndroidView({ NdsTouchScreenView(it) }, Modifier.fillMaxSize())
+                }
+            } else {
+                if (top > 0.dp) androidx.compose.foundation.layout.Spacer(Modifier.height(top))
+                Box(Modifier.fillMaxWidth().height(screenH)) {
+                    AndroidView({ NdsTouchScreenView(it) }, Modifier.fillMaxSize())
+                }
+                switch()
             }
         }
     }

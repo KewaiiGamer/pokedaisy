@@ -68,6 +68,24 @@ interface CompanionSettings {
     /** The game's own TMs never run out ([com.pokedaisy.app.companion.data.ReusableTms.BUILT_IN]): the row says so. */
     val reusableTmsBuiltIn: Boolean get() = false
 
+    /** DS RESOLUTION ([com.pokedaisy.app.Prefs.dsResolution]): the scale, null when the game isn't a DS one (no row);
+     * [dsGpuAvailable] false = this device can't run the GPU renderer (no OpenGL ES 3.2), so the DS's own it is. */
+    val dsResolution: Int? get() = null
+    val dsGpuAvailable: Boolean get() = true
+    fun setDsResolution(scale: Int) {}
+
+    /** NUZLOCKE ([Nuzlocke]): [nuzlockeSupported] = a GBA game whose party and battles are read; the switch is per game. */
+    val nuzlockeSupported: Boolean get() = false
+    val nuzlocke: Boolean get() = false
+    fun setNuzlocke(on: Boolean) {}
+    /** SHINY ODDS: a wild foe is shiny 1 in [shinyOdds] - see [com.pokedaisy.app.Prefs.shinyOdds]; [shinyOddsChoices] the
+     * pick-list's (a debug build's has 1 in 4 and 1 in 1); [shinyOddsSupported]: a version the Poller knows by
+     * its hash ([com.pokedaisy.app.companion.data.ShinyOdds.targetFor]). */
+    val shinyOdds: Int get() = com.pokedaisy.app.companion.data.ShinyOdds.NORMAL
+    fun setShinyOdds(odds: Int) {}
+    val shinyOddsChoices: List<Int> get() = com.pokedaisy.app.companion.data.ShinyOdds.CHOICES
+    val shinyOddsSupported: Boolean get() = false
+
     /** PLAYER LOOK ([com.pokedaisy.app.companion.data.PlayerLook]): [playerLookSupported] = a FireRed / LeafGreen /
      * Emerald game; [playerLooks] = the heroes it can wear now (another game's, kept from the player's own ROMs);
      * [playerLook] = the one worn, by name (null = the game's own). */
@@ -145,8 +163,12 @@ interface CompanionSettings {
     /** Rebinds a GBA button to a single key, by display name (no "KEYCODE_" prefix). */
     fun setGbaControlBinding(btn: GbaControls.Btn, keyName: String)
 
-    /** Leaves TURBO A / B unbound ([GbaControls.Btn.canClear]). */
+    /** Leaves TURBO A / B and the GBA / Game Boy rows unbound ([GbaControls.Btn.canClear]). */
     fun clearGbaControlBinding(btn: GbaControls.Btn) {}
+
+    /** GAME BUTTONS' rows for the game running besides every game's ([GbaControls.Group.DS] or [GbaControls.Group.GBA]);
+     * null = both groups (previews). */
+    val buttonGroup: GbaControls.Group? get() = null
 
     /** Whether the hotkeys fire at all ([com.pokedaisy.app.Prefs.hotkeysEnabled]). */
     val hotkeysEnabled: Boolean
@@ -186,6 +208,9 @@ interface CompanionSettings {
 
     /** Puts the companion back on its own screen (the main one, the game back on the second). */
     fun openCompanion() {}
+
+    /** SETTINGS > DISCORD: opens PokeDaisy's Discord server ([Discord.URL]) in the browser or the Discord app. */
+    fun openDiscord() {}
 
     /** Whether battle-only strategic hints (move effectiveness chips, foe
      * Weak-to/Resists/Immune-to) are shown — see [Prefs.showHints]. */
@@ -269,6 +294,19 @@ interface CompanionSettings {
      * true while it's up (Compose state). Shown once ever - the setting is global. */
     val expandOffer: Boolean get() = false
     fun answerExpandOffer(turnOn: Boolean) {}
+
+    /** APP > TIPS ([com.pokedaisy.app.Prefs.tips], ON): a card now and then about a feature the player hasn't found. */
+    val tips: Boolean get() = true
+    fun setTips(on: Boolean) {}
+
+    /** The tip card shows on this companion (it's on a screen of its own, not over the game: Compose state). */
+    val showsTips: Boolean get() = false
+
+    /** The keys a tip names (the player's own bindings), as key and what it does. */
+    fun tipKeys(tip: TipId): List<Pair<String, String>> = emptyList()
+
+    /** A tip's TRY IT. */
+    fun tryTip(tip: TipId) {}
 
     /** SCREEN > OVERLAY's choices, as (key, label) - see [com.pokedaisy.app.Prefs.overlay]; empty = no row (no game).
      * Imported in the top screen's Settings (a file picker); picked here, live. */
@@ -399,7 +437,7 @@ interface CompanionSettings {
  * battle runs) and SETTINGS (the way to the hidden ones) are always there.
  * CARD (the TRAINER CARD) and ACHIEVEMENTS (RetroAchievements) start off the
  * bar, under the MORE tab. */
-val COMPANION_TABS = listOf("PARTY", "DEX", "MAP", "ITEMS", "GUIDE", "CARD", "STATES", "ACHIEVEMENTS")
+val COMPANION_TABS = listOf("PARTY", "DEX", "MAP", "ITEMS", "GUIDE", "NUZLOCKE", "CARD", "STATES", "ACHIEVEMENTS")
 val DEFAULT_COMPANION_TABS = listOf("PARTY", "DEX", "MAP", "ITEMS", "GUIDE")
 
 /** Tabs next to SETTINGS: six chips in all is as many as fit. During a

@@ -29,6 +29,18 @@ data class Gen1DexTables(
     /** Red / Blue keep MEW apart (added last, in bank 1): its base stats ([BaseStats] holds 150) and its pics' bank. */
     val mewBaseStats: Pair<Int, Int>? = null,
     val mewPicsBank: Int = 0,
+    /**
+     * PureRGB's shapes: 35-byte base data whose front pic's bank is its own byte ([picBankOffset], BASE_PICBANK), and
+     * pages that are fixed 8-byte records by Dex number ([dexEntryData]: feet, inches, pounds x 10, a text_far) with the
+     * category apart - [categoryMapping] gives each Dex number the index of its string in [categoryStrings] (@-ended).
+     */
+    val baseStatsSize: Int = 28,
+    val picBankOffset: Int = -1,
+    val dexEntryData: Pair<Int, Int>? = null,
+    val categoryMapping: Pair<Int, Int>? = null,
+    val categoryStrings: Pair<Int, Int>? = null,
+    /** The text command that points at the page's text: TX_FAR 0x17 (PureRGB renumbered its commands: TX_FAR_END 0x15). */
+    val textFar: Int = 0x17,
 )
 
 val GEN1_DEX_YELLOW = Gen1DexTables(
@@ -60,6 +72,28 @@ private val GEN1_DEX_RED = GEN1_DEX_YELLOW.copy(
     mewPicsBank = 0x01,
 )
 
+/**
+ * PureRed / PureBlue v2.7.6 (Vortyne/pureRGB's pokered.sym; every address the same in both builds): its own base data
+ * (MEW in the main table), pages and Super Game Boy palettes (the colours its SGB and COLORS > SGB1 modes give each
+ * Pokémon; on a Color it shows them two-tone by default). Seen / owned keep Red's bit order, in WRAM bank 1.
+ */
+private val GEN1_DEX_PURE_RED = GEN1_DEX_YELLOW.copy(
+    baseStats = 0x2C to 0x6445,
+    dexEntryPointers = 0 to 0,
+    monsterPalettes = 0x1C to 0x6435,
+    cgbPalettes = 0x1C to 0x6565,   // SuperPalettes
+    internalToDex = gen1InternalToDexPureRgb,
+    owned = wramx(1, 0xD2FF),
+    seen = wramx(1, 0xD312),
+    charset = Gen1Charset.PURE,
+    baseStatsSize = 35,
+    picBankOffset = 27,
+    dexEntryData = 0x10 to 0x4859,
+    categoryMapping = 0x10 to 0x4D2F,
+    categoryStrings = 0x10 to 0x4DC6,
+    textFar = 0x15,   // dex_entry's text_far_end
+)
+
 /** The European Yellows: English's tables but for the dex pages' text and palettes (port_gen1.py, checked by contents). */
 private val GEN1_DEX_YELLOW_DE = GEN1_DEX_YELLOW.copy(dexEntryPointers = 0x10 to 0x4507, monsterPalettes = 0x1C to 0x6900,
     cgbPalettes = 0x1C to 0x6AD8, owned = 0xD2FBL, seen = 0xD30EL, metric = true, charset = Gen1Charset.DF)
@@ -84,6 +118,9 @@ val POKEDEX_YELLOW_ES = POKEDEX_YELLOW_METRIC.copy(gen1 = GEN1_DEX_YELLOW_ES)
 /** Red's and Blue's: one set of tables over each cart's own bytes (two objects, so a dex cache never crosses them). */
 val POKEDEX_RED = POKEDEX_YELLOW.copy(gen1 = GEN1_DEX_RED)
 val POKEDEX_BLUE = POKEDEX_YELLOW.copy(gen1 = GEN1_DEX_RED.copy())
+/** PureRed's and PureBlue's, likewise. */
+val POKEDEX_PURE_RED = POKEDEX_YELLOW.copy(gen1 = GEN1_DEX_PURE_RED)
+val POKEDEX_PURE_BLUE = POKEDEX_YELLOW.copy(gen1 = GEN1_DEX_PURE_RED.copy())
 
 fun readGen1PokedexState(r: MemoryReader, t: Gen1DexTables, tables: PokedexTables): PokedexState {
     val owned = r.readCoreMemory(t.owned, 19)
@@ -121,21 +158,32 @@ object Gen1Dex {
     /** [dex]'s 28 bytes of base stats: BaseStats by Dex number, MEW's apart in Red / Blue. */
     private fun baseStatsOff(t: Gen1DexTables, dex: Int): Int =
         t.mewBaseStats?.takeIf { dex == MEW }?.let { off(it.first, it.second) }
-            ?: (off(t.baseStats.first, t.baseStats.second) + 28 * (dex - 1))
+            ?: (off(t.baseStats.first, t.baseStats.second) + t.baseStatsSize * (dex - 1))
 
     private fun internalOf(t: Gen1DexTables, dex: Int): Int = t.internalToDex.indexOfFirst { it == dex }
 
     fun entry(t: Gen1DexTables, dex: Int): DexEntry? {
         val rom = rom ?: return null
         if (dex !in 1..151) return null
-        val internal = internalOf(t, dex).takeIf { it > 0 } ?: return null
-        val (pb, pa) = t.dexEntryPointers
-        val e = off(pb, u16(rom, off(pb, pa) + 2 * (internal - 1)))
-        var o = e
-        while (u8(rom, o) != 0x50) o++
         val chars = t.charset.chars
-        val category = text(rom, e, chars)
-        o++
+        val category: String
+        var o: Int
+        if (t.dexEntryData != null) {
+            // PureRGB: the record by Dex number, the category by its index among DexCategoryStrings.
+            val (cb, ca) = t.categoryMapping ?: return null
+            var s = off(t.categoryStrings!!.first, t.categoryStrings.second)
+            repeat(u8(rom, off(cb, ca) + dex - 1)) { while (u8(rom, s) != 0x50) s++; s++ }
+            category = text(rom, s, chars)
+            o = off(t.dexEntryData.first, t.dexEntryData.second) + 8 * (dex - 1)
+        } else {
+            val internal = internalOf(t, dex).takeIf { it > 0 } ?: return null
+            val (pb, pa) = t.dexEntryPointers
+            val e = off(pb, u16(rom, off(pb, pa) + 2 * (internal - 1)))
+            o = e
+            while (u8(rom, o) != 0x50) o++
+            category = text(rom, e, chars)
+            o++
+        }
         // English: feet, inches, pounds x 10; Europe: decimetres, hectograms (one byte less).
         val feet = u8(rom, o)
         val inches = u8(rom, o + 1)
@@ -144,7 +192,7 @@ object Gen1Dex {
         val hg = u16(rom, o + 1)
         val far = o + if (t.metric) 3 else 4
         // text_far: 0x17, address, bank.
-        val desc = if (u8(rom, far) == 0x17) text(rom, off(u8(rom, far + 3), u16(rom, far + 1)), chars) else ""
+        val desc = if (u8(rom, far) == t.textFar) text(rom, off(u8(rom, far + 3), u16(rom, far + 1)), chars) else ""
         val s = baseStatsOff(t, dex)
         return DexEntry(
             national = dex,
@@ -173,12 +221,14 @@ object Gen1Dex {
     fun frontPixels(t: Gen1DexTables, dex: Int): IntArray? {
         val rom = rom ?: return null
         if (dex !in 1..151) return null
-        val internal = internalOf(t, dex).takeIf { it > 0 } ?: return null
         val s = baseStatsOff(t, dex)
         val ptr = u16(rom, s + 11)
-        val bank = if (internal == t.fossilKabutops) t.fossilKabutopsBank
-        else if (dex == MEW && t.mewBaseStats != null) t.mewPicsBank
-        else t.picsBank + t.picsBankBreaks.count { internal >= it }
+        val bank = if (t.picBankOffset >= 0) u8(rom, s + t.picBankOffset) else {
+            val internal = internalOf(t, dex).takeIf { it > 0 } ?: return null
+            if (internal == t.fossilKabutops) t.fossilKabutopsBank
+            else if (dex == MEW && t.mewBaseStats != null) t.mewPicsBank
+            else t.picsBank + t.picsBankBreaks.count { internal >= it }
+        }
         val pic = Gen1Pic.decompress(rom, off(bank, ptr)) ?: return null
         val palId = u8(rom, off(t.monsterPalettes.first, t.monsterPalettes.second) + dex)
         val pal = off(t.cgbPalettes.first, t.cgbPalettes.second) + 8 * palId

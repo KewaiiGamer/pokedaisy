@@ -46,6 +46,23 @@ the repo secret `FIREBASE_SERVICE_ACCOUNT_POKEDAISY`: a service account JSON key
 
 By hand (this skips the release rule - deploy from a release tag's checkout): `npm run build && npx firebase-tools deploy --only hosting` (or `hosting:channel:deploy <name>` for a preview).
 
+## Analytics
+
+Anonymous visit counts in the project's Google Analytics 4 (Firebase Analytics), all in `src/lib/analytics.js`:
+a `page_view` per page, and `download_apk` (`where`, `version`), `rom_check` (`verdict`, `reason`: never the file's
+name, code or hash), `feedback_sent` (`kind`, `ok`: nothing typed) and `link_click` (`to`: GitHub, Reddit, Discord,
+Ko-fi, Patreon, coffee). Anything else, and any value off each parameter's list, is dropped before sending
+(`test/analytics.test.js`). No cookies or stored ids (every page load is a new visit, so "users" count page loads),
+addresses without query or #hash (the ROM check's request link carries a file name and SHA-1 there), the referrer as
+its site only. It sends only on pokedaisy.com, and never with Global Privacy Control or Do Not Track.
+
+gtag.js isn't used: it sends nothing when it can't keep its `_ga` cookie, and its cookieless mode (consent denied)
+keeps those visits out of the reports. The page sends gtag's own hit (`/g/collect`) with a beacon instead, so no
+Google script loads either.
+
+`MEASUREMENT_ID` is the GA4 web stream for `https://pokedaisy.com` (public; empty turns it off). In GA4 Admin: Google signals off, granular location and device data off, Enhanced
+measurement off (only the events above), data retention 2 months.
+
 ## Feedback form (no GitHub account)
 
 `/feedback/` (`src/pages/feedback.astro`) lets anyone request a game, report a bug or suggest a feature. The

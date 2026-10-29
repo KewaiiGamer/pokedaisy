@@ -197,6 +197,23 @@ object MgbaCore {
     /** Whether a DS game's coming frame / the one after are shown (fast-forward shows one of each group): unseen ones
      * skip their drawing. Emu thread, before [pkRunFrame]. */
     external fun pkNdsSetDraw(draw: Boolean, drawNext: Boolean)
+
+    /** DS RESOLUTION (nds/pk_nds_gl.h): the 3D at [scale] times the DS's on the GPU (2-8), or the DS's own on the CPU
+     * (1). Taken before the next frame. Emu thread. */
+    external fun pkNdsSetScale(scale: Int)
+    /** The scale in effect: 1 = the CPU's (asked for, or the GPU path isn't available here). */
+    external fun pkNdsScale(): Int
+    /** Whether the GPU path can run here: -1 not tried yet, 0 no (no OpenGL ES 3.2), 1 yes. Any thread. */
+    external fun pkNdsGpuSupported(): Int
+    /** The game screen's SurfaceTexture's Surface (an android.view.Surface; null: none) for the GPU path's frames. Any
+     * thread. */
+    external fun pkNdsGlSetWindow(surface: Any?)
+    /** The last frame went out through the GPU path (into that Surface). Emu thread. */
+    external fun pkNdsGlPresented(): Boolean
+    /** The GPU path's frame presented at [timestamp] (SurfaceTexture.getTimestamp): its window x, y, w, h in DS pixels
+     * and its texels wide / high into [out] (6). False when not known. Any thread. */
+    external fun pkNdsGlFrameInfo(timestamp: Long, out: IntArray): Boolean
+
     /** The cart's wild encounter rates by map header id, [map, grass, surf] triples (Gen4World.wildRates): WILD ENCOUNTERS
      *  back on restores a map's from here. Emu thread, once the DS core is up. */
     external fun pkNdsWildRates(triples: IntArray)

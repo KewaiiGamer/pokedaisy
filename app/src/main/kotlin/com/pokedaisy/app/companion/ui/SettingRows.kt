@@ -105,6 +105,7 @@ val FLAGGED_SETTING_KEYWORDS: Map<String, String> = mapOf(
  */
 val SETTING_KEYWORDS: Map<String, String> = mapOf(
     "HELP" to "manual docs documentation guide how to faq instructions",
+    "DISCORD" to "discord server community chat support help contact report bug feedback ideas suggestions developers dev",
     "FF" to "fast forward turbo speed up",
     "DUAL-SCREEN LAUNCHER" to "frontend launcher two screens dual screen media game list swap",
     "FF SPEED" to "fast forward speed rate cap multiplier turbo",
@@ -112,14 +113,15 @@ val SETTING_KEYWORDS: Map<String, String> = mapOf(
     "FF MUSIC" to "fast forward audio sound music steady sped up mute",
     "REWIND" to "rewind undo go back time",
     "TOUCH CONTROLS" to "touch controls on screen controls virtual gamepad overlay touch buttons layout edit move resize size scale opacity transparency see through haptic haptics vibration vibrate turbo dpad d-pad fade hide phone",
-    "GAME BUTTONS" to "key bindings keybinds keybinding controls remap remapping rebind mapping input controller gamepad buttons turbo",
-    "HOTKEYS" to "shortcuts combos save state load state slot rewind fast forward key bindings restart close quit exit app",
+    "GAME BUTTONS" to "key bindings keybinds keybinding controls remap remapping rebind mapping input controller gamepad buttons turbo start 2 select 2 x y ds nds game boy gba to companion",
+    "HOTKEYS" to "shortcuts combos save state load state slot rewind fast forward key bindings restart close quit exit app companion open panel window",
     "QUICK MENU" to "radial ring wheel circle grid style labels names icons only shortcut actions pc fly repel super max bike bicycle get off dismount rod fishing wild encounters save load state fast forward l3 thumb stick",
     "STATUS BAR" to "clock time battery money location top bar",
     "BATTLE BUTTONS" to "battle buttons moves fight switch run flee side touch single screen one screen expand widescreen",
     "HUD" to "field hud heads up display overlay party minimap mini map balls bag wild encounters overworld legends single screen",
     "ASPECT" to "stretch ratio fullscreen full screen size scale 3:2 wide widescreen 16:9 expand zoom",
     "AUTO ZOOM IN" to "expand wide zoom close-up closeup dialogue conversation sign menu text box pull in automatic",
+    "DS RESOLUTION" to "internal resolution upscale upscaling scale scaling hd high definition sharp sharper crisp 3d render renderer gpu opengl 2x 4x 6x 8x jaggies jagged blurry nintendo ds platinum heartgold soulsilver",
     "SHADERS" to "filter lcd crt scanlines grid gba colors color correction effects screen look smoothing xbr xbrz scalefx upscale hd edges unlit pixel transparency backlight",
     "LIGHT COMPANION" to "lag laggy slow slowdown stutter performance weak device low end battery buttons late input delay unresponsive animations smooth",
     "UNLIT SCREEN" to "pixel transparency transparent backlight backlit no backlight unlit reflective backing shadow drop shadow original gba screen white",
@@ -136,7 +138,7 @@ val SETTING_KEYWORDS: Map<String, String> = mapOf(
     "FPS / CPU" to "fps frame rate framerate cpu usage performance speed overlay counter 60",
     "DARK MODE" to "dark night black theme light colors appearance auto system",
     "RESUME GAMES" to "auto resume continue launch boot",
-    "FOLDERS" to "roms folder saves directory path location storage retroarch syncthing save states",
+    "FOLDERS" to "roms folder folders multiple add link saves directory path location storage retroarch syncthing save states",
     "COVER ART" to "box art boxart covers steamgriddb images thumbnails api key",
     "HIDDEN GAMES" to "hide unhide library show",
     "CHEATS" to "gameshark action replay codebreaker codes",
@@ -160,7 +162,10 @@ val SETTING_KEYWORDS: Map<String, String> = mapOf(
     "TEXT LOOK" to "text look text box textbox dialogue dialog box message box window frame font letters typeface firered emerald",
     "RIVAL LOOK" to "rival look rival costume outfit skin sprite appearance dress up brendan may other hero opponent",
     "PLAYER LOOK" to "player look hero heroine character protagonist trainer costume outfit skin sprite appearance swap play as another game red leaf brendan may",
+    "NUZLOCKE" to "nuzlocke challenge hardcore run tracker encounter first catch per route area death dead faint permadeath graveyard dupes clause",
     "REUSABLE TMS" to "reusable tm tms technical machine machines reuse infinite unlimited keep tm single use consumed used up teach moves",
+    "SHINY ODDS" to "shiny shinies shiny odds shiny rate shiny hunting hunt shiny charm sparkle rare color colour chance",
+    "TIPS" to "tips hints help popup pop up feature discovery introduce new features suggestions what can it do",
     "WILD ENCOUNTERS" to "wild encounters encounter rate random battles grass caves repel no encounters fewer battles",
 )
 
@@ -349,23 +354,7 @@ private fun GroupedRowsList(
                 FeaturedTitle(row, m, top = if (i == 0) 1 else 6, modifier = track)
             } else if (row.header) {
                 val track = if (tops == null) Modifier else Modifier.onGloballyPositioned { tops[i] = it.positionInParent().y.toInt() }
-                val band = OptionColors.groupTitleFill
-                if (band == null) {
-                    GbaText(
-                        tr(row.label), OptionColors.value, OptionColors.valueShadow, m,
-                        modifier = track.padding(start = m.u * 8, top = m.u * (if (i == 0) 1 else 6), bottom = m.u),
-                    )
-                } else {
-                    // Black text on white rows (Gen 1): the title is a black band, so it can't pass for a row.
-                    GbaText(
-                        tr(row.label), OptionColors.groupTitleText, OptionColors.groupTitleShadow, m,
-                        modifier = track
-                            .padding(start = m.u * 2, end = m.u * 2, top = m.u * (if (i == 0) 1 else 6), bottom = m.u * 2)
-                            .fillMaxWidth()
-                            .drawBehind { drawPixelRoundRect(band, radius = m.u.toPx() * 2, step = m.u.toPx()) }
-                            .padding(horizontal = m.u * 6, vertical = m.u * 2),
-                    )
-                }
+                GroupTitleLine(row.label, m, first = i == 0, modifier = track)
             } else {
                 OptionLine(
                     row.label, row.value, selected = i == cursor, m,
@@ -385,6 +374,29 @@ private fun GroupedRowsList(
             }
         }
         footer()
+    }
+}
+
+/** A group's title in a settings list ([groupTitle]'s look, for lists built row by row: GAME BUTTONS). [first] = the
+ * list's top line, with less room above it. */
+@Composable
+fun GroupTitleLine(label: String, m: GbaTextMetrics, first: Boolean, modifier: Modifier = Modifier) {
+    val band = OptionColors.groupTitleFill
+    if (band == null) {
+        GbaText(
+            tr(label), OptionColors.value, OptionColors.valueShadow, m,
+            modifier = modifier.padding(start = m.u * 8, top = m.u * (if (first) 1 else 6), bottom = m.u),
+        )
+    } else {
+        // Black text on white rows (Gen 1): the title is a black band, so it can't pass for a row.
+        GbaText(
+            tr(label), OptionColors.groupTitleText, OptionColors.groupTitleShadow, m,
+            modifier = modifier
+                .padding(start = m.u * 2, end = m.u * 2, top = m.u * (if (first) 1 else 6), bottom = m.u * 2)
+                .fillMaxWidth()
+                .drawBehind { drawPixelRoundRect(band, radius = m.u.toPx() * 2, step = m.u.toPx()) }
+                .padding(horizontal = m.u * 6, vertical = m.u * 2),
+        )
     }
 }
 
@@ -432,6 +444,13 @@ private fun Modifier.revealOnce(done: () -> Unit): Modifier = composed {
     }
     onSizeChanged { size = it }.bringIntoViewRequester(requester)
 }
+
+/** APP > TIPS, on both screens ([com.pokedaisy.app.companion.FeatureTips]): now and then a card about a feature the
+ *  player hasn't found yet. */
+fun tipsRow(on: Boolean, set: (Boolean) -> Unit): SettingRow = SettingRow(
+    tk("TIPS"), if (on) tk("ON") else tk("OFF"), subtitle = "Now and then, a feature you haven't tried yet",
+    labelBadge = com.pokedaisy.app.companion.NewFeatures.badge(com.pokedaisy.app.companion.NewFeatures.TIPS),
+) { set(!on) }
 
 /**
  * DISPLAY OPTIONS > LIGHT COMPANION, on both screens ([com.pokedaisy.app.companion.LightCompanion]): AUTO / ON / OFF

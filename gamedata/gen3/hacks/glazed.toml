@@ -1,0 +1,20 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+[config.glazed]
+base = 'emerald'
+itemDescs = { preset = 'vanilla', base = 0x085839A0 }  # retail's, rewritten in place
+guideTables = 'GUIDE_TABLES_GLAZED'
+# Retail's dex tables and flags, rewritten in place in its own 1..386 numbering (No.322 is
+# CHIMCHAR); its species 252-276 map past 386, where the game's dex doesn't go either.
+pokedex = 'POKEDEX_EMERALD'
+trainerCard = 'TRAINER_CARD_GLAZED'
+maxMoney = 9_999_999
+enemyParty = { from = 'emerald_retail' }
+battlerPartyIndexes = { from = 'emerald_retail' }
+battleStructPtr = { from = 'emerald_retail' }
+monToSwitchIntoOff = { from = 'emerald_retail' }
+# Retail's battle menu cursors too: checked headless on a scripted wild battle (RIGHT / DOWN walk 0 -> 1 -> 3, a
+# written 2 + A opens the party menu, a written move + A spends its PP - against a Magikarp: its Pikachu's Sweet
+# Kiss confused the lead on the first try, and a self-hit spends none).
+actionCursor = { from = 'emerald_retail' }
+moveCursor = { from = 'emerald_retail' }

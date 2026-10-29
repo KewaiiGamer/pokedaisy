@@ -62,10 +62,20 @@ private fun rawAreas(guide: GuideId): List<String> = when (guide) {
     GuideId.RECHARGED_YELLOW_V194 -> GUIDE_AREAS_RECHARGED_YELLOW_V194_RAW
     // No area data yet: HERE lists the wild Pokémon alone.
     GuideId.GLAZED, GuideId.IMPERIUM, GuideId.QUETZAL, GuideId.QUETZAL_V084, GuideId.LAZARUS, GuideId.SEAGLASS, GuideId.TMT2, GuideId.SOULGOLD,
-    GuideId.MARIOMON, GuideId.RECHARGED_EMERALD, GuideId.ELITE_REDUX, GuideId.TEAM_ROCKET -> emptyList()
+    GuideId.MARIOMON, GuideId.RECHARGED_EMERALD, GuideId.ELITE_REDUX, GuideId.TEAM_ROCKET,
+    GuideId.WISHES -> emptyList()
+    GuideId.DREAMSTONE -> emptyList()
     // The DS games: item balls and hidden items (scripts/gen_gen4_guide.py), keyed by place - see [areaSection].
     GuideId.PLATINUM -> PT_AREAS_RAW
     GuideId.HEARTGOLD, GuideId.SOULSILVER -> HG_AREAS_RAW
+    // Black's item balls (scripts/gen_gen5_guide.py), keyed by the zone's place.
+    GuideId.BLACK -> BW_AREAS_RAW
+    // The Game Boy games (scripts/gen_gen1_guide.py, gen_crystal_guide.py): Gen 1's keyed by wCurMap, regrouped by
+    // [gen1Area]; Crystal's by landmark, like Polished Crystal's.
+    GuideId.YELLOW -> G1Y_AREAS_RAW
+    GuideId.RED -> G1R_AREAS_RAW
+    GuideId.BLUE -> G1B_AREAS_RAW
+    GuideId.CRYSTAL -> GUIDE_AREAS_CRYSTAL_RAW
 }
 
 private val hgHeaderPlaces: Map<Int, Int> by lazy {
@@ -80,8 +90,12 @@ private val hgHeaderPlaces: Map<Int, Int> by lazy {
 fun areaSection(game: GameKind?, mapNum: Int, regionSec: Int): Int = when (game) {
     GameKind.PLATINUM -> mapPlaceIdsPlatinum[mapNum] ?: regionSec
     GameKind.HEARTGOLD, GameKind.SOULSILVER -> hgHeaderPlaces[mapNum] ?: regionSec
+    GameKind.BLACK -> mapPlaceIdsBlack[mapNum] ?: regionSec
+    GameKind.YELLOW, GameKind.RED, GameKind.BLUE -> gen1Area(mapNum)
     else -> regionSec
 }
+
+private val GEN1_GUIDES = setOf(GuideId.YELLOW, GuideId.RED, GuideId.BLUE)
 
 /** Whether [guide] has area data at all (then HERE shows even without the ROM tables). */
 fun hasAreaGuide(guide: GuideId?): Boolean = guide != null
@@ -97,7 +111,8 @@ fun allAreaThings(guide: GuideId): Map<Int, List<AreaThing>> {
         raw.asSequence().flatMap { it.lineSequence() }.filter { it.isNotBlank() }.mapNotNull { line ->
             val f = line.split('|')
             if (f.size < 7) return@mapNotNull null
-            f[0].toInt() to AreaThing(AreaKind.valueOf(f[1]), f[2].toInt(), f[3].toInt(), f[4].toInt(), f[5].toInt(), f[6])
+            val key = f[0].toInt().let { if (guide in GEN1_GUIDES) gen1Area(it) else it }
+            key to AreaThing(AreaKind.valueOf(f[1]), f[2].toInt(), f[3].toInt(), f[4].toInt(), f[5].toInt(), f[6])
         }.groupBy({ it.first }, { it.second })
     }
 }

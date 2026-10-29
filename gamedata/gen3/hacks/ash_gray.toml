@@ -1,0 +1,12 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Ash Gray v4.5.3 (16 MB, BPRE rev 0, sha1 1ee1557d…; its Fork Bug Fix v1.0 build, 92ed8214…,
+# differs in 493 bytes of scripts and shares this): FireRed 1.0 edited in place, no source. Its tables
+# sit at rev 0's addresses, edited in place, but for gWildMonHeaders (0x088CD1F8), gMapGroups (0x0873E2F4)
+# and its region map's art (its own Kanto and Orange Islands: RomRegionMap); retail FireRed's save loads
+# in both builds (`ash_gray`, `ash_gray_fork`). GameKind.FIRERED with ActiveTables' fireRedHack
+# (AshGrayGen.kt, gen_firered_hack_tables.py).
+[config.ash_gray]
+base = 'ultra_violet'
+pokedex = 'POKEDEX_ULTRA_VIOLET'
+guideTables = 'GUIDE_TABLES_ASH_GRAY'

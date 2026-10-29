@@ -25,7 +25,7 @@ object RomIdentity {
         RomArchive.readAt(rom, 0x104L, 4)?.contentEquals(GB_LOGO_START) == true
 
     /** A Game Boy Color-only cart (header byte 0x143 = 0xC0: Crystal). A cart that also runs on the original Game Boy
-     * (0x80: Yellow, Gold, Silver) isn't: the library calls those GB. */
+     * (0x80: Yellow, Gold, Silver) isn't (the library's GB / GBC views: GameTitles.gameBoyPlatform). */
     fun isGameBoyColor(rom: File): Boolean =
         RomArchive.readAt(rom, 0x143L, 1)?.firstOrNull()?.let { it.toInt() and 0xFF == 0xC0 } == true
 

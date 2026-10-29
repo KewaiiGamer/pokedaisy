@@ -100,6 +100,23 @@ int pk_nds_wide_scene(void);
 // The camera's window (pkWideSetView), so the slices draw only what it shows.
 void pk_nds_wide_window(int x, int y, int w, int h);
 
+// DS RESOLUTION (pk_nds_gl.h): the 3D at [scale] times the DS's (2-8, on the GPU) or the DS's own (1, the software
+// renderer, pixel for pixel). Taken before the next frame runs. Emu thread.
+void pk_nds_set_scale(int scale);
+// The scale in effect (1: software - asked for, or the GPU path isn't available).
+int pk_nds_scale(void);
+// Whether the GPU path can run here: -1 not tried yet, 0 no, 1 yes.
+int pk_nds_gpu_supported(void);
+// Whether the last frame went out through the GPU path (into the window pk_nds_gl_set_window gave it); otherwise the
+// screen shows pk_nds_top (in GPU mode its 1x copy). Emu thread.
+bool pk_nds_presented(void);
+// The GPU path's frame presented at [timestamp]: its window (x, y, w, h in DS pixels) and texel size into out[6].
+bool pk_nds_gpu_frame_info(int64_t timestamp, int32_t out[6]);
+// The game screen's window for the GPU path's frames (EmulatorView's SurfaceTexture), or NULL; takes the reference.
+// Any thread, with or without a DS up.
+struct ANativeWindow;
+void pk_nds_set_window(struct ANativeWindow* window);
+
 // The cart header's 4-letter game code (CPUE for Platinum) into out[5], and its revision byte.
 bool pk_nds_rom_code(char out[5]);
 int pk_nds_rom_revision(void);

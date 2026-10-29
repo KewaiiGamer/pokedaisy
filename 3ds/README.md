@@ -29,9 +29,11 @@ unknown. Target the **New 3DS / New 3DS XL / New 2DS XL** first; the original
   (newest 10 per game) - the repo's "save files are sacred" rule.
 - Settings kept in `sdmc:/pokedaisy/settings.ini`.
 - The companion, in the app's FireRed OPTION-screen look:
-  - **PARTY**: the six slots (the game's own icon from your ROM, name with its
-    ♂ / ♀, level, HP bar, status) in the app's FireRed party palette; tap one
-    for its summary (moves, type, PP).
+  - **PARTY**: the six slots in the app's FireRed-like slot (`PartySlot` /
+    `SlotGeometry`: the Poke Ball and the game's own icon from your ROM over the
+    frame's corner, name, level or a status chip, ♂ / ♀, the HP bar with its HP
+    tag and the numbers under it, empty slots faint), edge to edge like
+    `PartyGrid`; tap one for its summary (moves, type, PP).
   - **BATTLE**: opens by itself in a battle and goes back after it. **INFO**:
     the foe and you (with the game's own party icons, read from your ROM),
     your moves with the app's verdicts (SUPER 2x / NEUTRAL 1x / RESISTED 1/2x /
@@ -60,7 +62,9 @@ unknown. Target the **New 3DS / New 3DS XL / New 2DS XL** first; the original
     order (the save's own, or the other with a tap); an entry has the game's
     picture, category, types, height / weight, text, base stats and ability.
   - **SETTINGS** (the gear): place, money, file and speed, then SCREEN and
-    FAST-FORWARD (pick-lists), SAVE STATE / LOAD STATE / LEAVE GAME (confirmed).
+    FAST-FORWARD (pick-lists), TAB BAR (which tabs sit on the bar, at most five;
+    the rest open from a MORE chip), SAVE STATE / LOAD STATE / LEAVE GAME
+    (confirmed). The list scrolls (a drag) where it doesn't fit.
   - **TRAINER CARD** (the button in SETTINGS' title, like the app's TOOLS): the
     game's own card, drawn from your ROM's art pixel for pixel - name, ID,
     money, POKéDEX, play time with its blinking colon, badges, stars, the
@@ -188,8 +192,9 @@ make tables        # regenerate core/*_gen.c and ctr/icon.png from the app
 | `test/` | The fixture ROM, the decomp build and the Azahar script |
 | `tools/` | The generators |
 
-Keep in sync with the app: `core/pd_game.c`'s addresses come from
-`NativeReader.kt`, `pd_snapshot.c` mirrors `Gen3Mon.kt` / `readNativeTelemetry`,
+Keep in sync with the app: `core/pd_configs_gen.h`'s addresses are generated from
+`gamedata/` with the app's (`make gamedata`; `gamedata/targets/3ds.toml` picks what
+this port reads), `pd_snapshot.c` mirrors `Gen3Mon.kt` / `readNativeTelemetry`,
 and the tables are regenerated (`make tables`) whenever the app's change.
 
 GPU notes (found in Azahar): textures are written by the CPU straight into

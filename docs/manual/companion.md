@@ -3,7 +3,7 @@ title: The companion at a glance
 summary: What the bottom screen shows, how the tab bar works, and what the companion's SETTINGS tab holds.
 section: companion
 order: 1
-keywords: [bottom screen, second screen, tabs, tab bar, overview, back button, click, sound, language, translation, close, restart, reset, gear, more, apps, hidden tabs, extra tabs, grid, player look, hero, heroine, protagonist, character, outfit, costume, skin, sprite, play as]
+keywords: [bottom screen, second screen, tabs, tab bar, overview, back button, click, sound, language, translation, close, restart, reset, gear, more, apps, hidden tabs, extra tabs, grid, player look, hero, heroine, protagonist, character, outfit, costume, skin, sprite, play as, tips, hints, feature tips, popup]
 ---
 
 The companion is everything on the bottom screen while a game runs. It reads your game as you play, so your party, bag, location and battles are always up to date without opening a single menu on the top screen. It's drawn in the game's own menu style: FireRed's party screen in FireRed, Emerald's in Emerald, and each supported hack's own look where it has one.
@@ -22,7 +22,7 @@ Along the bottom of the companion is a row of tabs, with `MORE` (a grid of nine 
 | `BAG` | Every pocket of your bag. See [Bag](bag.md). |
 | `GUIDE` | Hints, the next boss and what's around you. See [Guide](guide.md). |
 
-A few more are off the bar to begin with and wait under `MORE`: `CARD` (your [trainer card](trainer-card.md)), `STATES` (save states) and `CHEEVOS` ([RetroAchievements](achievements.md)).
+A few more are off the bar to begin with and wait under `MORE`: `CARD` (your [trainer card](trainer-card.md)), `STATES` (save states) and `CHEEVOS` ([RetroAchievements](achievements.md)). `NUZLOCKE` joins them once you turn on [Nuzlocke](nuzlocke.md) tracking for a game.
 
 Some tabs only appear when the game has what they need. `DEX` needs the game's Pokédex data and `GUIDE` needs a guide for that game, so a game without them has fewer tabs. The bag tab also takes the game's own word for it: `PACK` in Gold, Silver, Crystal, Crystal Clear and Prism, `CUBE` in Unbound, `INVENTORY` in R.O.W.E., `POCKETS` in Super Mariomon, `BAG` everywhere else.
 
@@ -75,11 +75,11 @@ The options come in groups, the ones you change while playing first:
 
 - **MAKEOVER**: `PLAYER LOOK`, `RIVAL LOOK`, `TEXT LOOK`, `FOLLOWER` and `DAY AND NIGHT`, fresh looks for your game. It sits at the top in a blue frame of its own, and only shows in a game it works in. See [MAKEOVER](#makeover) below.
 - **FF / SPEED**: `FF`, `FF SPEED`, `GAME SPEED`, `REWIND` and `SPEED OPTIONS` (a page with `SCENE SPEEDS`, `FF MODE` and `FF MUSIC`). See [Fast-forward](fast-forward.md).
-- **GAMEPLAY**: `WILD ENCOUNTERS`, `REUSABLE TMS`, `AUTO-RUN`, `RUN INDOORS` and `CHEATS`. See [Controls](controls.md), [Bag](bag.md) and [Cheats](cheats.md).
+- **GAMEPLAY**: `WILD ENCOUNTERS`, `REUSABLE TMS`, `SHINY ODDS`, `NUZLOCKE`, `AUTO-RUN`, `RUN INDOORS` and `CHEATS`. See [Controls](controls.md), [Bag](bag.md), [Nuzlocke](nuzlocke.md) and [Cheats](cheats.md).
 - **SCREEN**: `ASPECT`, `HUD`, `DISPLAY OPTIONS` (a page with `STATUS BAR`, `SHADERS`, `OVERLAY` and `LIGHT COMPANION`), `DARK MODE`, `FPS / CPU` and, depending on your device, `BATTLE BUTTONS`, `COMPANION VIEW`, `COMPANION BUTTON`, `SWAP SCREENS` or `SINGLE SCREEN`. See [Screen and display](screen.md).
 - **COMPANION**: `BATTLE HINTS`, `ONE-TAP MOVES`, `FOE IVS`, `TAB BAR`, `CLICK SOUND` and `TWEAKS`.
 - **CONTROLS**: `GAME BUTTONS`, `HOTKEYS`, `QUICK MENU` and `TOUCH CONTROLS`. See [Controls](controls.md).
-- **APP**: `LANGUAGE` and `HELP` (this manual).
+- **APP**: `TIPS`, `LANGUAGE` and `HELP` (this manual).
 
 Every option is explained in the [Settings reference](settings-reference.md). The top screen has its own Settings too, with more options and a search box.
 
@@ -139,6 +139,18 @@ Its sprite comes from a game whose Pokémon follow you (Heart and Soul, R.O.W.E.
 With `DAY AND NIGHT` on, the map follows your device's clock: a soft pink at dawn, the game's own colours by day, an orange glow at dusk and a deep blue at night. Only the outdoors changes, and only while you walk around: text boxes and menus keep their colours, buildings stay lit, and battles look as they always do. It eases in and out as you go between them.
 
 It works in every GBA game except those that already change with the time of day themselves (Unbound, Heart and Soul, Elite Redux). It's off to start with. Your game and your save don't change: only the picture does.
+
+### TIPS
+
+PokeDaisy does a lot, and some of it is easy to miss. Once you've played for about half an hour, a small card with the PokeDaisy flower now and then shows you a feature you haven't tried yet, like the zoom and look around with `EXPAND`, the `QUICK MENU`, `AUTO-RUN` or the PC from anywhere. With two screens it shows on the companion, so the game stays clear; on one screen it sits at the top of the game.
+
+Most cards come up when the feature would help right then: `AUTO-RUN` after you've held B to run for a while, `WILD ENCOUNTERS` after a few wild battles in a row, `REUSABLE TMS` right after a TM gets used up.
+
+- **TRY IT** (its button says what it does, like `TURN ON` or `SHOW ME`) does the thing at once.
+- **`NO THANKS`** means that card never comes back.
+- Leave it, and it goes by itself when its bar runs out. It may come back once, much later.
+
+A card only shows while you're walking around the field, never in a battle, a menu or a conversation. There are always at least 5 minutes of play between two cards, and a feature you already use never gets one. Turn them off with `TIPS` in the `APP` group, on either screen.
 
 ### LANGUAGE
 

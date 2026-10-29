@@ -1,0 +1,37 @@
+# PcFns's fields (Pc.kt), checked against it by scripts/gen_gamedata.py.
+# type: long | int | bool | char | string | item_descs | int_range | long_list | int_list | int_set | long_set |
+# int_map | ref (a Kotlin val's name, or a record in gamedata/gen3/records/); record names the schema of the
+# record a ref names (its defaults stand in where there is none).
+
+version = 1
+kotlin_class = 'PcFns'
+kotlin_file = 'Pc.kt'
+
+# ScriptContext_SetupScript(script).
+[field.setupScript]
+kotlin = 'Long'
+type = 'long'
+
+# ShowPokemonStorageSystemPC's index in gSpecials (FireRed / LeafGreen 60, Emerald 63).
+[field.special]
+kotlin = 'Int'
+type = 'int'
+
+# gSpecials: [special]'s entry must be [pcFn] (thumb bit set).
+[field.specials]
+kotlin = 'Long'
+type = 'long'
+
+[field.pcFn]
+kotlin = 'Long'
+type = 'long'
+
+# CRC32 of [setupScript]'s and [pcFn]'s first 32 bytes.
+[field.codeCrcs]
+kotlin = 'List<Long>'
+type = 'long_list'
+
+[field.script]
+kotlin = 'Long'
+type = 'long'
+default = 0x0203FFF4

@@ -1,0 +1,10 @@
+# Pokémon Dreamstone Mysteries with the save played headless (~/Documents/RetroArch/saves/mGBA/Pokemon Dreamstone
+# Mysteries.sav, see the dreamstone fixture's README): its splash and title (START twice), CONTINUE, then the field in
+# CARABRUE TOWN (no A after that: the woman beside the player talks on one). Checked headless 2026-10-23.
+wait 700
+press START
+wait 100
+press START
+wait 100
+press A
+wait 300

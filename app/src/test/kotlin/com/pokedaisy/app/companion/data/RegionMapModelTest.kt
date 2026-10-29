@@ -20,6 +20,20 @@ class RegionMapModelTest {
         assertTrue("Violet City" in placeNames && "Route 29" in placeNames)
     }
 
+    private val wishes = RegionMapModel(regionMapImagesWishes, mapSecDataWishes, regionLayoutsWishes)
+
+    @Test fun wishesJokaimIsWhereTheGamePutsIt() {
+        // Its TOWN MAP (headless): MUNEN VILLAGE's head at grid (10, 14) + (1, 2) tiles, RYUDEN ISLAND's (off the grid,
+        // placed by its entry) at (17, 8).
+        assertEquals(MapPick(0xD1, -1), wishes.pick(0, 11, 16))
+        assertEquals(11 to 16, PlayerMapTile.of(wishes, 0xD1, 3, 3, 10, 10, 8))
+        assertEquals(17 to 8, PlayerMapTile.of(wishes, 0xE2, 3, 3, 10, 10, 8))
+        // A Kanto id it renamed for its own place is on the map; Emerald's Hoenn leftovers aren't.
+        assertEquals(MapPick(0x66, -1), wishes.pick(0, 14, 10)) // Sennen
+        assertEquals(emptyList<MapTiles>(), wishes.tilesOf(0x00)) // Littleroot Town
+        assertNull(wishes.pick(0, 2, 2)) // sea
+    }
+
     @Test fun tapNamesWhatTheGameCursorWould() {
         assertEquals(MapPick(0x58, -1), fireRed.pick(0, 8, 15)) // Pallet Town
         // Mt. Moon's icon sits on Route 4: both names, like FireRed's two strips.
@@ -29,7 +43,7 @@ class RegionMapModelTest {
     }
 
     @Test fun everyGridSectionIsNamed() {
-        for ((model, layouts) in listOf(fireRed to regionLayoutsFireRed, emerald to regionLayoutsEmerald, soulGold to regionLayoutsSoulGold)) {
+        for ((model, layouts) in listOf(fireRed to regionLayoutsFireRed, emerald to regionLayoutsEmerald, soulGold to regionLayoutsSoulGold, wishes to regionLayoutsWishes)) {
             for (l in layouts) for (layer in l.layers.indices) for (m in l.cells(layer)) {
                 assertTrue("mapsec $m", m == l.none || m in model.sections)
             }

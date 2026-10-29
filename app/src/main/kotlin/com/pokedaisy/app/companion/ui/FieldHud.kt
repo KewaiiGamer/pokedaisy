@@ -320,6 +320,13 @@ fun FieldHud(
     initialPanel: FieldHudPanel? = null,
     /** Bumped to close whatever panel is open (the QUICK MENU opening over it). */
     closePanels: Int = 0,
+    /** A tip's SHOW ME ([FeatureTipHost]): bumping [openTick] opens [openPanel] (its party slot / pocket second). */
+    openPanel: Pair<FieldHudPanel, Int>? = null,
+    openTick: Int = 0,
+    /** The player tapped something on the HUD (its tip is done with). */
+    onTap: () -> Unit = {},
+    /** A panel opened (true) or closed: no tip comes up over one. */
+    onPanel: (Boolean) -> Unit = {},
 ) {
     var panel by remember { mutableStateOf(initialPanel) }
     var summary by remember { mutableStateOf(0) }
@@ -331,6 +338,15 @@ fun FieldHud(
     DisposableEffect(Unit) { onDispose { FieldHudFit.tight = false } }
     LaunchedEffect(shown) { if (!shown) panel = null }
     LaunchedEffect(closePanels) { if (closePanels != 0) panel = null }
+    LaunchedEffect(openTick) {
+        val (p, i) = openPanel ?: return@LaunchedEffect
+        if (openTick == 0) return@LaunchedEffect
+        if (p == FieldHudPanel.SUMMARY) summary = i
+        if (p == FieldHudPanel.BAG) bagPocket = i
+        panel = p
+    }
+    val panelOpen = panel != null
+    LaunchedEffect(panelOpen) { onPanel(panelOpen) }
     val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(if (shown) 220 else 120), label = "field-hud")
     if (alpha == 0f && !shown) return
 
@@ -377,6 +393,7 @@ fun FieldHud(
                 val m = rememberGbaTextMetrics(1f)
                 val pc = itemUse?.takeIf { it.canPc() }?.let { use ->
                     {
+                        onTap()
                         use.openPc { o -> pcNotice = if (o.result == ItemUseResult.USED) null else ItemNotice(0, itemUseMessage(o), ok = false) }
                     }
                 }
@@ -388,6 +405,7 @@ fun FieldHud(
                 if (repel <= 0) repelFull = 0
                 else if (repel > repelFull) repelFull = com.pokedaisy.app.companion.REPEL_KINDS.firstOrNull { it.second >= repel }?.second ?: repel
                 val parts = HudParts(snapshot, style, wildHere, m, onOpenCompanion, pc, repel, repelFull) { p, i ->
+                    onTap()
                     if (p == FieldHudPanel.SUMMARY) summary = i
                     if (p == FieldHudPanel.BAG) bagPocket = i
                     panel = p
@@ -724,7 +742,7 @@ private fun HudMonRow(mon: MonView, m: GbaTextMetrics, lead: Boolean, onClick: (
     }
 }
 
-/** The party icon; fainted ones faded with FNT on them, a status chip (PSN, SLP, ...) over its top. */
+/** The party icon; fainted ones faded with FNT on them, a status chip (PSN, SLP, ...) over its top, NUZLOCKE's gravestone. */
 @Composable
 internal fun HudMonIcon(mon: MonView, size: Dp, u: Dp) {
     val density = LocalDensity.current
@@ -738,6 +756,10 @@ internal fun HudMonIcon(mon: MonView, size: Dp, u: Dp) {
             Box(Modifier.align(Alignment.TopCenter).wrapContentSize(unbounded = true).offset(y = -u * 2)) {
                 HudStatusChip(status, u, slotTextMetrics(density, max(1, (upx * 0.6f).roundToInt())))
             }
+        }
+        // NUZLOCKE: out of the run, healed or not - a small gravestone in its bottom-right corner.
+        if (com.pokedaisy.app.companion.Nuzlocke.isDead(mon.personality)) {
+            PixelArt(TabIcons.grave.bitmap, TabIcons.grave.palette, Modifier.align(Alignment.BottomEnd).size(size * 0.45f))
         }
     }
 }
@@ -941,22 +963,26 @@ private fun HudMiniMap(
     val region = model?.sections?.get(snapshot.regionMapSectionId)?.region?.takeIf { it in model.images.indices }
     val bitmap = regionMapBitmap(region?.let { model.images[it] })
     val labelStyle = MapLabelStyle.of(snapshot.game)
-    val head = regionMapBitmap(labelStyle.headAsset(snapshot.playerGender, snapshot.game))
+    // Black's Town Map: the player's figure, on their place's point (the reader's cell, [blackTownMap]'s points).
+    val black = snapshot.game == com.pokedaisy.app.companion.data.GameKind.BLACK
+    val head = regionMapBitmap(if (black) com.pokedaisy.app.companion.data.NdsArt.BLACK_PLAYER else labelStyle.headAsset(snapshot.playerGender, snapshot.game))
     val cursor = labelStyle.cursorColor
     val small = rememberGbaTextMetrics(0.75f)
     val name = snapshot.location.mapSecName
     if ((model == null || bitmap == null) && name.isEmpty()) return
     Column(modifier.hudPanel(u).soundClickable(onClick = onClick).padding(u * 4), horizontalAlignment = Alignment.CenterHorizontally) {
         if (model != null && bitmap != null) {
-            val tile = PlayerMapTile.of(model, snapshot.regionMapSectionId, snapshot.x, snapshot.y, snapshot.mapWidth, snapshot.mapHeight, snapshot.mapType)
+            val tile = (if (black) snapshot.regionMapTile else null)
+                ?: PlayerMapTile.of(model, snapshot.regionMapSectionId, snapshot.x, snapshot.y, snapshot.mapWidth, snapshot.mapHeight, snapshot.mapType)
+            val point = if (black && tile != null) model.pick(0, tile.first, tile.second)?.mapsec?.let { model.points[it] } else null
             val image = remember(bitmap) { bitmap.asImageBitmap() }
             val headImage = remember(head) { head?.asImageBitmap() }
             val crop = remember(bitmap) { regionMapContentBounds(bitmap) }
             Box(Modifier.size(u * mapW, u * mapH).clip(PixelRoundedShape(u * 2))) {
                 Canvas(Modifier.fillMaxSize()) {
                     val s = u.toPx()
-                    val cx = (tile?.let { it.first * TILE + TILE / 2 } ?: (crop.left + crop.width / 2)).toFloat()
-                    val cy = (tile?.let { it.second * TILE + TILE / 2 } ?: (crop.top + crop.height / 2)).toFloat()
+                    val cx = (point?.first ?: tile?.let { it.first * TILE + TILE / 2 } ?: (crop.left + crop.width / 2)).toFloat()
+                    val cy = (point?.second ?: tile?.let { it.second * TILE + TILE / 2 } ?: (crop.top + crop.height / 2)).toFloat()
                     val left = (cx - mapW / 2f).coerceIn(crop.left.toFloat(), maxOf(crop.left.toFloat(), crop.right - mapW.toFloat())).toInt()
                     val top = (cy - mapH / 2f).coerceIn(crop.top.toFloat(), maxOf(crop.top.toFloat(), crop.bottom - mapH.toFloat())).toInt()
                     val w = minOf(mapW, crop.right - left)
@@ -978,7 +1004,16 @@ private fun HudMiniMap(
                             )
                         }
                     }
-                    if (headImage != null && tile != null) {
+                    if (headImage != null && point != null) {
+                        drawImage(
+                            headImage,
+                            dstOffset = IntOffset(
+                                ((point.first - headImage.width / 2 - left + ox) * s).toInt(),
+                                ((point.second - headImage.height / 2 - top + oy) * s).toInt(),
+                            ),
+                            dstSize = IntSize((headImage.width * s).toInt(), (headImage.height * s).toInt()), filterQuality = FilterQuality.None,
+                        )
+                    } else if (headImage != null && tile != null) {
                         drawImage(
                             headImage,
                             dstOffset = IntOffset(

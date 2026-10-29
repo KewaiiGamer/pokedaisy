@@ -1,0 +1,123 @@
+# Gen 3 configs (hacks). The format and the commands: gamedata/README.md.
+
+# Pokémon Recharged Emerald (Jaizu; BPEE, 16 MB, sha1 67f44fb4… v2.2.5 / 56c97772… v2.2.8 / 08b9c790… Rebalanced
+# v2.2.8): Recharged Yellow's treatment of Emerald - a pokeemerald rebuild with modern gcc, no source, nothing at a
+# retail address - but Emerald's ids, gTypeEffectiveness and party / bag / region map art, so it runs as EMERALD with
+# its own names laid over (ActiveTables' emeraldHack, gen_recharged_emerald_tables.py). The user has no save of it:
+# retail Emerald's loads, but SaveBlock1 differs past the bag, so the fixtures boot it rewritten by
+# scripts/convert_save_recharged_emerald.py (`recharged_emerald*`: KADABRA Lv36 first of six on ROUTE 114).
+# - SaveBlock1 (its GF ROM header + SetBagItemsPointers): Items 60 slots at +0x560, Key Items 50 at +0x650, Poké
+# Balls 32 at +0x718, TMs at +0x798, Berries at +0x898, a Medicine pocket (50) at +0x366C, flags +0x1344, vars
+# +0x1470; party +0x238, money +0x490 and SaveBlock2's key +0xAC are retail's (the money decrypts as in retail).
+# - gSaveBlock1Ptr / 2Ptr (v2.2.5 0x030071F8, v2.2.8 0x03007214, Rebalanced 0x03007220; 922 / 760 references),
+# gPlayerParty 0x020373C8 (Rebalanced +0x14) with its count 3 bytes before and gEnemyParty after it, gMain
+# 0x030036D4 (+0x24 counted 16 between dumps 16 frames apart), gMapHeader 0x0200C1AC (mapsec 0x1D ROUTE 114),
+# gObjectEvents 0x020067AC (the player at pos + 7), gBagPockets 0x0200C218: six {ptr, capacity} pockets in each
+# item's own pocket order (gItems +0x1E, 48-byte records as in Recharged Yellow) - Items, Medicine, Poké Balls,
+# TMs, Berries, Key Items.
+# - Battle (a scripted wild ZIGZAGOON through ScriptContext_SetupScript - v2.2.5 0x081AF031, v2.2.8 0x081B09D5,
+# Rebalanced 0x081B0AF1, the function that loads gScriptCmdTable and sets the script pointer): Recharged
+# Yellow's order 8 bytes lower - gBattleTypeFlags 0x020003B8, gBattlersCount 0x0200143C, gBattlerPartyIndexes
+# 0x02001440, gBattlerPositions 0x02001448, gBattleMons 0x02001458 (vanilla's 0x58 bytes), the gBattleStruct
+# pointer 0x02001878 with the cursors +0x10 / +0x14 (RIGHT / DOWN walk 0 -> 1 -> 3, a written 2 + A opens the
+# party menu, a written move 1 + A spent CONFUSION's PP). gBattlerControllerFuncs 0x03004468: action / move /
+# bag / party read live in each menu; the target handler is the one the move handler's literal pool names.
+# gPartyMenu (slotId +9 walked 0 -> 1 -> 2 with DOWN: Emerald's list); POKéMON, DOWN, A, SHIFT put party slot 1
+# into gBattlerPartyIndexes[0].
+# - ROM: the GF ROM header gives the icon tables, gSpeciesNames, gBaseStats and gItems; sItemIconTable is the pair
+# table whose entry 1 points at retail's MASTER BALL icon bytes. The Pokédex / guide tables are retail's shapes,
+# found by their bytes (Pokedex.kt, GuideRom.kt).
+# - USE / GIVE / TAKE (`fieldItems`): FieldItemsRechargedEmeraldGen.kt, found through the game's own callers by
+# scripts/find_field_items_recharged_emerald.py and checked headless on each build.
+# Rebalanced puts 4 bytes in front of both save blocks (its header's offsets are all 4 higher), so its SaveBlock1 /
+# SaveBlock2 fields sit 4 later; its RAM globals are v2.2.8's but for the party (+0x14) and the save-block pointers.
+[config.recharged_emerald]
+private = true
+itemDescs = 'none'
+playerParty = 0x020373C8
+playerPartyCount = 0x020373C5
+battleMons = 0x02001458
+battlerPositions = 0x02001448
+battlersCount = 0x0200143C
+battleTypeFlags = 0x020003B8
+gMain = 0x030036D4
+saveBlock1Ptr = 0
+saveBlock2Ptr = 0
+objectEvents = 0x020067AC
+mapHeader = 0x0200C1AC
+bagPockets = 0x0200C218
+bagPocketCount = 6
+# Recharged Yellow's order, Medicine folded into Items.
+bagPocketOrder = 'RECHARGED_YELLOW_BAG_POCKET_ORDER'
+encryptionKeyOff = 0xAC
+moneyOff = 0x490
+battlerControllerFuncs = 0x03004468
+enemyParty = 0x02037620
+battlerPartyIndexes = 0x02001440
+battleStructPtr = 0x02001878
+actionCursor = 0x02001888
+moveCursor = 0x0200188C
+monToSwitchIntoOff = 0x5C
+partyMenu = 0x02037338
+
+[config.recharged_emerald_v2_2_5]
+base = 'recharged_emerald'
+itemDescs = { base = 0x088AB850, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+saveBlock1Ptr = 0x030071F8
+saveBlock2Ptr = 0x030071FC
+monIconTable = 0x088DADD4
+monIconPaletteIndices = 0x088DB4B4
+monIconPaletteTable = 0x088DB66C
+itemIconTable = 0x088B04D4
+handleInputChooseAction = 0x080446D9
+handleInputChooseMove = 0x08044C49
+completeWhenChoseItem = 0x08046AE5
+waitForMonSelection = 0x08046A0D
+handleInputChooseTarget = 0x08044939
+pokedex = 'POKEDEX_RECHARGED_EMERALD_V2_2_5'
+guideTables = 'GUIDE_TABLES_RECHARGED_EMERALD_V2_2_5'
+fieldItems = 'FIELD_ITEMS_RECHARGED_EMERALD_V2_2_5'
+
+[config.recharged_emerald_v2_2_8]
+base = 'recharged_emerald'
+itemDescs = { base = 0x088AD6E8, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+saveBlock1Ptr = 0x03007214
+saveBlock2Ptr = 0x03007218
+monIconTable = 0x088DCC6C
+monIconPaletteIndices = 0x088DD34C
+monIconPaletteTable = 0x088DD504
+itemIconTable = 0x088B236C
+handleInputChooseAction = 0x080447C9
+handleInputChooseMove = 0x08044D39
+completeWhenChoseItem = 0x08046B49
+waitForMonSelection = 0x08046A71
+handleInputChooseTarget = 0x08044A21
+pokedex = 'POKEDEX_RECHARGED_EMERALD_V2_2_8'
+guideTables = 'GUIDE_TABLES_RECHARGED_EMERALD_V2_2_8'
+fieldItems = 'FIELD_ITEMS_RECHARGED_EMERALD_V2_2_8'
+
+[config.recharged_emerald_rebalanced_v2_2_8]
+base = 'recharged_emerald'
+itemDescs = { base = 0x088ADE28, stride = 48, descOff = 0x18, count = { ref = 'RECHARGED_YELLOW_ITEMS' } }
+playerParty = 0x020373DC
+playerPartyCount = 0x020373D9
+enemyParty = 0x02037634
+partyMenu = 0x0203734C
+saveBlock1Ptr = 0x03007220
+saveBlock2Ptr = 0x03007224
+saveBlock1PosOff = 4
+playerGenderOff = 0xC
+encryptionKeyOff = 0xB0
+moneyOff = 0x494
+monIconTable = 0x088DD3F0
+monIconPaletteIndices = 0x088DDAD0
+monIconPaletteTable = 0x088DDC88
+itemIconTable = 0x088B2AAC
+handleInputChooseAction = 0x080447C5
+handleInputChooseMove = 0x08044D35
+completeWhenChoseItem = 0x08046B45
+waitForMonSelection = 0x08046A6D
+handleInputChooseTarget = 0x08044A1D
+pokedex = 'POKEDEX_RECHARGED_EMERALD_REBALANCED_V2_2_8'
+guideTables = 'GUIDE_TABLES_RECHARGED_EMERALD_REBALANCED_V2_2_8'
+fieldItems = 'FIELD_ITEMS_RECHARGED_EMERALD_REBALANCED_V2_2_8'

@@ -41,9 +41,9 @@ FR = dict(repelVar=0x4020, itemCount=375, pockets=(2, 4), pcSpecial=60)  # POCKE
 EM = dict(repelVar=0x4021, itemCount=377, pockets=(5, 3), pcSpecial=63)  # POCKET_KEY_ITEMS, POCKET_TM_HM
 RS = dict(repelVar=0x4021, itemCount=349, pockets=(5, 3), pcSpecial=60)
 
-# FLY (Fly.kt): the English tables' addresses, from FLY_FIRERED_REV1 / FLY_LEAFGREEN_REV0 / _REV1 / FLY_EMERALD. Functions
-# are mapped by code, gPartyMenu and gSaveBlock2Ptr through the literal pools, sMapFlyDestinations by its pool word or
-# its bytes (the same map ids in every language).
+# FLY (Fly.kt): the English tables' addresses, from FLY_FIRERED_REV1 / FLY_LEAFGREEN_REV0 / _REV1 / FLY_EMERALD (records in
+# gamedata/gen3/records/). Functions are mapped by code, gPartyMenu and gSaveBlock2Ptr through the literal pools,
+# sMapFlyDestinations by its pool word or its bytes (the same map ids in every language).
 FLY_FUNCS_FR = ("flagGet", "setUpFieldMoveFly", "getMapsecType", "fadeScreen", "lockControls", "unlockControls",
                 "setFlyWarpDestination")
 FLY_FUNCS_EM = FLY_FUNCS_FR[:-1] + ("toHealLocation", "toMapWarp", "returnToField")

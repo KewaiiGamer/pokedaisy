@@ -1,0 +1,22 @@
+# Pokémon Wishes of Tomorrow: a scripted wild ZIGZAGOON Lv5 - setwildbattle 263 5 (expansion 1.15 takes a second
+# mon's species / level / item, zero here) / dowildbattle / end, poked into free EWRAM and run through its
+# ScriptContext_SetupScript (0x081FDCC9: the one that loads gScriptCmdTable 0x0828638C and its end); dumped at the
+# action menu ("What will Cyndaquil do?").
+wait 600
+press START
+wait 300
+# the main menu takes the second A (the first only wakes it)
+press A
+wait 60
+press A
+wait 400
+poke32 0x0203FC00 0x050107B6
+poke32 0x0203FC04 0x00000000
+poke32 0x0203FC08 0xB7000000
+poke32 0x0203FC0C 0x00000002
+call 0x081FDCC9 0x0203FC00
+wait 300
+press A
+wait 200
+press A
+wait 200

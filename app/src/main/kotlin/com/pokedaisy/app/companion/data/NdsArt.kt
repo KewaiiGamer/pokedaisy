@@ -27,7 +27,21 @@ object NdsArt {
     /** Each species' front picture (80 x 80, its first frame) under here as `<species>.png`. */
     const val HEARTGOLD_FRONT = "nds/heartgold/front"
     const val PLATINUM_FRONT = "nds/platinum/front"
-    private const val VERSION = 9
+    /** Pokémon Black (IRBO rev 0, [extractBlack]): party icons (1..649, [BLACK_EGG] the egg's), item icons, the DEX's
+     * pages and front pictures (96 x 96). */
+    const val BLACK_ICONS = "nds/black/pokemon"
+    const val BLACK_ITEMS = "nds/black/items"
+    const val BLACK_DEX = "nds/black/dex.tsv"
+    const val BLACK_FRONT = "nds/black/front"
+    /** The egg's party icon under [BLACK_ICONS] (the icon archive's 650th; 651 is Manaphy's egg). */
+    const val BLACK_EGG = 650
+    /** Black's Town Map under rom-art/regionmap ([townMapBlack]): the map (256 x 168), the sprite a place of kind n
+     * gets once arrived at ([blackTown]), the player's marker and the cursor's two frames. */
+    const val BLACK_MAP = "black_unova"
+    fun blackTown(kind: Int) = "bw_town_$kind"
+    const val BLACK_PLAYER = "bw_player"
+    fun blackCursor(frame: Int) = "bw_cursor_$frame"
+    private const val VERSION = 11
     /** The Town Map's art under rom-art/regionmap: the map, each fly location's block sprite and the player's head. */
     const val PLATINUM_MAP = "platinum_sinnoh"
     fun platinumBlock(shape: Int, variant: Int) = "pt_block_${shape}_$variant"
@@ -49,6 +63,8 @@ object NdsArt {
         val species: List<String>, val moves: List<String>, val items: List<String>, val places: List<String>,
         /** The game's language by its type names' FIGHTING (COMBAT, KAMPF, ...); 'E' when it's none of them. */
         val language: Char,
+        /** Black's (Gen 5): merged over Black's own tables, not Platinum's / HG's. */
+        val gen5: Boolean = false,
     ) {
         fun species(id: Int) = species.getOrNull(id)?.takeIf { it.isNotBlank() }
         fun move(id: Int) = moves.getOrNull(id)?.takeIf { it.isNotBlank() }
@@ -57,11 +73,11 @@ object NdsArt {
 
         // The app's tables with the cart's words over them (ActiveTables), built once.
         val speciesMerged: Map<Int, String> by lazy {
-            speciesNamesPlatinum + species.indices.mapNotNull { id -> species(id)?.takeIf { id > 0 }?.let { id to it } }
+            (if (gen5) speciesNamesBlack else speciesNamesPlatinum) + species.indices.mapNotNull { id -> species(id)?.takeIf { id > 0 }?.let { id to it } }
         }
-        val movesMerged: Map<Int, MoveInfo> by lazy { moveDataPlatinum.mapValues { (id, m) -> move(id)?.let { m.copy(name = it) } ?: m } }
+        val movesMerged: Map<Int, MoveInfo> by lazy { (if (gen5) moveDataBlack else moveDataPlatinum).mapValues { (id, m) -> move(id)?.let { m.copy(name = it) } ?: m } }
         private val itemsHg by lazy { itemNamesHeartGold + items.indices.mapNotNull { id -> item(id)?.takeIf { id > 0 }?.let { id to it } } }
-        private val itemsPt by lazy { itemNamesPlatinum + items.indices.mapNotNull { id -> item(id)?.takeIf { id > 0 }?.let { id to it } } }
+        private val itemsPt by lazy { (if (gen5) itemNamesBlack else itemNamesPlatinum) + items.indices.mapNotNull { id -> item(id)?.takeIf { id > 0 }?.let { id to it } } }
         fun itemsMerged(heartGold: Boolean) = if (heartGold) itemsHg else itemsPt
     }
     @Volatile var names: Names? = null
@@ -88,10 +104,17 @@ object NdsArt {
         val rev = header[0x1E].toInt() and 0xFF
         val platinum = code == "CPUE" && rev == 1
         val heartGold = (code == "IPKE" || code == "IPGE") && rev == 0
-        if (!platinum && !heartGold) return false
-        val marker = File(dir, if (platinum) "nds/platinum-built" else "nds/heartgold-built")
+        val black = code == "IRBO" && rev == 0
+        if (!platinum && !heartGold && !black) return false
+        val marker = File(dir, if (black) "nds/black-built" else if (platinum) "nds/platinum-built" else "nds/heartgold-built")
         val stamp = "v$VERSION $code $rev"
         if (marker.isFile && runCatching { marker.readText() }.getOrNull() == stamp) return false
+        if (black) {
+            if (!extractBlack(f, header, dir)) return false
+            marker.parentFile?.mkdirs()
+            marker.writeText(stamp)
+            return true
+        }
         val iconPath = if (platinum) "/poketool/icongra/pl_poke_icon.narc" else "/a/0/2/0"
         val iconPalettes = if (platinum) iconPalettesPlatinum else iconPalettesHeartGold
         val iconDir = if (platinum) PLATINUM_ICONS else HEARTGOLD_ICONS
@@ -160,6 +183,186 @@ object NdsArt {
         }
     }
 
+    /**
+     * Pokémon Black's art and DEX from its cart. The party icons are a/0/0/7: member 0 the palette file (the same three
+     * 16-colour palettes as Gen 4's), member 7 + 2 x n icon n (32 x 64, two frames, as Gen 4's; 650 the egg's), 8 + 2 x n
+     * its female one (empty where there's none); which palette is [iconPalettesBlack] (the cart's ARM9 table, a byte an
+     * icon: low nibble the icon's, high nibble its female icon's). The bag's icons are a/0/2/5's NCGR / NCLR members by
+     * [itemIconsBlack] (the ARM9's pairs by item id). Both generated from the cart, NdsArtBlackTest checks them against
+     * it. Then [dexBlack].
+     */
+    private fun extractBlack(f: RandomAccessFile, header: ByteArray, dir: File): Boolean {
+        val narc = Narc(file(f, header, "/a/0/0/7") ?: return false)
+        val palettes = palettes(narc.member(0))
+        for (species in 1..BLACK_EGG) {
+            val pal = palettes.getOrNull(iconPalettesBlack.getOrNull(species)?.toInt() ?: 0) ?: continue
+            val icon = icon(narc.member(7 + 2 * species), pal) ?: continue
+            write(dir, "$BLACK_ICONS/$species.png", icon.png())
+        }
+        file(f, header, "/a/0/2/5")?.let { Narc(it) }?.let { items ->
+            for ((item, packed) in itemIconsBlack) {
+                val pal = palettes(items.member(packed and 0xFFFF)).firstOrNull() ?: continue
+                val icon = icon(items.member(packed ushr 16), pal, height = 32) ?: continue
+                write(dir, "$BLACK_ITEMS/$item.png", icon.png())
+            }
+        }
+        file(f, header, "/a/0/8/5")?.let { townMapBlack(Narc(it), dir) }
+        dexBlack(f, header, dir)
+        return true
+    }
+
+    /**
+     * Black's Town Map (the key item's, on the touch screen), from a/0/8/5. The map is two 8bpp BGs over one palette file
+     * (member 0: 16 extended palettes of 256 colours, the tilemaps' palette bits pick one): the aerial picture (screen 16
+     * over tiles 7) and the routes and places drawn on it (screen 17 over tiles 5), 256 x 168 (the bar under it cut off).
+     * Its sprites are member 12's cells over tiles 8 (4bpp, 128-byte tile numbers) in member 2's palettes, each centred
+     * on a place's point: a town arrived at gets cell 4 (its blue middle) over the BG's grey one, Victory Road cell 19
+     * (the small one), Unity Tower its ring (23) and middle (19), Liberty Garden its island's dot (20); the player is the
+     * figure (8) with the red arrow (7) on top, the cursor ring the pulse's cells 11 and 12. Checked against the game's
+     * own Town Map headless (the user's save, arrival flags poked off and on): the picture pixel for pixel, each sprite
+     * where the game puts it.
+     */
+    private fun townMapBlack(narc: Narc, dir: File) {
+        val bgPal = palettes(narc.member(0)).flatMap { it.toList() }.toIntArray()
+        val img = RomArt.Image(256, 168)
+        img.argb.fill(bgPal.getOrElse(0) { 0xFF000000.toInt() })
+        for ((screen, tiles) in listOf(16 to 7, 17 to 5)) {
+            drawScreen8(img, narc.member(screen) ?: return, ncgrData(narc.member(tiles)) ?: return, bgPal)
+        }
+        write(dir, "regionmap/$BLACK_MAP.png", img.png())
+        val tiles = ncgrData(narc.member(8)) ?: return
+        val cells = ncerCells(narc.member(12) ?: return, useMapping = true)
+        val pals = palettes(narc.member(2))
+        fun sprite(size: Int, vararg cellIds: Int): RomArt.Image? {
+            val out = RomArt.Image(size, size)
+            for (id in cellIds) {
+                val cell = cells.getOrNull(id)?.takeIf { it.isNotEmpty() } ?: return null
+                drawCell(out, size / 2, size / 2, cell, tiles, pals.getOrNull(cell.first().pal) ?: return null)
+            }
+            return out
+        }
+        for ((kind, ids) in listOf(0 to intArrayOf(4), 3 to intArrayOf(19), 4 to intArrayOf(20), 5 to intArrayOf(23, 19))) {
+            sprite(16, *ids)?.let { write(dir, "regionmap/${blackTown(kind)}.png", it.png()) }
+        }
+        sprite(48, 8, 7)?.let { write(dir, "regionmap/$BLACK_PLAYER.png", it.png()) }
+        for ((frame, id) in listOf(0 to 11, 1 to 12)) sprite(32, id)?.let { write(dir, "regionmap/${blackCursor(frame)}.png", it.png()) }
+    }
+
+    /** An 8bpp NSCR over [tiles] (64 bytes a tile), the entry's palette bits picking a 256-colour palette of [pal];
+     * colour 0 clear. */
+    private fun drawScreen8(img: RomArt.Image, nscr: ByteArray, tiles: ByteArray, pal: IntArray) {
+        val o = indexOf(nscr, "NRCS") ?: return
+        val cols = u16(nscr, o + 8) / 8
+        val rows = u16(nscr, o + 0xA) / 8
+        for (ty in 0 until minOf(rows, (img.height + 7) / 8)) for (tx in 0 until minOf(cols, img.width / 8)) {
+            val e = u16(nscr, o + 0x14 + (ty * cols + tx) * 2)
+            val tile = e and 0x3FF
+            val hf = e and 0x400 != 0
+            val vf = e and 0x800 != 0
+            val p = e shr 12
+            for (y in 0 until 8) for (x in 0 until 8) {
+                val py = ty * 8 + y
+                if (py >= img.height) continue
+                val i = tile * 64 + (if (vf) 7 - y else y) * 8 + (if (hf) 7 - x else x)
+                val v = if (i in tiles.indices) u8(tiles, i) else 0
+                if (v == 0) continue
+                pal.getOrNull(p * 256 + v)?.let { img.argb[py * img.width + tx * 8 + x] = it }
+            }
+        }
+    }
+
+    /**
+     * Black's DEX pages ([BLACK_DEX], the columns [dex] writes, plus a 24th: the hidden ability) and front pictures
+     * ([BLACK_FRONT]), all from the cart:
+     * - text (a/0/0/2, [Gen5Text]): 235 the descriptions (White's are 236), 260 categories, 182 ability names;
+     * - the personal record (a/0/1/6 by species, 0x3C bytes): base stats (HP, ATTACK, DEFENSE, SPEED, SP. ATK, SP. DEF),
+     *   types (Gen 5's ids: no ??? type, FIRE is 9), catch rate, gender ratio 0x12, egg groups 0x16, abilities 0x18-0x1A
+     *   (the third the hidden one), height (dm) 0x24 and weight (hg) 0x26, and the TM / HM bits from 0x28 (TM01 .. TM95,
+     *   HM01 .. HM06, low bit first);
+     * - the Unova Dex: a/0/1/6's member 668, a u16 per species, its number there (VICTINI 0) or 999; written as its
+     *   place in the list (VICTINI 1), 0 when it's not in it;
+     * - evolutions (a/0/1/9 by species: 7 x {method, param, target}, Gen 5's methods - [Gen4Dex] reads them) and level-up
+     *   moves (a/0/1/8: {move, level} u16 pairs, ending 0xFFFF). Method 7 (a trade with another Pokémon) keeps 0 as its
+     *   param in the cart; the two species that use it trade with each other, so each is written as the other's;
+     * - the front picture: a/0/0/4 member species x 20 (+ 1 the female one where there's no other), LZ11-packed, 96 x 96
+     *   in 8 x 8 tiles laid out as four OAM blocks (64 x 64, 32 x 64 right of it, 64 x 32 and 32 x 32 under them); its
+     *   palette member species x 20 + 18 (+ 19 the shiny one).
+     */
+    private fun dexBlack(f: RandomAccessFile, header: ByteArray, dir: File) {
+        val msg = Narc(file(f, header, "/a/0/0/2") ?: return)
+        val text = msg.member(235)?.let { Gen5Text.lines(it) } ?: return
+        val category = msg.member(260)?.let { Gen5Text.lines(it) } ?: return
+        val abilities = msg.member(182)?.let { Gen5Text.lines(it) } ?: emptyList()
+        val personal = Narc(file(f, header, "/a/0/1/6") ?: return)
+        val unova = personal.member(668)?.takeIf { it.size >= 650 * 2 } ?: return
+        val learnsets = Narc(file(f, header, "/a/0/1/8") ?: return)
+        val evolutions = Narc(file(f, header, "/a/0/1/9") ?: return)
+        val evos = (0..649).map { species ->
+            val e = evolutions.member(species) ?: return@map emptyList<IntArray>()
+            (0 until 7).mapNotNull { i ->
+                if (i * 6 + 6 > e.size) return@mapNotNull null
+                val m = u16(e, i * 6)
+                if (m == 0) null else intArrayOf(m, u16(e, i * 6 + 2), u16(e, i * 6 + 4))
+            }
+        }
+        val tradePair = evos.indices.filter { s -> evos[s].any { it[0] == 7 } }.takeIf { it.size == 2 }
+        val sb = StringBuilder()
+        for (species in 1..649) {
+            val p = personal.member(species) ?: continue
+            if (p.size < 0x38) continue
+            fun b(o: Int) = u8(p, o)
+            fun ability(o: Int) = if (b(o) != 0) abilities.getOrElse(b(o)) { "" } else ""
+            val regional = u16(unova, species * 2).let { if (it == 999) 0 else it + 1 }
+            val cells = listOf(
+                species.toString(),
+                category.getOrElse(species) { "" },
+                text.getOrElse(species) { "" }.replace("\n", "\\n"),
+                u16(p, 0x24).toString(),
+                u16(p, 0x26).toString(),
+                b(0).toString(), b(1).toString(), b(2).toString(), b(4).toString(), b(5).toString(), b(3).toString(),
+                b(6).toString(), b(7).toString(), b(8).toString(), b(0x12).toString(), b(0x16).toString(), b(0x17).toString(),
+                ability(0x18), ability(0x19),
+                regional.toString(),
+                evos[species].joinToString(";") { (m, param, to) ->
+                    val partner = if (m == 7 && tradePair != null) tradePair.first { it != species } else param
+                    "$m,$partner,$to"
+                },
+                learnsets.member(species)?.let { l ->
+                    (0 until l.size / 4).asSequence().map { u16(l, it * 4) to u16(l, it * 4 + 2) }
+                        .takeWhile { it.first != 0xFFFF }.joinToString(",") { (move, level) -> "$level:$move" }
+                } ?: "",
+                (0x28 until 0x38).joinToString("") { "%02x".format(b(it)) },
+                ability(0x1A),
+            )
+            sb.append(cells.joinToString("\t") { it.replace("\t", " ") }).append('\n')
+        }
+        write(dir, BLACK_DEX, sb.toString().toByteArray())
+        val pics = Narc(file(f, header, "/a/0/0/4") ?: return)
+        for (species in 1..649) {
+            val pal = palettes(pics.member(species * 20 + 18)).firstOrNull() ?: continue
+            val chars = (0..1).firstNotNullOfOrNull { k ->
+                pics.member(species * 20 + k)?.takeIf { it.isNotEmpty() }?.let(Gen5Lz::decompress)?.let(::ncgrData)
+                    ?.takeIf { it.size >= 96 * 96 / 2 }
+            } ?: continue
+            val img = RomArt.Image(96, 96)
+            var tile = 0
+            for ((bx, by, bw, bh) in BLACK_FRONT_BLOCKS) {
+                val across = bw / 8
+                for (t in 0 until bw * bh / 64) {
+                    for (y in 0 until 8) for (x in 0 until 8) {
+                        val v = tilePixel(chars, tile + t, x, y)
+                        if (v != 0) img.argb[(by + (t / across) * 8 + y) * 96 + bx + (t % across) * 8 + x] = pal[v]
+                    }
+                }
+                tile += bw * bh / 64
+            }
+            write(dir, "$BLACK_FRONT/$species.png", img.png())
+        }
+    }
+
+    /** A Gen 5 front picture's OAM blocks in the order its tiles come: x, y, width, height. */
+    private val BLACK_FRONT_BLOCKS = listOf(listOf(0, 0, 64, 64), listOf(64, 0, 32, 64), listOf(0, 64, 64, 32), listOf(64, 64, 32, 32))
+
     /** An NCGR's tile bytes (its RAHC block's data). */
     private fun ncgrData(ncgr: ByteArray?): ByteArray? {
         ncgr ?: return null
@@ -199,9 +402,11 @@ object NdsArt {
     /** One OAM of an NCER cell: its offset from the sprite's centre, size, first tile, palette and flips. */
     private class Oam(val x: Int, val y: Int, val w: Int, val h: Int, val tile: Int, val pal: Int, val hf: Boolean, val vf: Boolean)
 
-    /** An NCER's cells (KBEC), each a list of OAMs; tile numbers in 32-byte units (1D mapping, the boundary these use). */
-    private fun ncerCells(ncer: ByteArray): List<List<Oam>> {
+    /** An NCER's cells (KBEC), each a list of OAMs; tile numbers in 32-byte units (1D mapping, the boundary these use),
+     * or with [useMapping] in the units its mapping mode says (KBEC +0x10: 0 32 bytes, 1 64, 2 128, 3 256). */
+    private fun ncerCells(ncer: ByteArray, useMapping: Boolean = false): List<List<Oam>> {
         val o = indexOf(ncer, "KBEC") ?: return emptyList()
+        val shift = if (useMapping) (u32(ncer, o + 0x10).toInt() and 3) else 0
         val count = u16(ncer, o + 8)
         val extended = u16(ncer, o + 0xA) == 1
         val data = o + 8 + u32(ncer, o + 0xC).toInt()
@@ -225,7 +430,7 @@ object NdsArt {
                 val (w, h) = sizes[shape][(a1 shr 14) and 3]
                 val y = (a0 and 0xFF).let { if (it >= 128) it - 256 else it }
                 val x = (a1 and 0x1FF).let { if (it >= 256) it - 512 else it }
-                Oam(x, y, w, h, a2 and 0x3FF, a2 shr 12, a1 and 0x1000 != 0, a1 and 0x2000 != 0)
+                Oam(x, y, w, h, (a2 and 0x3FF) shl shift, a2 shr 12, a1 and 0x1000 != 0, a1 and 0x2000 != 0)
             }
         }
     }
@@ -338,6 +543,9 @@ object NdsArt {
     private class NameBanks(val msg: String, val species: Int, val moves: Int, val items: Int, val places: Int, val types: Int)
     private val NAMES_PLATINUM = NameBanks("/msgdata/pl_msg.narc", 412, 647, 392, 433, 624)
     private val NAMES_HEARTGOLD = NameBanks("/a/0/2/7", 237, 750, 222, 279, 735)
+    // Black's a/0/0/2 (Gen 5 text, [Gen5Text]): 70 the species as the game prints them (Bulbasaur; 284 is them in
+    // capitals), 203 moves, 54 items, 89 places, 199 types.
+    private val NAMES_BLACK = NameBanks("/a/0/0/2", 70, 203, 54, 89, 199)
     /** Each language's FIGHTING (the type names' line 1), as the games print it. */
     private val FIGHTING = mapOf("FIGHTING" to 'E', "COMBAT" to 'F', "KAMPF" to 'D', "LOTTA" to 'I', "LUCHA" to 'S')
 
@@ -346,6 +554,13 @@ object NdsArt {
         val header = f.read(0, 0x200)
         val code = String(header, 0x0C, 4, Charsets.US_ASCII)
         val rev = header[0x1E].toInt() and 0xFF
+        if (code == "IRBO" && rev == 0) {
+            val msg = Narc(file(f, header, NAMES_BLACK.msg) ?: return null)
+            fun lines(bank: Int) = msg.member(bank)?.let { Gen5Text.lines(it) }.orEmpty()
+            val types = lines(NAMES_BLACK.types)
+            return Names(lines(NAMES_BLACK.species), lines(NAMES_BLACK.moves), lines(NAMES_BLACK.items),
+                lines(NAMES_BLACK.places), FIGHTING[types.getOrNull(1)?.trim()?.uppercase()] ?: 'E', gen5 = true)
+        }
         val banks = when {
             code == "CPUE" && rev == 1 -> NAMES_PLATINUM
             (code == "IPKE" || code == "IPGE") && rev == 0 -> NAMES_HEARTGOLD

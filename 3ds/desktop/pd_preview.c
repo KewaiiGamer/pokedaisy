@@ -86,9 +86,22 @@ static bool fixture_read(void* ctx, uint32_t addr, void* out, size_t len) {
 // The UI being shot: with PD_PREVIEW_HITS set, each shot also prints where
 // its tap targets are (id x y w h), for writing emulator test steps.
 static const struct pd_ui* shotUi;
+// PD_PREVIEW_SIZE=WxH: the companion alone at another canvas size (the Linux
+// host's, which follows its screen: 426x240, 360x360 ...), no 3DS around it.
+static int uiW = PD_UI_WIDTH, uiH = PD_UI_HEIGHT;
 
 static void shot(const char* dir, const char* name, const char* what, const uint32_t* bottom) {
     static uint32_t img[TOP_W * TOP_H * 2];
+    if (uiW != PD_UI_WIDTH || uiH != PD_UI_HEIGHT) {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s-%s.png", dir, name, what);
+        if (!pd_png_write(path, uiW, uiH, bottom)) {
+            fprintf(stderr, "pd_preview: can't write %s\n", path);
+            exit(1);
+        }
+        printf("%s\n", path);
+        return;
+    }
     for (int i = 0; i < TOP_W * TOP_H * 2; i++) img[i] = 0x101010;
     struct pd_canvas top;
     pd_canvas_init(&top, TOP_W, TOP_H, img);
@@ -216,9 +229,14 @@ int main(int argc, char** argv) {
     struct pd_snapshot snap;
     pd_snapshot_read(&snap, &game, fixture_read, &game);
 
-    static uint32_t px[PD_UI_WIDTH * PD_UI_HEIGHT];
+    static uint32_t px[1024 * 768];
+    const char* size = getenv("PD_PREVIEW_SIZE");
+    if (size && (sscanf(size, "%dx%d", &uiW, &uiH) != 2 || uiW < 320 || uiH < 240 || uiW > 1024 || uiH > 768)) {
+        fprintf(stderr, "pd_preview: PD_PREVIEW_SIZE is WxH, 320x240 to 1024x768\n");
+        return 1;
+    }
     struct pd_canvas c;
-    pd_canvas_init(&c, PD_UI_WIDTH, PD_UI_HEIGHT, px);
+    pd_canvas_init(&c, uiW, uiH, px);
     struct pd_settings settings = { .screenMode = PD_SCREEN_SHARP, .ffSpeed = 2 };
     struct pd_ui ui;
     pd_ui_init(&ui, &settings);
@@ -264,7 +282,7 @@ int main(int argc, char** argv) {
     shot(out, name, "bag-item", px);
     drag(&p, HIT_BAG_LIST, -60);
     shot(out, name, "bag-scrolled", px);
-    tap(&p, HIT_POCKET_NEXT, 0);
+    tap(&p, HIT_BAG_TAB + 1, 0);
     shot(out, name, "bag-pocket", px);
 
     // SETTINGS, its pick-list and a confirm. FF lit, as while it runs.

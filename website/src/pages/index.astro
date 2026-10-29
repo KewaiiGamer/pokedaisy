@@ -9,7 +9,7 @@ import BattleDemo from '../components/BattleDemo.astro';
 import PartyDemo from '../components/PartyDemo.astro';
 import data from '../data/compat.json';
 import { REPO_URL, formatDate, getReleases, getDownloads, highlights } from '../lib/releases.js';
-import { REDDIT_URL, KOFI_URL, PATREON_URL, COFFEE_URL } from '../lib/links.js';
+import { REDDIT_URL, DISCORD_URL, KOFI_URL, PATREON_URL, COFFEE_URL } from '../lib/links.js';
 
 const releases = await getReleases();
 const latest = releases[0];
@@ -70,7 +70,7 @@ const title = 'POKEDAISY'.split('');
 >
   <!-- Hero -->
   <section class="hero container">
-    <div class="hero-copy">
+    <div class="hero-copy" data-track-where="hero">
       <div class="hero-head">
         <div class="hero-mark">
           <span class="mark-ball"><Pixel name="logo" scale={1} label="PokeDaisy" /></span>
@@ -80,35 +80,33 @@ const title = 'POKEDAISY'.split('');
           {title.map((ch, i) => <span class:list={['drop-letter', i < 4 && 'red']} style={`--d:${i}`} aria-hidden="true">{ch}</span>)}
         </h1>
       </div>
-      <p class="hero-kicker">Game Boy, Advance and DS Pokémon, for handhelds with two screens or one</p>
-      <div class="dialog f-dialog" data-type>
-        <p data-type-text>Play your Pokémon games. See everything about them on your second screen, or right beside the game.</p>
-        <span class="more"><Pixel name="more" scale={1} /></span>
-      </div>
+      <p class="hero-lead">Pokémon, played better. Game Boy to DS, with a live companion, a widescreen overworld, a HUD and quick menu, and every chore one button away.</p>
       <div class="cta">
         <a class="btn f-primary h-primaryHot primary big" href={download}>
           <Pixel name="download" scale={1} /> DOWNLOAD{latest && <span class="ver">v{latest.version}</span>}
         </a>
-        <a class="btn f-btn h-btnHot big" href="#check">CHECK YOUR ROM</a>
+      </div>
+      <!-- The community: the Discord for help and chat, the subreddit. -->
+      <div class="cta community">
+        <a class="btn f-discord h-discordHot" href={DISCORD_URL}><Pixel name="discord" scale={0.667} /> JOIN THE DISCORD</a>
+        <a class="btn f-reddit h-redditHot" href={REDDIT_URL}><Pixel name="reddit" scale={0.667} /> r/POKEDAISY</a>
       </div>
       <a class="downloads" href={`${REPO_URL}/releases`} data-downloads hidden={!downloads}>
-        <Pixel name="download" scale={0.75} />
+        <Pixel name="download" scale={1} />
         <span class="dl-count" data-downloads-count>{downloads.toLocaleString('en-US')}</span>
         <span class="dl-label">DOWNLOADS</span>
       </a>
-      <p class="small muted hero-note">Free and open source · Android 8.0+ · No ads, no accounts</p>
+      <p class="hero-meta small muted"><span>Android 8.0+</span><span>Free and open source</span><span>No ads</span></p>
     </div>
     <div class="hero-art">
       <div class="glow"></div>
-      <!-- Both at once: the Thor at the back, a one-screen handheld in front, its companion beside the game. -->
+      <!-- Both at once: the Thor at the back, a one-screen handheld in front, its companion in a window over the game. -->
       <div class="duo">
         <div class="duo-dual">
           <HeroDevice />
-          <span class="tag tag-dual chip f-chip"><Pixel name="dual" scale={0.5} /> TWO SCREENS</span>
         </div>
         <div class="duo-single">
           <HeroSingleDevice />
-          <span class="tag tag-single chip f-chip"><Pixel name="single" scale={0.5} /> ONE SCREEN</span>
         </div>
       </div>
     </div>
@@ -226,7 +224,7 @@ const title = 'POKEDAISY'.split('');
     <div class="section-head">
       <span class="eyebrow">DEVICES</span>
       <h2 class="heading">Two screens or one</h2>
-      <p class="lead">On a dual-screen handheld the companion gets a screen of its own. On one screen it sits right beside the game, or under it on a phone held upright. On a dual-screen handheld, SINGLE SCREEN plays it that way and frees the second screen for other apps.</p>
+      <p class="lead">On a dual-screen handheld the companion gets a screen of its own. On one screen it opens in a window over the game or a panel beside it, or under it on a phone held upright. On a dual-screen handheld, SINGLE SCREEN plays it that way and frees the second screen for other apps.</p>
     </div>
     <div class="device-grid">
       {deviceList.map(([icon, name, text, status, frame], i) => (
@@ -246,7 +244,7 @@ const title = 'POKEDAISY'.split('');
     <div class="section-head">
       <span class="eyebrow">SUPPORTED GAMES</span>
       <h2 class="heading">{gameCount} games and counting</h2>
-      <p class="lead">Red to Crystal on the Game Boy, FireRed, LeafGreen, Emerald, Ruby and Sapphire in six languages, Platinum, HeartGold and SoulSilver on the DS, and {hackCount} ROM hacks, with more on the way.</p>
+      <p class="lead">Red to Crystal on the Game Boy, FireRed, LeafGreen, Emerald, Ruby and Sapphire in six languages, Platinum, HeartGold, SoulSilver and Black on the DS, and {hackCount} ROM hacks, with more on the way.</p>
     </div>
     <div data-reveal="fade"><Matrix /></div>
   </section>
@@ -273,7 +271,7 @@ const title = 'POKEDAISY'.split('');
         <ul class="highlights">
           {highlights(latest.body).map((h) => <li set:html={h} />)}
         </ul>
-        <div class="cta">
+        <div class="cta" data-track-where="latest">
           <a class="btn f-primary h-primaryHot primary" href={download}><Pixel name="download" scale={0.667} /> DOWNLOAD APK</a>
           <a class="btn f-btn h-btnHot" href="/releases/">ALL RELEASES</a>
         </div>
@@ -305,6 +303,7 @@ const title = 'POKEDAISY'.split('');
           <a class="btn f-btn h-btnHot small" href="/feedback/#feature"><Pixel name="guide" scale={0.5} /> SUGGEST A FEATURE</a>
           <a class="btn f-btn h-btnHot small" href={REPO_URL}><Pixel name="star" scale={0.667} /> STAR ON GITHUB</a>
           <a class="btn f-reddit h-redditHot small" href={REDDIT_URL}><Pixel name="reddit" scale={0.5} /> JOIN r/POKEDAISY</a>
+          <a class="btn f-discord h-discordHot small" href={DISCORD_URL}><Pixel name="discord" scale={0.5} /> JOIN THE DISCORD</a>
         </div>
       </div>
     </div>
@@ -316,7 +315,6 @@ const title = 'POKEDAISY'.split('');
   .hero { display: grid; grid-template-columns: 1fr 1.05fr; gap: 48px; align-items: center; padding: 64px 0 56px; }
   .hero-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
   .hero-mark { position: relative; width: max-content; }
-  .hero-kicker { font-size: var(--t-m); color: var(--ink-2); margin-top: 18px; }
   .mark-ball { display: inline-block; transform-origin: 50% 85%; animation: capture 3.2s steps(1) infinite 1.2s; }
   @keyframes capture {
     0%, 52%, 100% { transform: rotate(0); }
@@ -342,34 +340,29 @@ const title = 'POKEDAISY'.split('');
     80% { transform: translateY(-4px); }
     100% { transform: none; opacity: 1; }
   }
-  .dialog { position: relative; margin: 20px 0 28px; padding: calc(var(--px) * 3) calc(var(--px) * 5) calc(var(--px) * 5); font-size: var(--t-l); line-height: 1.4; color: #404048; text-shadow: var(--px) var(--px) 0 #d8d8d0; min-height: 3.3em; filter: var(--hard-shadow); }
-  .more { position: absolute; right: calc(var(--px) * 4); bottom: calc(var(--px) * 2); animation: bob 0.8s steps(1) infinite; opacity: 0; }
-  .dialog.done .more, :global(html:not(.js)) .more { opacity: 1; }
+  .hero-lead { margin: 24px 0 32px; max-width: 30em; font-size: var(--t-l); line-height: 1.4; color: var(--ink-2); text-shadow: var(--bold); text-wrap: pretty; }
   @keyframes bob { 50% { transform: translateY(var(--px)); } }
   .cta { display: flex; flex-wrap: wrap; gap: 16px 20px; align-items: center; }
   .ver { opacity: 0.85; font-size: var(--t-m); margin-left: 4px; }
-  .hero-note { margin-top: 24px; }
-  /* Every APK download from GitHub releases: counted at build, refreshed in the browser. */
-  .downloads { display: inline-flex; align-items: center; gap: 12px; margin-top: 28px; text-decoration: none; color: var(--ink); }
+  .community { margin-top: 18px; }
+  /* Every APK download from GitHub releases: counted at build, refreshed in the browser. Big: it's the proof. */
+  .downloads { display: inline-flex; align-items: center; gap: 14px; margin-top: 36px; text-decoration: none; color: var(--ink); }
   .downloads[hidden] { display: none; }
-  .dl-count { font-size: var(--t-l); text-shadow: var(--bold); letter-spacing: 0.0625em; }
-  .dl-label { font-size: var(--t-s); color: var(--muted); letter-spacing: 0.0625em; }
+  .dl-count { font-size: calc(var(--t-xl) * 0.85); line-height: 1; text-shadow: var(--bold); letter-spacing: 0.0625em; }
+  .dl-label { font-size: var(--t-m); color: var(--muted); letter-spacing: 0.0625em; }
   .downloads:hover .dl-count { color: var(--red); }
-  .downloads + .hero-note { margin-top: 12px; }
+  /* The facts under it, each behind a small red square (so a wrapped line still reads as a list). */
+  .hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; margin-top: 14px; }
+  .hero-meta > * { display: inline-flex; align-items: center; gap: 8px; }
+  .hero-meta > *::before { content: ''; width: var(--px); height: var(--px); padding: calc(var(--px) * 0.5); background: var(--red); }
 
   .hero-art { position: relative; }
-  /* Both handhelds at once: the Thor at the back on the right, the one-screen one in front, lower left. */
-  .duo { position: relative; padding-bottom: 6%; }
-  .duo-dual { position: relative; width: 74%; margin-left: auto; }
-  .duo-single { position: absolute; left: -4%; bottom: 0; width: 76%; z-index: 2; }
-  /* Its game keeps the whole picture: at this size the text box would be a sliver beside the panel. */
-  .duo-single :global(.textbox) { display: none; }
-  .duo :global(.device) { margin: 0; max-width: none; }
-  .duo-single :global(.device) { filter: drop-shadow(calc(var(--px) * 4) calc(var(--px) * 4) 0 rgba(29, 27, 38, 0.22)); }
+  /* Both handhelds at once: the Thor at the back on the right, the Retroid Pocket 5 in front, lower left,
+     over only the Thor's bottom edge so both sets of controls show. */
+  .duo { position: relative; display: grid; }
+  .duo-dual { position: relative; width: 66%; margin-left: auto; }
+  .duo-single { position: relative; width: 82%; margin-top: -6%; z-index: 2; }
   .glow { position: absolute; inset: -6% -4%; background: radial-gradient(closest-side, rgba(232, 48, 40, 0.18), rgba(61, 111, 224, 0.12) 60%, transparent); filter: blur(30px); }
-  .tag { position: absolute; z-index: 1; filter: var(--hard-shadow); animation: hover 5s steps(10) infinite alternate-reverse; }
-  .tag-dual { right: -12px; top: -18px; }
-  .tag-single { left: 8%; top: -22px; }
 
   /* Ticker */
   .ticker { background: var(--ink); color: #fff; overflow: hidden; border-block: var(--px) solid var(--ink); }
@@ -435,15 +428,10 @@ const title = 'POKEDAISY'.split('');
     .support { grid-template-columns: 1fr; padding: calc(var(--px) * 8); }
   }
   @media (max-width: 760px) {
-    .dialog, .hero-kicker { font-size: var(--t-m); }
+    .hero-lead { font-size: var(--t-m); }
   }
   @media (max-width: 560px) {
     .feature-grid, .player-grid { grid-template-columns: 1fr; }
-    /* The two labels stay (they're the point of the picture), smaller and inside the edges. */
-    .tag { font-size: var(--t-xs); }
-    .tag-dual { right: 0; top: -16px; }
-    .tag-single { left: 4%; top: -18px; }
-    .duo-single { left: 0; }
   }
 </style>
 
@@ -452,24 +440,9 @@ const title = 'POKEDAISY'.split('');
 
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // The hero's message types itself out like the game's text box.
-  const box = document.querySelector<HTMLElement>('[data-type]');
-  const textEl = box?.querySelector<HTMLElement>('[data-type-text]');
-  if (box && textEl && !reduce) {
-    const full = textEl.textContent ?? '';
-    textEl.style.minHeight = `${textEl.offsetHeight}px`;
-    textEl.textContent = '';
-    let i = 0;
-    setTimeout(function type() {
-      textEl.textContent = full.slice(0, ++i);
-      if (i < full.length) setTimeout(type, full[i - 1] === '.' || full[i - 1] === ':' ? 260 : 28);
-      else box.classList.add('done');
-    }, 900);
-  } else box?.classList.add('done');
-
-  // The one-screen handheld's companion slides in beside its game once the page has settled.
-  const single = document.querySelector<HTMLElement>('[data-single-device]');
-  setTimeout(() => single?.classList.add('open'), reduce ? 0 : 1600);
+  // The one-screen handheld's companion window opens and closes as its demo plays (CompanionDemo); without
+  // motion it just stays open.
+  if (reduce) document.querySelector<HTMLElement>('[data-single-device]')?.classList.add('open');
 
   // The download count, fresh from GitHub (the build's number stays if that fails or is rate-limited).
   const dl = document.querySelector<HTMLElement>('[data-downloads]');
