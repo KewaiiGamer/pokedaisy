@@ -105,6 +105,10 @@ class CoopLinkBattle(
         const val TRACE_MAX = 40
         /** A head block refused this many frames running gets its bytes and the bridge's position in the log (once). */
         const val STUCK_LOG_FRAMES = 120
+        /** A running battle whose blocks stop (none sent, given or heard) this long gets its position logged, then again every [STALL_REPEAT_MS], [STALL_LOGS] times. */
+        const val STALL_MS = 5_000L
+        const val STALL_REPEAT_MS = 10_000L
+        const val STALL_LOGS = 6
     }
 
     var log: (String) -> Unit = {}
@@ -134,6 +138,12 @@ class CoopLinkBattle(
     private val heardTrace = StringBuilder(); private var heardN = 0
     private var traceLogged = false
     private var stuckLogged = false
+    // the stall watch: running totals and the wall time of the last block each way (a battle that stands still logs where it stands)
+    private var totalSent = 0; private var totalGiven = 0
+    @Volatile private var totalHeard = 0
+    private var lastMoveAt = 0L; private var stallLogs = 0; private var stallLoggedAt = 0L; private var marked = 0
+    private var lastSentKind = -1; private var lastSentSeq = -1; private var lastGivenKind = -1; private var lastGivenSeq = -1
+    @Volatile private var lastHeardSeq = -1; @Volatile private var lastHeardKind = -1
     /** Blocks the game refused after its battle ended (the other player's trailing "done"): dropped, counted. */
     var dropped = 0
         private set
@@ -177,6 +187,7 @@ class CoopLinkBattle(
 
     fun onMessage(m: CoopBattleMsg) = synchronized(inboxLock) {
         if (m is CoopBattleMsg.LinkBlock) {
+            totalHeard++; lastHeardSeq = m.seq; lastHeardKind = (m.bytes.getOrNull(0)?.toInt() ?: 0) and 0xFF
             if (heardN < TRACE_MAX) { heardN++; heardTrace.append(' ').append((m.bytes.getOrNull(0)?.toInt() ?: 0) and 0xFF).append('/').append(m.seq).append('/').append(m.bytes.size - 4).append(if (active) "" else "(idle)") }
         }
         if (!active && !(m is CoopBattleMsg.LinkBlock && expected != 0 && m.battleId == expected)) return@synchronized
@@ -235,7 +246,22 @@ class CoopLinkBattle(
             finish(blackout = story)
             return
         }
+        watchStall()
         if (endedSeen) waitForResult()
+    }
+
+    /** Evidence for a battle that stands still: no block sent, given or heard for [STALL_MS] while the link is up (wall time, so fast-forward doesn't change it). */
+    private fun watchStall() {
+        val now = clock()
+        val seen = totalSent + totalGiven + totalHeard
+        if (seen != marked || lastMoveAt == 0L) { marked = seen; lastMoveAt = now; stallLogs = 0; return }
+        if (endedSeen || downAt != null || stallLogs >= STALL_LOGS) return
+        val idle = now - lastMoveAt
+        if (idle < STALL_MS || (stallLogs > 0 && now - stallLoggedAt < STALL_REPEAT_MS)) return
+        stallLogs++; stallLoggedAt = now
+        log("link battle: no block for ${idle / 1000} s ($stallLogs): sent $totalSent (last $lastSentKind/$lastSentSeq), given $totalGiven (last $lastGivenKind/$lastGivenSeq), " +
+            "heard $totalHeard (last $lastHeardKind/$lastHeardSeq), lastSeq $lastSeq, ready ${ready.size}, outbox ${outbox.size}, connected ${channel.connected}; bridge ${engine.diag()}")
+        badBlocksLog(engine.badBlocks()).forEach { log("link battle: refused block $it") }
     }
 
     /** The bridge said ENDED: the game's own end runs (field, prize, flags, evolutions); the result shows once it is all through. */
@@ -294,6 +320,7 @@ class CoopLinkBattle(
             val seq = b[1].toInt() and 0xFF
             val (type, payload) = CoopBattleWire.encode(CoopBattleMsg.LinkBlock(battleId, seq, b))
             if (!channel.send(type, payload)) return
+            totalSent++; lastSentKind = b[0].toInt() and 0xFF; lastSentSeq = seq
             if (sentN < TRACE_MAX) { sentN++; sentTrace.append(' ').append(b[0].toInt() and 0xFF).append('/').append(seq).append('/').append(b.size - 4) }
             outbox.removeFirst()
         }
@@ -307,6 +334,7 @@ class CoopLinkBattle(
     private fun giveReady(): Boolean {
         while (ready.isNotEmpty()) {
             if (engine.give(ready.first())) {
+                totalGiven++; lastGivenKind = ready.first()[0].toInt() and 0xFF; lastGivenSeq = ready.first()[1].toInt() and 0xFF
                 if (gotN < TRACE_MAX) { val h = ready.first(); gotN++; gotTrace.append(' ').append(h[0].toInt() and 0xFF).append('/').append(h[1].toInt() and 0xFF).append('/').append(h.size - 4) }
                 if (refusals > 0) retried++; ready.removeFirst(); refusals = 0; stuckLogged = false
             }
@@ -395,6 +423,7 @@ class CoopLinkBattle(
         outbox.clear(); ready.clear()
         sentTrace.setLength(0); gotTrace.setLength(0); sentN = 0; gotN = 0; traceLogged = false; stuckLogged = false
         lastSeq = -1; refusals = 0; downAt = null; endedSeen = false; endFrames = 0; settleFrames = 0; flushFrames = 0
+        totalSent = 0; totalGiven = 0; totalHeard = 0; lastMoveAt = 0L; stallLogs = 0; marked = 0
         reported = false; active = false; pumping = false; cancelled = false; dropped = 0; retried = 0
     }
 }
